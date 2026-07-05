@@ -1427,6 +1427,17 @@ async def admin_action(body: AdminActionIn, admin: dict = Depends(require_admin)
         await db.users.update_one({"id": body.target_user_id}, {"$set": {"status": "active"}, "$unset": {"suspended_until": ""}})
     return {"ok": True}
 
+def _strip_admin_user(u: dict) -> dict:
+    """Remove precise coords from admin views. Admin never needs raw GPS."""
+    loc = u.get("location")
+    if isinstance(loc, dict):
+        u["location"] = {
+            "country": loc.get("country"),
+            "city": loc.get("city"),
+            "comuna": loc.get("comuna"),
+        }
+    return u
+
 @api.get("/admin/users")
 async def admin_list_users(q: str = "", _: dict = Depends(require_admin)):
     query = {}
@@ -1441,6 +1452,7 @@ async def admin_list_users(q: str = "", _: dict = Depends(require_admin)):
     for u in users:
         u["strikes"] = u.get("strikes", 0)
         u["report_count"] = report_counts.get(u["id"], 0)
+        _strip_admin_user(u)
     return users
 
 @api.get("/admin/user/{uid}")
@@ -1448,6 +1460,7 @@ async def admin_get_user(uid: str, _: dict = Depends(require_admin)):
     u = await db.users.find_one({"id": uid}, {"password_hash": 0, "_id": 0})
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    _strip_admin_user(u)
     reports = await db.reports.find({"target_user": uid}, {"_id": 0}).to_list(200)
     actions = await db.admin_actions.find({"user_id": uid}, {"_id": 0}).to_list(200)
     return {"user": u, "reports": reports, "actions": actions}

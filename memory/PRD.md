@@ -28,6 +28,24 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
+## Implementado (v1.5 - Feb 2026 - AJUSTESV2 Bloques A/B/C)
+- ✅ **Bloque A (coherencia de ubicación + Google Auth UX)**:
+  - **Bug fix crítico**: `PATCH /profile/me` sólo re-deriva `location` cuando el usuario cambia explícitamente (envía `location` object o cambia `comuna` a un valor distinto). Antes cualquier `PATCH` que incluyera `comuna` pisaba las coordenadas GPS.
+  - Nuevo componente `LocationPicker` reusable con GPS → confirmación → fallback manual.
+  - Onboarding ahora tiene 8 pasos: paso 2 dedicado a "¿Dónde estás?". Step 0 ya no muestra dropdown de comuna.
+  - EditProfile reemplaza dropdown comuna por `LocationPicker` y sólo envía `location` cuando el usuario lo cambia.
+  - Waitlist gate: si el LocationPicker detecta país ≠ CL, redirige a `/waitlist`.
+  - Login: si el usuario existe pero es sólo-Google (`password_hash: null`), mensaje amable "Esta cuenta ingresa con Google. Usa el botón Continuar con Google".
+- ✅ **Bloque B (privacidad de ubicación)**:
+  - Coords almacenadas se redondean a 2 decimales (~1km) via `round_coords`. Migración idempotente al startup.
+  - `bucket_distance_km()`: distancia expuesta en múltiplos de 5, mínimo 5, máximo 50 (frontend muestra "50+"). Nunca decimales.
+  - `/api/admin/users` y `/api/admin/user/{id}` proyectan `location` sin `coords` (admin nunca ve GPS crudo).
+  - `reverseGeocode(lat,lng)` en `geo.js` reemplaza el enriquecimiento por IP en la rama GPS (evita mezclar la ciudad de tu VPN con tus coords reales).
+- ✅ **Bloque C (Sobre mí)**:
+  - Campo `bio` (máx 300 chars) con validación anti-spam: rechaza URLs (`http://`, `www.`, TLDs comunes) y secuencias telefónicas.
+  - Textarea en Onboarding paso 6 y en EditProfile, con contador `X/300`.
+  - Tarjeta destacada "✍️ Sobre mí" en Discover (debajo de la foto) y en el propio Profile del usuario.
+
 ## Implementado (v1.4 - Feb 2026 - Google Auth)
 - ✅ **Emergent-managed Google Auth** coexistiendo con email/password:
   - `POST /api/auth/google/session` (backend) intercambia el `session_id` de Emergent Auth por el mismo JWT que usa el resto del app (Bearer + cookie).
