@@ -1,6 +1,6 @@
 # PlanSobrio - Product Requirements Document
 
-**Última actualización:** 2026-02-05
+**Última actualización:** 2026-02-06
 
 ## Concepto
 App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de conexión en un solo lugar: Apoyo, Amistad, Amor y Grupos. Diferenciador: "match por plan" — el usuario propone una actividad sobria concreta al dar like, y el chat se abre con ese plan como primer mensaje.
@@ -28,7 +28,22 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
-## Implementado (v2.0 - Feb 2026 - Rediseño Blanco Editorial)
+## Implementado (v2.1 - Feb 2026 - ONBOARDINGPERFIL Bloques 1 y 2)
+- ✅ **Bloque 1 backend** (sesión previa):
+  - Onboarding acepta 1–6 frases (antes fijo en 3). Validación server-side en `POST /profile/onboarding` y `PATCH /profile/me`.
+  - Nuevos campos opcionales de perfil: `height_cm` (140–210), `has_children` (si/no/prefiero_no_decir), `zodiac` (derivado de la fecha de nacimiento).
+  - Switches de privacidad granular: `show_height` (default false), `show_children` (default true), `show_zodiac` (default false), `show_modes` (default true).
+  - `clear_public(user, viewer)` refactorizado: filtra los campos ocultos y respeta `show_modes` (oculta el array completo si off).
+  - `GET /api/profile/me/completeness` → `{percent, next_suggestion}` con score ponderado (fotos 20, bio 15, prompts 15, panoramas 10, height 10, hijos 10, zodiac 5, gps 15).
+  - Migración idempotente al startup: setea defaults de switches para usuarios existentes y calcula zodiac desde birthdate.
+- ✅ **Bloque 2 frontend**:
+  - `Onboarding.jsx`: ahora 9 pasos. Paso 6 (Frases) permite agregar/quitar frases dinámicamente (1–6). Paso 7 nuevo "Detalles sobre ti" con inputs opcionales de altura, hijos y switches de visibilidad para altura/hijos/signo/modos.
+  - `EditProfile.jsx`: sección "Detalles sobre ti" (estatura, hijos, signo derivado) + sección "Qué se muestra en mi perfil" con 4 switches. Prompts pasan a ser dinámicos con `edit-prompt-add`/`edit-prompt-remove-N`.
+  - `Profile.jsx`: medidor visual "Completa tu perfil" en el tope con barra gradient + `next_suggestion` CTA a editar perfil (se oculta al 100%). Nueva tarjeta "Busca · Detalles" con iconos Lucide (Ruler/Baby/Star) filtrada por los propios switches.
+  - `Discover.jsx` + `PublicProfile.jsx`: tarjeta "Busca · Detalles" bajo la bio (data-testid `discover-details` / `pp-details`), oculta si no hay datos visibles.
+  - Backend `backend_test.py`: nueva clase `TestOnboardingLite` con 8 tests (bounds prompts, detail fields, privacy respect, completeness endpoint). Suite completa: 22/22 verde.
+
+
 - ✅ **Sistema de diseño**: nuevos tokens (`#0B0C10` fondo, `#1D212B` card, borde `.16`), gradiente coral→violeta EXCLUSIVAMENTE en botones primarios / tab activo / barrita de menú activo / avatares sin foto / riel de "Sobre mí" / pantalla de match. Menta sólo para insignia Sprout y estados confirmados. Coral suelto sólo para distancia, badge de notificaciones y fila "Necesito apoyo".
 - ✅ **Cero emojis en UI**: reemplazados en Descubrir, Grupos, Chats, Les tincas, ChatDetail (plan bar + system messages), MisPlanes, Perfil, Onboarding, EditProfile, PublicProfile, LocationPicker, NecesitoApoyo, Waitlist, CuentaSuspendida, GroupDetail. Los emojis que escriben usuarios en bio/mensajes/frases se preservan. Admin queda "mínimo funcional".
 - ✅ **Icon registry** (`/app/frontend/src/lib/icons.jsx`) con `<Icon name="..."/>` y mapa `emojiToIconName` para grupos legacy.
@@ -139,6 +154,7 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 
 ## Backlog / Próximos pasos
 ### P1
+- [ ] **Grupo "PlanSobrio · Feedback"**: grupo especial verificado con `POST /api/groups/{id}/posts` (thread 1 nivel) en lugar de chat/eventos estándar.
 - [ ] Notificaciones push o email cuando hay match nuevo o mensaje
 - [ ] Verificación de foto por selfie (anti perfiles falsos)
 - [ ] CRUD de eventos desde admin (creación fue implementada, editar/eliminar en admin panel)
