@@ -698,18 +698,22 @@ async def list_matches(user: dict = Depends(current_user)):
         d = row["doc"]; d.pop("_id", None)
         last_by_match[row["_id"]] = d
 
-    # Unread count per match: messages after last_read from non-self, non-system
+    # Unread count per match: messages after last_read from non-self, non-system.
+    # Precompute the lowest last_read across matches for a coarse $match to reduce work.
+    min_last_read = min(reads.values(), default="1970-01-01T00:00:00+00:00") if reads else "1970-01-01T00:00:00+00:00"
     unread_pipeline = [
         {"$match": {
             "match_id": {"$in": match_ids},
             "from_user": {"$nin": [uid, "system"]},
+            "created_at": {"$gt": min_last_read},
         }},
-        {"$group": {"_id": "$match_id", "msgs": {"$push": {"c": "$created_at"}}}},
+        {"$group": {"_id": {"match_id": "$match_id", "created_at": "$created_at"}}},
+        {"$group": {"_id": "$_id.match_id", "msgs": {"$push": "$_id.created_at"}}},
     ]
     unread_by_match = {}
     async for row in db.messages.aggregate(unread_pipeline):
         last_read = reads.get(row["_id"], "1970-01-01T00:00:00+00:00")
-        unread_by_match[row["_id"]] = sum(1 for m in row["msgs"] if m["c"] > last_read)
+        unread_by_match[row["_id"]] = sum(1 for c in row["msgs"] if c > last_read)
 
     result = []
     for m in matches:
@@ -743,9 +747,13 @@ async def notif_counts(user: dict = Depends(current_user)):
         return {"new_matches": new_matches, "unread_messages": 0, "total": new_matches}
     match_ids = [m["id"] for m in my_matches]
     reads = {r["match_id"]: r["last_read_at"] async for r in db.reads.find({"user_id": user["id"], "match_id": {"$in": match_ids}}, {"_id": 0})}
-    # One aggregation pipeline for unread messages count
+    min_last_read = min(reads.values(), default="1970-01-01T00:00:00+00:00") if reads else "1970-01-01T00:00:00+00:00"
     pipe = [
-        {"$match": {"match_id": {"$in": match_ids}, "from_user": {"$nin": [user["id"], "system"]}}},
+        {"$match": {
+            "match_id": {"$in": match_ids},
+            "from_user": {"$nin": [user["id"], "system"]},
+            "created_at": {"$gt": min_last_read},
+        }},
         {"$group": {"_id": "$match_id", "msgs": {"$push": "$created_at"}}},
     ]
     unread_messages = 0
