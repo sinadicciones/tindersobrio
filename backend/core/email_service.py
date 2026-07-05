@@ -37,6 +37,11 @@ SENDER = os.environ.get("RESEND_SENDER", "PlanSobrio <hola@plansobrio.com>")
 REPLY_TO = os.environ.get("RESEND_REPLY_TO", "contacto@sinadicciones.org")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://plansobrio.com").rstrip("/")
 JWT_SECRET = os.environ.get("JWT_SECRET", "change-me")
+# Environment flag — when "preview" / "dev", internal admin notifications are
+# suppressed (test user churn should never spam the ops team). Transactional
+# emails to actual end users still go out so we can validate delivery.
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "production").lower()
+SUPPRESS_INTERNAL = ENVIRONMENT in ("preview", "dev", "development", "test")
 
 if API_KEY:
     resend.api_key = API_KEY
@@ -576,6 +581,21 @@ async def send_internal_email(
     """Send an internal email to all active admin recipients for this notif_type.
     Handles 1/hour grouping for grave reports via `grave_group_ref`.
     """
+    # In non-production environments, log the intent but never send.
+    # Prevents preview/dev test-user churn from flooding real admin inboxes.
+    if SUPPRESS_INTERNAL:
+        logger.info(f"[email:internal-suppressed] env={ENVIRONMENT} type={notif_type} ref={event_ref}")
+        await db.email_log.update_one(
+            {"idempotency_key": _idempotency_key("internal", notif_type, event_ref)},
+            {"$set": {
+                "type": notif_type, "event_ref": event_ref, "subject": subject,
+                "status": "skipped_env", "created_at": datetime.now(timezone.utc).isoformat(),
+                "environment": ENVIRONMENT,
+            }},
+            upsert=True,
+        )
+        return {"ok": True, "reason": f"suppressed_in_{ENVIRONMENT}"}
+
     recipients = await get_admin_recipients(db, notif_type)
     if not recipients:
         return {"ok": False, "reason": "no_recipients"}

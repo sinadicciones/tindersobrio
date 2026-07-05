@@ -278,10 +278,18 @@ class TestAdminStatsAndSummary:
         assert r.status_code == 200
         j = r.json()
         assert j.get("ok") is True
+        # In preview/dev/test envs, internal emails are suppressed by design.
+        import sys as _sys
+        _sys.path.insert(0, "/app/backend")
+        from core import email_service as _es  # type: ignore
+        if _es.SUPPRESS_INTERNAL:
+            assert "suppressed" in (j.get("reason") or ""), f"expected suppressed reason, got {j}"
+            log = db.email_log.find_one({"type": "admin_daily_summary", "status": "skipped_env"})
+            assert log is not None
+            assert log.get("environment") == _es.ENVIRONMENT
+            return
         assert "results" in j and len(j["results"]) >= 1
-        # At least one should be sent (real Resend or fine to have error but not queued)
         statuses = [x.get("reason") for x in j.get("results", [])]
-        # Sent responses have no 'reason' key — treat presence of resend_id as sent
         rids = [x.get("resend_id") for x in j.get("results", []) if x.get("resend_id")]
         assert len(rids) >= 1 or all(s == "duplicate" for s in statuses if s)
 

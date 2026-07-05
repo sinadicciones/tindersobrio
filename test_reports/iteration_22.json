@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 22 — both FIXES VERIFIED. FIX 1 (env-based internal email suppression): with ENVIRONMENT=preview in /app/backend/.env, SUPPRESS_INTERNAL=True; new user register+onboarding creates email_log entry {type:'admin_new_user', status:'skipped_env', environment:'preview'} — no email actually sent. Transactional welcome + waitlist + password_reset still send normally (status='sent'). admin_daily_summary (via /admin/email/send-daily-summary) and admin_grave_report (direct invocation) both suppressed with status='skipped_env'. Production/blank env would NOT suppress (logic verified). FIX 2 (PublicProfile carousel): with demo11 seeded to 3 photos and demo12 (matched) viewing /app/usuario/{demo11_id}, all carousel elements render (pp-photo, pp-photo-prev, pp-photo-next, pp-photo-prev-zone, pp-photo-next-zone, pp-photo-dot-0..2, no dot-3). Clicking next 3x wraps back to photo[0]; clicking prev-zone wraps forward to photo[2]; prev-btn goes back to photo[1]. With 1 photo (demo1): only pp-photo, no chevrons/dots/zones. With 0 photos (demo2): pp-photo absent, avatar fallback shown. Regression: test_iteration17_emails 21/22 pass (1 pre-existing seeded-recipient failure unrelated to fix); full backend suite: 200 passed / 4 pre-existing failures / 1 skipped.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration22_env_suppression.py",
+    "/app/test_reports/pytest/iter22_env.xml",
+    "/app/test_reports/pytest/iter22_full.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "email_service.py lines 40-44: ENVIRONMENT resolution + SUPPRESS_INTERNAL set includes 'preview','dev','development','test' — sensible defaults. Default 'production' means prod-safe if var missing.",
+    "email_service.py send_internal_email (lines 583-597): early-return uses upsert with idempotency_key so repeat sends collapse — good. Logs environment field so ops can audit. Skips get_admin_recipients + Resend call entirely — no accidental leaks.",
+    "PublicProfile.jsx (lines 34-102): clean carousel: photoIdx state + modulo wrap for next/prev + separate tap-zones for phone UX + chevrons + dots. hasMultiple gate prevents extras when photos.length<=1. Fallback avatar rendered when no photo. alt updates with photo index for a11y.",
+    "test_iteration17_emails.py::test_seeded_recipients still fails because DB seed only has nelson@ — pre-existing (documented in iter21). Not caused by these fixes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration22_env_suppression.py (NEW — 7 tests, all passing)",
+    "/app/backend/tests/test_iteration17_emails.py (adjusted test_force_daily_summary to accept suppressed reason when SUPPRESS_INTERNAL is True)"
+  ],
+  "success_rate": {"backend": "100% for FIX 1 (7/7 new tests). Full suite: 200 passed / 4 pre-existing failures (test_iteration7_geo lat rounding, test_iteration17 seeded recipient, test_iteration4 unread flow, test_iteration8 comuna rederive — all unrelated).", "frontend": "100% for FIX 2 (3-photo carousel, 1-photo no carousel, 0-photo avatar all verified)"},
+  "test_credentials": "admin: contacto@sinadicciones.org / Jodorowsky100; demo11+demo12@plansobrio.cl / Demo1234!",
+  "seed_data_creation": "Temporarily seeded demo11@plansobrio.cl with 3 Unsplash photos to exercise the carousel; restored to 1 photo after testing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend .env has ENVIRONMENT=preview so all internal admin emails will be logged with status='skipped_env' — this is expected behavior for preview. When testing anything that touches send_internal_email, look for status='skipped_env' + environment='preview' in email_log, NOT status='sent'. The test_iteration17_emails.py::test_force_daily_summary now auto-detects SUPPRESS_INTERNAL and asserts the suppressed branch. demo11 restored to 1 photo; if you need multi-photo again, re-seed via db.users.update_one.",
+  "rca_of_the_issue": {
+    "fix_1": "Root cause: preview DB user churn (created by testing agents) fired admin_new_user emails through send_internal_email → Resend → real inbox at nelson@sinadicciones.org. Solution: gate send_internal_email on ENVIRONMENT env var; suppress in preview/dev/development/test. Verified via direct HTTP flow (register+onboarding) that email_log has status='skipped_env' and no Resend call is made. Verified transactional welcome/waitlist STILL send in preview.",
+    "fix_2": "PublicProfile only had `photos[0]` displayed regardless of length. Added photoIdx state + carousel UI (chevron buttons + tap zones + dots) gated on photos.length>1. Verified all data-testids and wrap-around behavior."
+  }
+}

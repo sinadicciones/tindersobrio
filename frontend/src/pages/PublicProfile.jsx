@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine, HeartHandshake, Smile, Heart, Users as UsersIcon, Ruler, Baby, Star } from "lucide-react";
+import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine, HeartHandshake, Smile, Heart, Users as UsersIcon, Ruler, Baby, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { MODES, REPORT_CATEGORIES } from "@/constants/comunas";
 
@@ -16,6 +16,7 @@ export default function PublicProfile() {
   const nav = useNavigate();
   const [profile, setProfile] = useState(null);
   const [reporting, setReporting] = useState(false);
+  const [photoIdx, setPhotoIdx] = useState(0);
 
   useEffect(() => {
     api.get(`/profile/${id}`)
@@ -30,7 +31,9 @@ export default function PublicProfile() {
   };
 
   if (!profile) return <div className="p-6 text-white/60">Cargando…</div>;
-  const firstPhoto = profile.photos?.[0];
+  const photos = profile.photos || [];
+  const photo = photos[photoIdx];
+  const hasMultiple = photos.length > 1;
 
   return (
     <div className="mx-auto max-w-md px-4 pt-4 pb-24">
@@ -39,13 +42,65 @@ export default function PublicProfile() {
       </button>
 
       <div className="ps-card overflow-hidden">
-        {firstPhoto ? (
-          <img src={fileUrl(firstPhoto)} alt={profile.alias} className="w-full aspect-[4/5] object-cover"/>
-        ) : (
-          <div className="w-full aspect-[4/5] flex items-center justify-center ps-gradient">
-            <Avatar user={profile} size={120}/>
-          </div>
-        )}
+        <div className="relative">
+          {photo ? (
+            <img
+              data-testid="pp-photo"
+              src={fileUrl(photo)}
+              alt={`${profile.alias} · foto ${photoIdx + 1}`}
+              className="w-full aspect-[4/5] object-cover select-none"
+              draggable={false}
+            />
+          ) : (
+            <div className="w-full aspect-[4/5] flex items-center justify-center ps-gradient">
+              <Avatar user={profile} size={120}/>
+            </div>
+          )}
+          {hasMultiple && (
+            <>
+              {/* Tap zones for prev/next — invisible left/right halves for easy phone taps */}
+              <button
+                data-testid="pp-photo-prev-zone"
+                aria-label="Foto anterior"
+                onClick={() => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length)}
+                className="absolute inset-y-0 left-0 w-1/2 focus:outline-none"
+              />
+              <button
+                data-testid="pp-photo-next-zone"
+                aria-label="Foto siguiente"
+                onClick={() => setPhotoIdx((i) => (i + 1) % photos.length)}
+                className="absolute inset-y-0 right-0 w-1/2 focus:outline-none"
+              />
+              {/* Chevron buttons for desktop */}
+              <button
+                data-testid="pp-photo-prev"
+                onClick={() => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full grid place-items-center bg-black/45 hover:bg-black/65 text-white transition"
+                aria-label="Foto anterior"
+              >
+                <ChevronLeft size={20} strokeWidth={2}/>
+              </button>
+              <button
+                data-testid="pp-photo-next"
+                onClick={() => setPhotoIdx((i) => (i + 1) % photos.length)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full grid place-items-center bg-black/45 hover:bg-black/65 text-white transition"
+                aria-label="Foto siguiente"
+              >
+                <ChevronRight size={20} strokeWidth={2}/>
+              </button>
+              {/* Dot indicators at top */}
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 flex gap-1.5 px-2 py-1 rounded-full bg-black/40">
+                {photos.map((_, i) => (
+                  <span
+                    key={i}
+                    data-testid={`pp-photo-dot-${i}`}
+                    className={`block h-1.5 rounded-full transition-all ${i === photoIdx ? "w-6 bg-white" : "w-1.5 bg-white/40"}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <div className="p-5">
           <div className="flex items-baseline gap-2">
             <h1 data-testid="pp-alias" className="font-display text-3xl font-black">{profile.alias}</h1>
