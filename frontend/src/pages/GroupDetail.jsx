@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, Users, Calendar, MapPin, LogOut } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MapPin, LogOut, Globe } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -79,7 +79,10 @@ export default function GroupDetail() {
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "rgba(139,92,246,0.15)" }}>{group.emoji}</div>
           <div className="flex-1">
             <h1 className="font-display text-2xl font-black">{group.name}</h1>
-            <p className="text-sm text-white/60 mt-1 flex items-center gap-2"><Users size={14}/> {group.member_count} · {group.is_online ? "🌐 Online" : `📍 ${group.comuna || ""}`}</p>
+            <p className="text-sm text-[#C7CBD6] mt-1 inline-flex items-center gap-2">
+              <Users size={14} strokeWidth={1.9}/> {group.member_count} ·
+              {group.is_online ? (<><Globe size={14} strokeWidth={1.9}/> Online</>) : (<><MapPin size={14} strokeWidth={1.9}/> {group.comuna || ""}</>)}
+            </p>
           </div>
         </div>
         <p className="mt-3 text-sm text-white/80">{group.description}</p>
@@ -131,7 +134,7 @@ export default function GroupDetail() {
       {tab === "chat" && group.is_member && (
         <div className="mt-4">
           <div data-testid="group-chat-list" className="ps-card p-3 h-[55vh] overflow-y-auto space-y-3">
-            {messages.length === 0 && <p className="text-white/40 text-sm text-center py-8">Sé la primera persona en escribir 👋</p>}
+            {messages.length === 0 && <p className="text-white/40 text-sm text-center py-8">Sé la primera persona en escribir</p>}
             {messages.map((m) => {
               const mine = m.from_user === user?.id;
               const senderPhoto = m.photo ? { photos: [m.photo], alias: m.alias } : { alias: m.alias };

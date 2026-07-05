@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag } from "lucide-react";
+import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { MODES, REPORT_CATEGORIES } from "@/constants/comunas";
 
@@ -63,7 +63,7 @@ export default function PublicProfile() {
           {profile.bio && (
             <div data-testid="pp-bio" className="relative mt-4 pl-4 pr-4 py-4 rounded-2xl overflow-hidden" style={{ background: "linear-gradient(180deg, #1B1F2A 0%, #161922 100%)" }}>
               <div className="absolute left-0 top-0 bottom-0 w-1 ps-gradient rounded-l-2xl"/>
-              <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "#FF6B5E" }}>✍️ Sobre mí</p>
+              <p className="ps-lab"><PencilLine size={12} strokeWidth={1.9}/> Sobre mí</p>
               <p className="mt-2 text-white leading-relaxed">“{profile.bio}”</p>
             </div>
           )}

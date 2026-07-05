@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
 import Avatar from "@/components/Avatar";
 import { toast } from "sonner";
-import { MessageCircle, Heart, Sparkles, X } from "lucide-react";
+import { MessageCircle, Heart, Sparkles, X, CalendarDays } from "lucide-react";
+import { Icon, iconForActivity } from "@/lib/icons";
 
 export default function Chats() {
   const nav = useNavigate();
@@ -58,7 +59,7 @@ export default function Chats() {
       });
       setPlanFor(null);
       if (res.data.match) {
-        toast.success("¡Hay match! 💛");
+        toast.success("¡Hay match!");
         nav(`/app/chats/${res.data.match_id}`);
       } else {
         reload();
@@ -70,103 +71,102 @@ export default function Chats() {
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6">
-      <h1 className="font-display text-3xl font-black">Chats</h1>
-      <p className="text-white/60 mt-1">Tus matches y quienes te han dado me tinca.</p>
+      <h1 className="font-display text-[20px] font-black">Chats</h1>
+      <p className="text-[#C7CBD6] text-sm mt-1">Tus matches y quienes te han dado me tinca.</p>
 
-      {/* Tabs */}
-      <div className="mt-5 flex gap-2 p-1 rounded-full bg-white/5 border border-white/10">
+      {/* Segmented control */}
+      <div className="mt-5 grid grid-cols-2 gap-1 p-1 rounded-full bg-white/5 border border-white/[.16]">
         <button
           data-testid="tab-chats"
           onClick={()=>setTab("chats")}
-          className={`flex-1 py-2 rounded-full text-sm font-semibold transition ${tab==="chats" ? "ps-gradient text-white" : "text-white/70"}`}>
-          <span className="inline-flex items-center gap-1"><MessageCircle size={14}/> Chats</span>
+          className={`py-1.5 rounded-full text-xs font-bold transition inline-flex items-center justify-center gap-1.5 ${tab==="chats" ? "ps-gradient text-white" : "text-[#C7CBD6]"}`}>
+          <MessageCircle size={13} strokeWidth={1.9}/> Chats
         </button>
         <button
           data-testid="tab-likes"
           onClick={openLikesTab}
-          className={`flex-1 py-2 rounded-full text-sm font-semibold transition relative ${tab==="likes" ? "ps-gradient text-white" : "text-white/70"}`}>
-          <span className="inline-flex items-center gap-1"><Heart size={14}/> Les tincas</span>
-          {likesCount > 0 && (
-            <span data-testid="likes-badge" className="absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-[#FF6B5E] text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-[#0E0F13]">
-              {likesCount > 9 ? "9+" : likesCount}
-            </span>
-          )}
+          className={`py-1.5 rounded-full text-xs font-bold transition inline-flex items-center justify-center gap-1.5 relative ${tab==="likes" ? "ps-gradient text-white" : "text-[#C7CBD6]"}`}>
+          <Sparkles size={13} strokeWidth={1.9}/> Les tincas{likesCount > 0 && <span data-testid="likes-badge"> · {likesCount}</span>}
         </button>
       </div>
 
       {tab === "chats" && (
-        <div className="mt-5 space-y-2">
+        <div className="mt-5 space-y-1">
           {matches.length === 0 && (
             <div className="ps-card p-6 text-center">
-              <MessageCircle size={30} className="mx-auto text-white/40"/>
-              <p className="mt-3 text-white/70">Aún no tienes matches.</p>
-              <p className="text-xs text-white/50 mt-1">Ve a Descubrir y dile a alguien &ldquo;me tinca ✨&rdquo;</p>
+              <MessageCircle size={28} className="mx-auto text-[#8E93A3]" strokeWidth={1.9}/>
+              <p className="mt-3 text-[#C7CBD6]">Aún no tienes matches.</p>
+              <p className="text-xs text-[#8E93A3] mt-1">Ve a Descubrir y dile a alguien &ldquo;me tinca&rdquo;</p>
             </div>
           )}
-          {matches.map((m) => (
-            <Link key={m.id} data-testid={`chat-${m.id}`} to={`/app/chats/${m.id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/5 transition">
-              <div className="relative">
-                <Avatar user={m.other} size={54}/>
-                {m.unread > 0 && (
-                  <span data-testid={`chat-unread-${m.id}`} className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1 rounded-full ps-gradient text-white text-xs font-bold flex items-center justify-center ring-2 ring-[#0E0F13]">
-                    {m.unread > 9 ? "9+" : m.unread}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-display font-bold">{m.other?.alias}</p>
-                  <span className="text-[10px] uppercase tracking-wider text-white/40">{m.mode}</span>
+          {matches.map((m) => {
+            const proposedAct = m.confirmed_activity || Object.values(m.proposals || {}).find(Boolean);
+            const iconName = iconForActivity(proposedAct);
+            return (
+              <Link key={m.id} data-testid={`chat-${m.id}`} to={`/app/chats/${m.id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/5 transition">
+                <div className="relative">
+                  <Avatar user={m.other} size={46}/>
+                  {m.unread > 0 && (
+                    <span data-testid={`chat-unread-${m.id}`} className="absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full ps-gradient text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-[#0B0C10]">
+                      {m.unread > 9 ? "9+" : m.unread}
+                    </span>
+                  )}
                 </div>
-                <p className={`text-sm truncate ${m.unread > 0 ? "text-white" : "text-white/60"}`}>{m.last_message?.text || "Nuevo match — di hola 👋"}</p>
-              </div>
-            </Link>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <p className="font-display text-[14px] font-black text-white truncate">{m.other?.alias}</p>
+                  <p className={`text-[12px] truncate ${m.unread > 0 ? "text-white" : "text-[#C7CBD6]"}`}>
+                    {m.last_message?.text || "Nuevo match — di hola"}
+                  </p>
+                  {proposedAct && (
+                    <p className="mt-0.5 text-[11px] text-[#8E93A3] inline-flex items-center gap-1">
+                      <Icon name={iconName} size={11} strokeWidth={1.9}/>
+                      {m.plan_status === "confirmed" ? "Plan confirmado" : `${proposedAct.name} · falta la fecha`}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
 
       {tab === "likes" && (
-        <div data-testid="likes-list" className="mt-5 space-y-3">
+        <div data-testid="likes-list" className="mt-5 space-y-3 pb-24">
+          <p className="ps-lab"><Sparkles size={12} strokeWidth={1.9}/> Te dieron me tinca</p>
           {likes.length === 0 && (
             <div className="ps-card p-6 text-center">
-              <Heart size={30} className="mx-auto text-white/40"/>
-              <p className="mt-3 text-white/70">Cuando alguien te dé me tinca, aparecerá aquí 💛</p>
+              <Sparkles size={28} className="mx-auto text-[#8E93A3]" strokeWidth={1.9}/>
+              <p className="mt-3 text-[#C7CBD6]">Cuando alguien te dé me tinca, aparecerá aquí</p>
             </div>
           )}
           {likes.map((l) => (
             <div key={l.id} data-testid={`like-${l.id}`} className="ps-card p-4">
               <div className="flex items-center gap-3">
                 <Link to={`/app/usuario/${l.profile.id}`} className="shrink-0">
-                  <Avatar user={l.profile} size={54}/>
+                  <Avatar user={l.profile} size={46}/>
                 </Link>
                 <div className="flex-1 min-w-0">
                   <Link to={`/app/usuario/${l.profile.id}`} className="hover:opacity-90">
-                    <p className="font-display font-bold">
+                    <p className="font-display text-[14px] font-black text-white">
                       {l.profile.alias}
-                      {l.profile.age != null && <span className="text-white/60">, {l.profile.age}</span>}
+                      {l.profile.age != null && <span className="text-[#C7CBD6] font-medium">, {l.profile.age}</span>}
                     </p>
                   </Link>
-                  <p className="text-xs text-white/50">
-                    {l.profile.comuna} · <span className="uppercase tracking-wider">{l.mode}</span>
-                  </p>
+                  {l.proposed_activity ? (
+                    <p className="mt-0.5 text-[12px] text-[#C7CBD6] inline-flex items-center gap-1">
+                      Le tinca <Icon name={iconForActivity(l.proposed_activity)} size={12} strokeWidth={1.9}/> ir a {l.proposed_activity.name.toLowerCase()} contigo
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-[12px] text-[#8E93A3]">Aún no propuso un plan — decide tú</p>
+                  )}
                 </div>
               </div>
-              {l.proposed_activity ? (
-                <div className="mt-3 px-3 py-2.5 rounded-2xl bg-[#FF6B5E]/10 border border-[#FF6B5E]/30 flex items-center gap-2">
-                  <Sparkles size={16} className="text-[#FF6B5E]"/>
-                  <p className="text-sm">
-                    Le tinca <span className="font-semibold">{l.proposed_activity.emoji} {l.proposed_activity.name.toLowerCase()}</span> contigo
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-white/60">Aún no propuso un plan — decide tú 😊</p>
-              )}
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <button data-testid={`like-armar-${l.id}`} onClick={()=>openArmarPlan(l)} className="ps-btn-primary flex items-center justify-center gap-2 text-sm">
-                  <Sparkles size={14}/> Armar plan
+                <button data-testid={`like-armar-${l.id}`} onClick={()=>openArmarPlan(l)} className="ps-btn-primary py-2.5 text-sm">
+                  Armar plan
                 </button>
-                <button data-testid={`like-pasar-${l.id}`} onClick={()=>passLike(l)} className="ps-btn-secondary flex items-center justify-center gap-2 text-sm">
-                  <X size={14}/> Pasar
+                <button data-testid={`like-pasar-${l.id}`} onClick={()=>passLike(l)} className="ps-btn-secondary py-2.5 text-sm">
+                  Pasar
                 </button>
               </div>
             </div>
@@ -182,7 +182,9 @@ export default function Chats() {
               <div>
                 <h2 className="font-display text-xl font-black">¿Qué plan harías con {planFor.like.profile.alias}?</h2>
                 {planFor.like.proposed_activity && (
-                  <p className="text-xs text-white/60 mt-0.5">Le tinca {planFor.like.proposed_activity.emoji} {planFor.like.proposed_activity.name.toLowerCase()}</p>
+                  <p className="text-xs text-[#C7CBD6] mt-0.5 inline-flex items-center gap-1">
+                    Le tinca <Icon name={iconForActivity(planFor.like.proposed_activity)} size={12}/> {planFor.like.proposed_activity.name.toLowerCase()}
+                  </p>
                 )}
               </div>
             </div>
@@ -190,8 +192,8 @@ export default function Chats() {
               {activities.map((a) => (
                 <button key={a.id} data-testid={`pick-act-${a.id}`}
                   onClick={()=>setPlanFor((s)=>({ ...s, activity_id: a.id }))}
-                  className={`px-2 py-3 rounded-2xl text-xs border text-center ${planFor.activity_id === a.id ? "ps-gradient border-transparent" : "bg-white/5 border-white/10"}`}>
-                  <div className="text-2xl">{a.emoji}</div>
+                  className={`px-2 py-3 rounded-2xl text-[11px] border text-center ${planFor.activity_id === a.id ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}>
+                  <div className="grid place-items-center"><Icon name={iconForActivity(a)} size={22}/></div>
                   <div className="mt-1 leading-tight">{a.name}</div>
                 </button>
               ))}
@@ -202,7 +204,7 @@ export default function Chats() {
             </button>
             <div className="mt-5 flex gap-2">
               <button onClick={closePlan} className="ps-btn-secondary flex-1">Cancelar</button>
-              <button data-testid="submit-armar-plan" onClick={submitPlan} className="ps-btn-primary flex-1">Enviar ✨</button>
+              <button data-testid="submit-armar-plan" onClick={submitPlan} className="ps-btn-primary flex-1">Enviar</button>
             </div>
           </div>
         </div>

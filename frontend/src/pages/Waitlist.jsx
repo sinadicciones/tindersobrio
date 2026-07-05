@@ -51,7 +51,7 @@ export default function Waitlist() {
           {done ? (
             <div className="mt-6 ps-card p-5 border border-[#4ADE80]/30 text-center">
               <Sparkles className="mx-auto mb-2 text-[#4ADE80]" size={28}/>
-              <p className="font-display text-lg font-bold">¡Gracias! Te avisaremos 💛</p>
+              <p className="font-display text-lg font-bold">¡Gracias! Te avisaremos</p>
               <p className="text-sm text-white/60 mt-1">Mientras tanto puedes leernos en sinadicciones.org.</p>
               <Link to="/" className="ps-btn-secondary mt-5 inline-block">Volver al inicio</Link>
             </div>

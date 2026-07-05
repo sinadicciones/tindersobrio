@@ -6,7 +6,7 @@ import { GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Camera, X, Check } from "lucide-react";
+import { Camera, X, Check, ShieldAlert } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
 
 const STEPS = ["Sobre ti", "¿Qué buscas?", "¿Dónde estás?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Reglas"];
@@ -76,7 +76,7 @@ export default function Onboarding() {
       payload.location = location;
       await api.post("/profile/onboarding", payload);
       await refresh();
-      toast.success("¡Listo! Bienvenide a PlanSobrio 💛");
+      toast.success("¡Listo! Bienvenide a PlanSobrio");
       nav("/app/descubrir");
     } catch (ex) {
       toast.error(formatApiError(ex.response?.data?.detail) || ex.message);
@@ -204,8 +204,9 @@ export default function Onboarding() {
 
           {step === 3 && (
             <div className="mt-6 space-y-4">
-              <div className="ps-card p-4 text-sm text-white/70">
-                🔒 Esto es privado. Nunca se muestra en tu perfil a menos que tú quieras.
+              <div className="ps-card p-4 text-sm text-[#C7CBD6] inline-flex items-start gap-2">
+                <ShieldAlert size={16} strokeWidth={1.9} className="text-[#8B5CF6] shrink-0 mt-0.5"/>
+                <span>Esto es privado. Nunca se muestra en tu perfil a menos que tú quieras.</span>
               </div>
               <div>
                 <label className="text-sm text-white/60 mb-2 block">Tu relación con el alcohol y las drogas</label>
@@ -313,11 +314,11 @@ export default function Onboarding() {
             <div className="mt-6 space-y-4">
               <div className="ps-card p-5 space-y-3 text-sm leading-relaxed">
                 <p className="font-bold text-lg font-display">Reglas de la comunidad</p>
-                <ul className="space-y-2 text-white/80">
-                  <li>🚫 Prohibido ofrecer alcohol o drogas.</li>
-                  <li>🚫 Prohibido romantizar el consumo.</li>
-                  <li>💛 Respeto siempre. Nada de acoso.</li>
-                  <li>🤝 Cuidémonos entre todes.</li>
+                <ul className="space-y-2 text-[#C7CBD6]">
+                  <li>· Prohibido ofrecer alcohol o drogas.</li>
+                  <li>· Prohibido romantizar el consumo.</li>
+                  <li>· Respeto siempre. Nada de acoso.</li>
+                  <li>· Cuidémonos entre todes.</li>
                 </ul>
                 <p className="text-xs text-white/50 mt-3">PlanSobrio no reemplaza tratamiento profesional ni atención de urgencia.</p>
               </div>

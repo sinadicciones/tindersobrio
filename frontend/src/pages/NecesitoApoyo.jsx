@@ -43,46 +43,46 @@ export default function NecesitoApoyo() {
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6">
-      <button onClick={()=>nav(-1)} className="flex items-center gap-1 text-white/70 mb-3"><ArrowLeft size={18}/> Volver</button>
-      <h1 className="font-display text-3xl font-black">Necesito apoyo</h1>
-      <p className="text-white/60 mt-2">Un lugar tranquilo para respirar, recordar tus razones y pedir ayuda.</p>
+      <button onClick={()=>nav(-1)} className="flex items-center gap-1 text-[#C7CBD6] mb-3"><ArrowLeft size={18} strokeWidth={1.9}/> Volver</button>
+      <h1 className="font-display text-[20px] font-black">Necesito apoyo</h1>
+      <p className="text-[#C7CBD6] text-sm mt-2">Un lugar tranquilo para respirar, recordar tus razones y pedir ayuda.</p>
 
       {/* Breathing */}
       <section className="mt-6 ps-card p-6 relative overflow-hidden">
-        <p className="text-xs uppercase tracking-wider text-white/50">Respiración guiada</p>
-        <p className="text-sm mt-1 text-white/70">4s inhala · 4s mantén · 6s exhala. Cierra los ojos si quieres.</p>
+        <p className="ps-lab"><Plus size={12} strokeWidth={1.9}/> Respiración guiada</p>
+        <p className="text-sm mt-1 text-[#C7CBD6]">4s inhala · 4s mantén · 6s exhala. Cierra los ojos si quieres.</p>
         <BreathingCircle/>
       </section>
 
       {/* Mis razones */}
       <section className="mt-5 ps-card p-5">
-        <h2 className="font-display text-xl font-bold">Mis razones</h2>
-        <p className="text-sm text-white/60 mt-1">Escribe frases personales de por qué vives sin consumo. Vuelve a leerlas cuando lo necesites.</p>
+        <p className="ps-lab"><Plus size={12} strokeWidth={1.9}/> Mis razones</p>
+        <p className="text-sm text-[#C7CBD6] mt-1">Escribe frases personales de por qué vives sin consumo. Vuelve a leerlas cuando lo necesites.</p>
         <div className="mt-3 flex gap-2">
           <input data-testid="reason-input" className="ps-input flex-1" placeholder="Ej: quiero verme crecer con calma." value={text} onChange={(e)=>setText(e.target.value)}/>
-          <button data-testid="reason-add" onClick={add} className="ps-btn-primary px-4"><Plus size={16}/></button>
+          <button data-testid="reason-add" onClick={add} className="ps-btn-primary px-4"><Plus size={16} strokeWidth={1.9}/></button>
         </div>
         <div className="mt-4 space-y-2">
           {reasons.map((r) => (
-            <div key={r.id} className="flex items-start gap-2 px-3 py-2 rounded-2xl bg-white/5 border border-white/10">
-              <p className="flex-1 text-sm">💛 {r.text}</p>
-              <button data-testid={`reason-del-${r.id}`} onClick={()=>del(r.id)} className="text-white/40 hover:text-white"><Trash2 size={14}/></button>
+            <div key={r.id} className="flex items-start gap-2 px-3 py-2 rounded-2xl bg-white/5 border border-white/[.16]">
+              <p className="flex-1 text-sm text-white">{r.text}</p>
+              <button data-testid={`reason-del-${r.id}`} onClick={()=>del(r.id)} className="text-[#8E93A3] hover:text-white"><Trash2 size={14} strokeWidth={1.9}/></button>
             </div>
           ))}
-          {reasons.length === 0 && <p className="text-xs text-white/40">Aún no has escrito ninguna. Empieza por una pequeña 🌱</p>}
+          {reasons.length === 0 && <p className="text-xs text-[#8E93A3]">Aún no has escrito ninguna. Empieza por una pequeña.</p>}
         </div>
       </section>
 
-      {/* Telefonos */}
+      {/* Telefonos — mantienen colores de urgencia por diseño explícito */}
       <section className="mt-5 space-y-2">
-        <h2 className="font-display text-xl font-bold">Teléfonos de ayuda en Chile</h2>
+        <p className="ps-lab"><Phone size={12} strokeWidth={1.9}/> Teléfonos de ayuda en Chile</p>
         {linesToShow.map((h, i) => {
           const cls = HELPLINE_COLORS[h.color] || HELPLINE_COLORS.neutral;
           const isLink = !!h.url;
           const href = isLink ? h.url : `tel:${h.phone}`;
           const TESTID_MAP = { "Salud Responde": "tel-salud", "Prevención del suicidio": "tel-suicidio", "Urgencias": "tel-urgencias", "Orientación profesional": "link-sinadicciones" };
           const testId = TESTID_MAP[h.name] || (isLink ? "helpline-link" : "helpline-tel");
-          const Icon = isLink ? ExternalLink : Phone;
+          const HelplineIcon = isLink ? ExternalLink : Phone;
           return (
             <a
               key={h.name || i}
@@ -91,10 +91,10 @@ export default function NecesitoApoyo() {
               {...(isLink ? { target: "_blank", rel: "noreferrer" } : {})}
               className={`flex items-center gap-3 px-4 py-4 rounded-2xl border transition ${cls}`}
             >
-              <Icon className={cls.split(" ").find((c) => c.startsWith("text-")) || "text-white/70"}/>
+              <HelplineIcon size={20} strokeWidth={1.9} className={cls.split(" ").find((c) => c.startsWith("text-")) || "text-white"}/>
               <div className="flex-1">
                 <p className="font-display font-bold text-white">{h.name}</p>
-                <p className="text-sm text-white/70">{h.display}</p>
+                <p className="text-sm text-[#C7CBD6]">{h.display}</p>
               </div>
             </a>
           );

@@ -1,11 +1,16 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import Avatar from "@/components/Avatar";
-import { HeartHandshake, Settings, LogOut, Trash2, Pencil, ExternalLink } from "lucide-react";
+import {
+  LifeBuoy, PencilLine, LogOut, Settings, ExternalLink, Trash2,
+  MapPin, Sprout, ChevronRight, HeartHandshake, Smile, Heart, Users,
+} from "lucide-react";
 import { MODES, soberLabel } from "@/constants/comunas";
 import { fileUrl, formatApiError } from "@/lib/api";
 import api from "@/lib/api";
 import { toast } from "sonner";
+
+const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: Users };
 
 export default function Profile() {
   const { user, logout } = useAuth();
@@ -13,7 +18,7 @@ export default function Profile() {
 
   const delAccount = async () => {
     const first = window.confirm(
-      "⚠️ Eliminar tu cuenta es IRREVERSIBLE.\n\n" +
+      "Eliminar tu cuenta es IRREVERSIBLE.\n\n" +
       "Se borrarán para siempre: tu perfil, tus fotos, todos tus matches, chats, planes, membresías de grupos, eventos y razones guardadas.\n\n" +
       "¿Quieres continuar?"
     );
@@ -24,7 +29,7 @@ export default function Profile() {
     if (typed !== "ELIMINAR") { toast("Cancelado. Tu cuenta sigue activa."); return; }
     try {
       await api.delete("/profile/me");
-      toast.success("Cuenta eliminada. Cuídate mucho 💛");
+      toast.success("Cuenta eliminada. Cuídate mucho.");
       localStorage.removeItem("ps_token");
       nav("/");
     } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
@@ -32,19 +37,66 @@ export default function Profile() {
 
   if (!user) return null;
 
+  const menuItem = (icon, iconTone, title, sub, onClick, to, testid, coral = false) => {
+    const iconStyle = coral
+      ? { color: "#FF6B5E", background: "rgba(255,107,94,.12)", border: "1px solid rgba(255,107,94,.42)" }
+      : { color: iconTone || "#FFFFFF", background: "rgba(255,255,255,.09)", border: "1px solid rgba(255,255,255,.16)" };
+    const outerStyle = coral
+      ? "border-[#FF6B5E]/40 bg-[#FF6B5E]/[.06] hover:bg-[#FF6B5E]/[.1]"
+      : "border-white/[.16] bg-white/5 hover:bg-white/10";
+    const Wrapper = to
+      ? ({ children }) => <Link to={to} data-testid={testid} className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl border transition ${outerStyle}`}>{children}</Link>
+      : ({ children }) => <button data-testid={testid} onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl border transition ${outerStyle}`}>{children}</button>;
+    return (
+      <Wrapper>
+        <span className="w-10 h-10 rounded-2xl grid place-items-center shrink-0" style={iconStyle}>{icon}</span>
+        <div className="flex-1 min-w-0 text-left">
+          <p className="font-display text-[13.5px] font-black leading-tight text-white">{title}</p>
+          {sub && <p className="text-[11px] text-[#8E93A3] mt-0.5 truncate">{sub}</p>}
+        </div>
+        <ChevronRight size={16} strokeWidth={1.9} className="text-[#8E93A3] shrink-0"/>
+      </Wrapper>
+    );
+  };
+
   return (
-    <div className="mx-auto max-w-md px-4 pt-6">
+    <div className="mx-auto max-w-md px-4 pt-6 pb-24">
       <div className="ps-card p-5">
         <div className="flex items-center gap-4">
-          <Avatar user={user} size={72}/>
+          <Avatar user={user} size={64}/>
           <div className="flex-1 min-w-0">
-            <h1 className="font-display text-2xl font-black">{user.alias}</h1>
-            <p className="text-sm text-white/60">{user.comuna}</p>
-            {user.show_sober_time && user.sober_time && (
-              <span className="ps-chip mt-1 inline-flex text-[#4ADE80]" style={{ background: "rgba(74,222,128,0.15)", borderColor: "rgba(74,222,128,0.4)" }}>🌱 {soberLabel(user.sober_time)}</span>
-            )}
+            <h1 className="font-display text-[20px] font-black text-white leading-tight">{user.alias}</h1>
+            <p className="mt-1 text-[12px] text-[#C7CBD6] inline-flex items-center gap-1">
+              <MapPin size={12} strokeWidth={1.9}/> {user.comuna}
+              {user.show_sober_time && user.sober_time && (
+                <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-full" style={{ color: "#4ADE80", background: "rgba(74,222,128,.14)", border: "1px solid rgba(74,222,128,.42)" }}>
+                  <Sprout size={10} strokeWidth={1.9}/> {soberLabel(user.sober_time)}
+                </span>
+              )}
+            </p>
           </div>
         </div>
+
+        {/* Modos: chips blancos uniformes (sin colores por modo) */}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(user.modes || []).map((v) => {
+            const m = MODES.find((x) => x.v === v);
+            const I = MODE_ICON[v];
+            return m ? (
+              <span key={v} className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-white/5 border border-white/[.16] text-white">
+                {I && <I size={12} strokeWidth={1.9}/>} {m.l}
+              </span>
+            ) : null;
+          })}
+        </div>
+
+        {user.bio && (
+          <div data-testid="profile-page-bio" className="ps-bio-card mt-4">
+            <p className="ps-lab"><PencilLine size={12} strokeWidth={1.9}/> Sobre mí</p>
+            <p className="mt-1 text-white leading-relaxed text-[14px]">“{user.bio}”</p>
+          </div>
+        )}
+
         {user.photos?.length > 0 && (
           <div className="mt-4 grid grid-cols-3 gap-2">
             {user.photos.map((p, i) => (
@@ -52,62 +104,32 @@ export default function Profile() {
             ))}
           </div>
         )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {(user.modes || []).map((v) => {
-            const m = MODES.find((x) => x.v === v);
-            return m ? <span key={v} className="ps-chip" style={{ background: `${m.color}22`, borderColor: `${m.color}55`, color: m.color }}>{m.emoji} {m.l}</span> : null;
-          })}
-        </div>
-        {user.bio && (
-          <div data-testid="profile-page-bio" className="relative mt-4 pl-4 pr-4 py-4 rounded-2xl overflow-hidden" style={{ background: "linear-gradient(180deg, #1B1F2A 0%, #161922 100%)", boxShadow: "0 4px 24px rgba(0,0,0,0.35)" }}>
-            <div className="absolute left-0 top-0 bottom-0 w-1 ps-gradient rounded-l-2xl"/>
-            <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "#FF6B5E" }}>✍️ Sobre mí</p>
-            <p className="mt-2 text-white leading-relaxed" style={{ fontSize: "16px" }}>“{user.bio}”</p>
-          </div>
-        )}
-        {user.prompts?.map((p, i) => (
-          <div key={i} className="mt-3 ps-card p-3 bg-white/5">
-            <p className="text-xs text-white/50">{p.q}</p>
-            <p className="text-sm mt-1">{p.a}</p>
+
+        {user.prompts?.filter(p=>p.q&&p.a).map((p, i) => (
+          <div key={i} className="mt-3 ps-card p-3 grid grid-cols-[40px_1fr] gap-3 items-start bg-white/[.03]">
+            <span className="ps-icn"><PencilLine size={18} strokeWidth={1.9}/></span>
+            <div>
+              <p className="ps-lab"><PencilLine size={12} strokeWidth={1.9}/> {p.q?.toUpperCase()}</p>
+              <p className="mt-1 text-[13.5px] text-white leading-snug">{p.a}</p>
+            </div>
           </div>
         ))}
       </div>
 
-      <Link to="/app/necesito-apoyo" data-testid="necesito-apoyo-link" className="mt-4 block ps-card p-4 hover:bg-[#22252E] transition">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(255,107,94,0.25), rgba(139,92,246,0.25))" }}>
-            <HeartHandshake className="text-[#FF6B5E]"/>
-          </div>
-          <div className="flex-1">
-            <p className="font-display font-bold">Necesito apoyo</p>
-            <p className="text-xs text-white/60">Respiración, mis razones y teléfonos de ayuda</p>
-          </div>
-        </div>
-      </Link>
-
       <div className="mt-4 space-y-2">
-        <Link to="/app/perfil/editar" data-testid="edit-profile-link" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
-          <Pencil size={18}/><span className="font-semibold">Editar perfil</span>
-        </Link>
-        {user.role === "admin" && (
-          <Link to="/admin" data-testid="admin-link" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
-            <Settings size={18}/><span className="font-semibold">Panel admin</span>
-          </Link>
-        )}
-        <a href="https://sinadicciones.org" target="_blank" rel="noreferrer" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
-          <ExternalLink size={18}/><span className="font-semibold">Orientación en SinAdicciones.org</span>
-        </a>
-        <Link to="/terminos" data-testid="perfil-terms" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
-          <ExternalLink size={18}/><span className="font-semibold">Términos y reglas</span>
-        </Link>
-        <Link to="/privacidad" data-testid="perfil-privacy" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
-          <ExternalLink size={18}/><span className="font-semibold">Política de privacidad</span>
-        </Link>
-        <button data-testid="logout-btn" onClick={async ()=>{await logout(); nav("/");}} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
-          <LogOut size={18}/><span className="font-semibold">Cerrar sesión</span>
-        </button>
-        <button data-testid="delete-account-btn" onClick={delAccount} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-300">
-          <Trash2 size={18}/><span className="font-semibold">Eliminar cuenta</span>
+        {menuItem(<LifeBuoy size={20} strokeWidth={1.9}/>, null, "Necesito apoyo", "Respiración, mis razones y teléfonos de ayuda", null, "/app/necesito-apoyo", "necesito-apoyo-link", true)}
+        {menuItem(<PencilLine size={20} strokeWidth={1.9}/>, null, "Editar perfil", "Fotos, frases, ubicación y modos", null, "/app/perfil/editar", "edit-profile-link")}
+        {user.role === "admin" && menuItem(<Settings size={20} strokeWidth={1.9}/>, null, "Panel admin", "Moderación y catálogos", null, "/admin", "admin-link")}
+        {menuItem(<ExternalLink size={20} strokeWidth={1.9}/>, null, "Orientación en SinAdicciones.org", "Ayuda profesional y centros", () => window.open("https://sinadicciones.org", "_blank"), null, "external-sinadicciones")}
+        {menuItem(<ExternalLink size={20} strokeWidth={1.9}/>, null, "Términos y reglas", "Cómo cuidamos la comunidad", null, "/terminos", "perfil-terms")}
+        {menuItem(<ExternalLink size={20} strokeWidth={1.9}/>, null, "Política de privacidad", "Qué datos guardamos", null, "/privacidad", "perfil-privacy")}
+        {menuItem(<LogOut size={20} strokeWidth={1.9}/>, null, "Cerrar sesión", null, async ()=>{ await logout(); nav("/"); }, null, "logout-btn")}
+        <button data-testid="delete-account-btn" onClick={delAccount} className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-300 transition">
+          <span className="w-10 h-10 rounded-2xl grid place-items-center bg-red-500/15 border border-red-500/40"><Trash2 size={20} strokeWidth={1.9}/></span>
+          <div className="flex-1 text-left">
+            <p className="font-display text-[13.5px] font-black leading-tight">Eliminar cuenta</p>
+            <p className="text-[11px] text-red-300/70 mt-0.5">Acción irreversible</p>
+          </div>
         </button>
       </div>
     </div>

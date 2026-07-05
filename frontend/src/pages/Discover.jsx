@@ -217,9 +217,9 @@ export default function Discover() {
         <div className="ps-card h-[65vh] flex items-center justify-center"><div className="w-10 h-10 rounded-full border-4 border-white/10 border-t-[#FF6B5E] animate-spin"/></div>
       ) : !current ? (
         <div className="ps-card p-8 text-center">
-          <div className="text-6xl mb-3">🌱</div>
+          <Sprout size={48} strokeWidth={1.6} className="mx-auto text-[#8E93A3] mb-3"/>
           <p className="font-display text-xl font-bold">Por ahora no hay más personas en tu zona.</p>
-          <p className="mt-2 text-white/60 text-sm">La comunidad está creciendo. Mientras tanto, mira los grupos y eventos.</p>
+          <p className="mt-2 text-[#C7CBD6] text-sm">La comunidad está creciendo. Mientras tanto, mira los grupos y eventos.</p>
           <button onClick={()=>nav("/app/grupos")} className="ps-btn-primary mt-6">Ver grupos</button>
         </div>
       ) : (
@@ -419,7 +419,7 @@ function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef 
             className="absolute top-10 left-6 z-20 pointer-events-none"
           >
             <div className="px-4 py-2 rounded-2xl border-4 text-2xl font-black tracking-tight -rotate-[14deg] ps-gradient shadow-2xl">
-              ME TINCA ✨
+              ME TINCA
             </div>
           </motion.div>
           <motion.div

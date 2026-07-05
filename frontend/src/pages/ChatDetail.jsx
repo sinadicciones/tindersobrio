@@ -3,9 +3,10 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { ArrowLeft, MoreVertical, Calendar, Send } from "lucide-react";
+import { ArrowLeft, MoreVertical, Calendar, Send, ChevronRight } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { REPORT_CATEGORIES } from "@/constants/comunas";
+import { Icon, iconForActivity } from "@/lib/icons";
 
 export default function ChatDetail() {
   const { matchId } = useParams();
@@ -78,7 +79,7 @@ export default function ChatDetail() {
   useEffect(() => {
     if (match?.mode === "amor" && !showedTip.current) {
       showedTip.current = true;
-      toast("💛 Consejo: junta de día y en un lugar público para la primera vez. Cuéntale a alguien de confianza dónde estarás.", { duration: 7000 });
+      toast("Consejo: junta de día y en un lugar público para la primera vez. Cuéntale a alguien de confianza dónde estarás.", { duration: 7000 });
     }
   }, [match]);
 
@@ -101,12 +102,12 @@ export default function ChatDetail() {
       await api.post(`/matches/${matchId}/propose-plan`, { activity_id, when });
       setPlanModal(false);
       await load();
-      toast.success("Plan propuesto ✨");
+      toast.success("Plan propuesto");
     } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
   };
 
   const acceptPlan = async (plan_id) => {
-    try { await api.post(`/plans/${plan_id}/accept`); toast.success("¡Plan confirmado! 🎉"); await load(); } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
+    try { await api.post(`/plans/${plan_id}/accept`); toast.success("¡Plan confirmado!"); await load(); } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
   };
 
   const delMatch = async () => {
@@ -154,40 +155,44 @@ export default function ChatDetail() {
         if (status === "confirmed") {
           const a = match.confirmed_activity;
           return (
-            <div data-testid="plan-status-confirmed" className="mt-2 px-4 py-2 rounded-2xl border border-[#4ADE80]/40 bg-[#4ADE80]/10 flex items-center gap-2 text-sm">
-              <span>{a?.emoji || "✅"}</span>
-              <span className="flex-1 truncate">{a?.name || "Plan"} · confirmado</span>
+            <div data-testid="plan-status-confirmed" className="mt-2 px-4 py-2.5 rounded-2xl flex items-center gap-2 text-sm"
+              style={{ background: "rgba(74,222,128,.12)", border: "1px solid rgba(74,222,128,.42)", color: "#4ADE80" }}>
+              {a && <Icon name={iconForActivity(a)} size={14} strokeWidth={1.9}/>}
+              <span className="flex-1 truncate font-semibold">{a?.name || "Plan"} · confirmado</span>
             </div>
           );
         }
         const chips = [];
         if (myAct && otherAct && myAct.id !== otherAct.id) {
-          chips.push({ ...myAct, label: `${myAct.emoji} ${myAct.name}` });
-          chips.push({ ...otherAct, label: `${otherAct.emoji} ${otherAct.name}` });
+          chips.push({ ...myAct, label: myAct.name });
+          chips.push({ ...otherAct, label: otherAct.name });
         } else if (myAct || otherAct) {
           const one = myAct || otherAct;
-          chips.push({ ...one, label: `${one.emoji} ${one.name}` });
+          chips.push({ ...one, label: one.name });
         }
         return (
-          <div data-testid="plan-status-bar" className="mt-2 px-3 py-2 rounded-2xl border border-white/10 bg-white/5 flex items-center gap-2 text-xs">
-            <Calendar size={14} className="text-[#FF6B5E] shrink-0"/>
+          <button
+            data-testid="plan-status-bar"
+            onClick={()=>setPlanModal(true)}
+            className="mt-2 w-full px-3 py-2.5 rounded-2xl flex items-center gap-2 text-xs text-left hover:brightness-110 transition"
+            style={{ background: "rgba(139,92,246,.12)", border: "1px solid rgba(139,92,246,.4)" }}
+          >
+            <Calendar size={14} strokeWidth={1.9} className="text-[#8B5CF6] shrink-0"/>
             {chips.length ? (
-              <div className="flex-1 flex flex-wrap gap-1.5">
+              <div className="flex-1 flex flex-wrap gap-1.5 items-center">
                 {chips.map((c, i) => (
-                  <button key={i} data-testid={`plan-chip-${i}`}
-                    onClick={()=>setPlanModal(true)}
-                    className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 text-[11px]">
-                    {c.label}
-                  </button>
+                  <span key={i} data-testid={`plan-chip-${i}`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/[.16] text-[11px] font-bold text-white">
+                    <Icon name={iconForActivity(c)} size={11} strokeWidth={1.9}/> {c.label}
+                  </span>
                 ))}
-                <span className="text-white/50 self-center">¿Cuál va primero?</span>
+                <span className="text-[#C7CBD6] self-center text-[11px]">{chips.length > 1 ? "¿Cuál va primero?" : "· falta la fecha"}</span>
               </div>
             ) : (
-              <button onClick={()=>setPlanModal(true)} className="flex-1 text-left text-white/60">
-                ¿Armamos un plan? Toca para proponer 💡
-              </button>
+              <span className="flex-1 text-[#C7CBD6]">¿Armamos un plan? Toca para proponer</span>
             )}
-          </div>
+            <ChevronRight size={14} strokeWidth={1.9} className="text-[#8B5CF6] shrink-0"/>
+          </button>
         );
       })()}
 
@@ -203,10 +208,7 @@ export default function ChatDetail() {
         {messages.map((m) => {
           if (m.kind === "system") return (
             <div key={m.id} data-testid="msg-system" className="my-2 mx-auto max-w-[90%] text-center">
-              <div className="inline-block px-4 py-2 rounded-2xl text-xs text-white/80 leading-relaxed"
-                style={{ background: "linear-gradient(90deg, rgba(255,107,94,0.12), rgba(139,92,246,0.12))", border: "1px solid rgba(255,255,255,0.08)" }}>
-                {m.text}
-              </div>
+              <p className="text-[12px] text-[#8E93A3] leading-relaxed">{m.text}</p>
             </div>
           );
           if (m.kind === "plan_proposal") {

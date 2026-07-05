@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 13 - Blanco Editorial visual redesign regression. BACKEND: 10/10 pytest PASS. /api/activities returns 16 items each carrying both `emoji` (legacy) and new `icon` (lucide name) fields, and the icon values exactly match the SEED_ACTIVITIES map (Coffee, Mountain, Trees, Landmark, Clapperboard, UtensilsCrossed, Dumbbell, Volleyball, Flower2, BookOpen, Palette, Dice5, Dog, Music, MountainSnow, IceCreamCone). /api/auth/login, /api/discover (coords + email + hash NOT leaked; distance bucketed 5..50), /api/matches, /api/likes-received, /api/notifications/counts (shape + total = sum of the 3 counters), /api/profile/{id} (clean_public - no email/coords/hash), /api/admin/users (no coords leak) all unchanged. FRONTEND: All requested data-testids intact on Descubrir (mode-amistad, mode-amor, open-filters, me-tinca-btn, pass-btn, profile-comuna, profile-distance, bottom-nav, nav-*), Chats (tab-chats, tab-likes, like-armar-*, like-pasar-*, 3 like cards), Groups (tab-explorar, tab-mis, group-*, group-member-*), Perfil (necesito-apoyo-link, edit-profile-link, external-sinadicciones, perfil-terms, perfil-privacy, logout-btn, delete-account-btn), ChatDetail (chat-input types correctly, chat-send, propose-plan-btn, plan-status-bar, msg-system rendered as centered gray pill), EditProfile at /app/perfil/editar (edit-alias, edit-bio, save-profile, location-* x3, edit-mode-* x4), PublicProfile /app/usuario/:id (pp-alias, pp-block, pp-report-open), NecesitoApoyo (reason-input, reason-add, tel-salud/suicidio/urgencias, link-sinadicciones), Waitlist (waitlist-email, waitlist-submit), MisPlanes renders 'Próximos' + 'Pasados' with 'Confirmado' mint chips, BottomNav gradient bar on active tab. Note: `mode-apoyo` not present for demo1 because demo1's swipe_modes = [amistad, amor] (seed) - swipeModes filter is correct, this is by design and not a regression. `like-no-plan` and `profile-bio` are conditional (like-no-plan is inside the me-tinca picker modal; profile-bio only renders when the swiped profile has a bio string) - both verified via source. BOTTOMNAV chats-badge did not render for demo1 because unseen count was 0 at test time (already cleared during iteration 12 test). CRITICAL VISUAL VIOLATIONS FOUND: several UI-chrome strings (NOT user-generated content) still contain emoji characters, contradicting the 'zero emojis in UI' requirement.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "EditProfile - Modos activos buttons", "issue": "Buttons render {m.emoji} (line 113 EditProfile.jsx) - user sees 🫂 (Apoyo), 🙂 (Amistad), ❤️ (Amor), 👥 (Grupos). These are UI chrome (buttons/labels), not user-generated content. Should use Icon from lib/icons.jsx instead of MODES.emoji.", "selector": "[data-testid^='edit-mode-']", "priority": "HIGH"},
+      {"component": "LocationPicker header", "issue": "🇨🇱 flag emoji rendered inline at LocationPicker.jsx:73 (' Providencia 🇨🇱') and :97 (confirm state). Used in EditProfile and Onboarding step 2. This is UI chrome.", "selector": "[data-testid='location-current'], [data-testid='location-confirm']", "priority": "HIGH"},
+      {"component": "Onboarding mode picker (step) + activity picker", "issue": "Onboarding.jsx:159 renders {m.emoji} for mode chips and :254 renders {a.emoji} for activity chips - UI chrome, should use lucide Icon.", "selector": "[data-testid^='ob-mode-'], [data-testid^='ob-activity-']", "priority": "HIGH"},
+      {"component": "EditProfile activity picker", "issue": "EditProfile.jsx:145 renders {a.emoji} for activity chips - UI chrome.", "selector": "activity chips inside /app/perfil/editar", "priority": "HIGH"},
+      {"component": "PublicProfile mode chips", "issue": "PublicProfile.jsx:59 renders `{m.emoji} {m.l}` inside mode chip - UI chrome (unlike Profile.jsx:87 which correctly uses lucide Icon).", "selector": "mode chips on /app/usuario/:id", "priority": "HIGH"},
+      {"component": "GroupDetail header", "issue": "GroupDetail.jsx:79 renders {group.emoji} as the group avatar/badge - UI chrome. Groups list also renders group.emoji.", "selector": "GroupDetail header + Groups.jsx group cards", "priority": "MEDIUM"},
+      {"component": "ChatDetail activity picker dropdown", "issue": "ChatDetail.jsx:269 renders `<option>{a.emoji} {a.name}</option>` in the propose-plan native select - UI chrome.", "selector": "propose-plan modal <select>", "priority": "MEDIUM"},
+      {"component": "Waitlist copy", "issue": "Waitlist.jsx:47 body text 'PlanSobrio nació en Chile 🇨🇱' - UI chrome copy.", "selector": "/waitlist body text", "priority": "MEDIUM"},
+      {"component": "Chats list preview strings", "issue": "Chats page renders backend system-message previews containing emoji (☕/🥾/🎉) e.g. '¡Están de acuerdo! ☕ Café y conversación...', '¡Plan confirmado! ☕ Café y conversación 🎉'. Source is server.py L941/L1101/L1352 which embed activity.emoji in the sys_text. This straddles the 'message content' fence. Per review rule ('emojis inside messages MAY still appear - that's fine') this is arguably acceptable, but flagging because these are system-generated (not user-generated) strings.", "selector": "Chats.jsx last_message preview + msg-system bubble", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Descubrir profile card", "issues": ["Distance chip renders as ' · a ~5 km' - the ' · a ' prefix reads awkwardly in Spanish; consider ' · ~5 km' or ' a ~5 km' (drop the middot). Cosmetic, not blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration13_visual_regression.py",
+    "/app/test_reports/pytest/iter13_results.xml"
+  ],
+  "action_items": [
+    "Replace `{m.emoji}` with `<Icon name=... />` in: EditProfile.jsx L113, Onboarding.jsx L159, PublicProfile.jsx L59 — map each MODES entry to a lucide icon (apoyo=HeartHandshake, amistad=Smile, amor=Heart, grupos=Users) as already done in BottomNav and Profile.",
+    "Replace activity emoji with new `icon` field from backend everywhere activities are picked/listed: EditProfile.jsx L145, Onboarding.jsx L254, ChatDetail.jsx L269 (propose-plan <select>). Activities now carry `icon` (lucide name) - use <Icon name={a.icon}/>.",
+    "Remove ' 🇨🇱' string in LocationPicker.jsx L73 and L97 (or replace with a lucide MapPin/Globe indicator). This propagates into Onboarding step 2 and EditProfile.",
+    "Replace group.emoji rendering in GroupDetail.jsx L79 (and Groups list card) with an Icon derived from group.emoji via emojiToIconName mapping in lib/icons.jsx.",
+    "Waitlist.jsx L47: remove 🇨🇱 flag from body copy or replace with a lucide Globe.",
+    "OPTIONAL - server.py L941/L1101/L1352 sys_text strings embed activity.emoji. If the design goal is truly zero-emoji in system-generated messages too, remove the emoji from these templates (leaving the activity name only). Otherwise leave as-is per the reviewer's allowance for message content."
+  ],
+  "critical_code_review_comments": [
+    "EditProfile.jsx L113 + Onboarding L159 + PublicProfile L59 all still read `m.emoji` from MODES; the icon registry in lib/icons.jsx already contains the correct lucide keys (HeartHandshake, Smile, Heart, Users). A helper `modeIcon(v)` in constants/comunas.js would avoid the current per-file mapping (BottomNav.jsx and Profile.jsx already re-declare it inline as MODE_ICON). DRY.",
+    "LocationPicker.jsx L73/97 hardcode ' 🇨🇱' - inconsistent with the emoji-free design and also a country-symbol that will break the moment PlanSobrio expands beyond Chile.",
+    "ChatDetail.jsx propose-plan native <select> can't render a lucide icon in <option>. Recommend converting the picker to the same button-grid used in Chats.jsx (pick-act-*) or a shadcn Select with SelectItem children.",
+    "Discover.jsx distance formatting: `${' · a ~5 km'}` reads oddly. Consider adjusting the template to ' · ~{n} km'.",
+    "backend server.py: `sys_text` templates on L941/L1101/L1352 embed the activity emoji — inconsistent with an emoji-free UI. If UGC/system messages should stay clean, drop emoji from these templates. Not a regression per se (unchanged in this iteration) but worth aligning."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration13_visual_regression.py (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "90% - all data-testids present; 8 emoji-in-UI-chrome violations flagged"},
+  "test_credentials": "demo1@plansobrio.cl / Demo1234! ; admin contacto@sinadicciones.org / Jodorowsky100",
+  "seed_data_creation": "None - read-only regression run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent replaces MODES.emoji / activity.emoji / group.emoji / 🇨🇱 usages with lucide Icons (via emojiToIconName + Icon component from /app/frontend/src/lib/icons.jsx), re-run the emoji-scan by loading Descubrir → EditProfile (/app/perfil/editar) → Onboarding → PublicProfile (/app/usuario/:id) → GroupDetail → ChatDetail propose-plan modal → Waitlist and searching for regex /[\\u{1F300}-\\u{1FAFF}\\u{2600}-\\u{27BF}]/u across leaf DOM nodes NOT inside [data-testid='profile-bio' | 'msg-system' | 'profile-page-bio']. Also revalidate: backend GET /api/activities still returns `icon` for all 16 (already covered by test_iteration13_visual_regression.py::TestActivitiesIcon). Test file is idempotent and safe to re-run."
+}

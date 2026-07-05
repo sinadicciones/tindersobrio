@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Mail, ArrowLeft } from "lucide-react";
+import { Mail, ArrowLeft, HeartHandshake } from "lucide-react";
 
 export default function CuentaSuspendida() {
   const loc = useLocation();
@@ -22,7 +22,7 @@ export default function CuentaSuspendida() {
         </button>
         <div className="ps-card p-8 text-center">
           <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ background: "rgba(255,107,94,0.15)", border: "1px solid rgba(255,107,94,0.4)" }}>
-            <span className="text-4xl">💛</span>
+            <span className="w-14 h-14 rounded-2xl grid place-items-center ps-gradient text-white"><HeartHandshake size={26} strokeWidth={1.9}/></span>
           </div>
           <h1 data-testid="suspended-title" className="font-display text-2xl font-black tracking-tight">{title}</h1>
           <p className="mt-3 text-sm text-white/70 leading-relaxed">{desc}</p>
