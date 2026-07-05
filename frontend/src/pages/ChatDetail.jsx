@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -84,9 +84,16 @@ export default function ChatDetail() {
 
   const send = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return;
-    const t = text; setText("");
-    try { await api.post(`/matches/${matchId}/messages`, { text: t }); await load(); } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
+    const t = text.trim();
+    if (!t) return;
+    setText("");
+    try {
+      await api.post(`/matches/${matchId}/messages`, { text: t });
+      await load();
+    } catch (ex) {
+      setText(t);
+      toast.error(formatApiError(ex.response?.data?.detail));
+    }
   };
 
   const proposePlan = async (activity_id, when) => {
@@ -119,11 +126,13 @@ export default function ChatDetail() {
       {/* Header */}
       <div className="flex items-center gap-3 pb-3 border-b border-white/5">
         <button onClick={()=>nav("/app/chats")} data-testid="chat-back"><ArrowLeft/></button>
-        <Avatar user={match.other} size={40}/>
-        <div className="flex-1 min-w-0">
-          <p className="font-display font-bold">{match.other?.alias}</p>
+        <Link data-testid="chat-other-avatar" to={`/app/usuario/${match.other?.id}`} className="shrink-0">
+          <Avatar user={match.other} size={40}/>
+        </Link>
+        <Link data-testid="chat-other-alias" to={`/app/usuario/${match.other?.id}`} className="flex-1 min-w-0 hover:opacity-90">
+          <p className="font-display font-bold truncate">{match.other?.alias}</p>
           <p className="text-xs text-white/50">{match.mode}</p>
-        </div>
+        </Link>
         <div className="relative">
           <button data-testid="chat-menu" onClick={()=>setMenu((v)=>!v)} className="p-2"><MoreVertical/></button>
           {menu && (
@@ -161,9 +170,15 @@ export default function ChatDetail() {
             );
           }
           const mine = m.from_user === user.id;
+          const otherPhoto = match.other?.photos?.[0] ? { photos: match.other.photos, alias: match.other.alias } : { alias: match.other?.alias };
           return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${mine ? "ps-gradient text-white" : "bg-white/5 border border-white/10"}`}>
+            <div key={m.id} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : "flex-row"}`}>
+              {!mine && (
+                <Link data-testid="msg-other-avatar" to={`/app/usuario/${match.other?.id}`} className="shrink-0 mb-1">
+                  <Avatar user={otherPhoto} size={28}/>
+                </Link>
+              )}
+              <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm break-words ${mine ? "ps-gradient text-white" : "bg-white/5 border border-white/10"}`}>
                 {m.text}
               </div>
             </div>

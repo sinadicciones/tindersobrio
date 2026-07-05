@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 11 - Group chat photo/alias linking + PublicProfile validated. Backend 6/6 tests PASS. Frontend E2E confirms alias+avatar are clickable Links to /app/usuario/:id for both group chat and 1-to-1 chat header. Rate-limit 429 fires with friendly 'muchos mensajes muy rápido' detail. No leftover test-noise messages found. No blocking issues.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results_detail": {
+    "backend_group_messages_photo_field": "PASS - every message has 'photo' key (null or url string)",
+    "backend_group_messages_no_noise": "PASS - no msg matches ^t\\d+-[0-9a-f]",
+    "backend_group_send_persist": "PASS - POST returns 200 with echoed doc; follow-up GET contains new text",
+    "backend_public_profile_ok": "PASS - returns id/alias, no email/password_hash/coords leak",
+    "backend_public_profile_404": "PASS",
+    "backend_rate_limit_429": "PASS - 429 with detail 'Estás enviando muchos mensajes muy rápido. Espera 1 minuto.' (contains 'muchos'/'rápido')",
+    "frontend_login_demo1": "PASS",
+    "frontend_group_chat_avatars": "PASS - 64 [data-testid^='msg-avatar-'] rendered in Café-sobrio-Santiago group",
+    "frontend_group_chat_aliases": "PASS - 64 [data-testid^='msg-alias-'] rendered, each is <Link to='/app/usuario/{uid}'>",
+    "frontend_group_send_ui": "PASS - typed message appears in group-chat-list after send",
+    "frontend_group_empty_disabled": "PASS - group-chat-send is disabled when input is empty (code: disabled={!text.trim()})",
+    "frontend_1a1_header_avatar_link": "PASS - <a href='/app/usuario/693f62d7-...'>",
+    "frontend_1a1_header_alias_link": "PASS - <a href='/app/usuario/693f62d7-...'>",
+    "frontend_1a1_send": "PASS - typed message appears",
+    "frontend_1a1_msg_other_avatar": "CODE-VERIFIED - only tested chat surfaced our own messages + system 'Se dio el match' (0 incoming other-user text messages), so msg-other-avatar count=0 is expected. Code in ChatDetail.jsx wraps Avatar in Link for !mine text messages only.",
+    "frontend_public_profile_route": "PASS - /app/usuario/:id renders pp-alias, MapPin+comuna, pp-back, pp-block, pp-report-open (App.js route confirmed)",
+    "frontend_public_profile_report_modal": "PASS (code + partial run) - pp-report-open opens modal with pp-report-cat-* buttons + pp-report-submit initially disabled until category picked",
+    "frontend_rate_limit_toast_and_input_restore": "CODE-VERIFIED - GroupDetail.jsx send() (L56-70) does setText('') then on error setText(t)+toast.error(formatApiError(...)). ChatDetail.jsx send() (L85-97) same pattern. Backend already returns friendly 429 detail (verified live). Full 61-send UI script exceeded browser session timeout; skipped, but wiring is trivially correct."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11_chat_profile.py",
+    "/app/test_reports/pytest/iter11_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:1298-1313 batch-fetches alias+photo for distinct senders in one query. N+1 safe.",
+    "clear_public() (server.py:121) omits location.coords/email/password_hash - PublicProfile route is safe.",
+    "GroupDetail.jsx correctly separates mine vs !mine: my messages render Avatar directly (no Link, no alias label), other-user messages render <Link to=/app/usuario/{uid}> around both avatar AND alias. Alias appears above the bubble on the left column.",
+    "ChatDetail.jsx header Avatar+alias both wrapped in <Link to=/app/usuario/{other.id}>. Incoming text messages render msg-other-avatar Link; system + plan_proposal kinds correctly skip the avatar (early return).",
+    "PublicProfile.jsx: report modal state stays local; pp-report-submit disabled until a category is chosen. POST /report/block wired.",
+    "send() error path in both chat pages restores the text via setText(t) after the failed POST — the user's typing is not lost on rate-limit or transient error. This is a real UX win.",
+    "MINOR: PublicProfile.jsx line 21 does nav(-1) on load failure - if user landed on the URL directly (deep-link), nav(-1) may leave app in a weird state (goes to browser prior page). Consider nav('/app/descubrir') as safer fallback.",
+    "MINOR: GroupDetail.jsx uses 6s polling for chat updates. For a busy group this creates noticeable lag; consider 3-4s or SSE. Not blocking."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration11_chat_profile.py (new)"],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% of live-testable items"},
+  "test_credentials": "demo1@plansobrio.cl / Demo1234! ; demo2 same password ; admin contacto@sinadicciones.org / Jodorowsky100",
+  "seed_data_creation": "Added ~66 short 'msg N' + 'Hola prueba <ts>' messages to first group (c786a9e2...) as demo1/demo2 during rate-limit + send tests. None match the noise pattern ^t\\d+-[0-9a-f]. If cleanup is desired, delete by matching text ~ /^msg \\d+$/ from group_messages.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 4 review-request features working. If retesting after any change to /api/groups/{gid}/messages OR /api/profile/{user_id} OR PublicProfile.jsx OR ChatDetail.jsx alias/avatar wiring, re-run: pytest backend/tests/test_iteration11_chat_profile.py -v. Note: rate-limit test leaves demo2 near-throttled for ~1 min; if consecutive test runs fail with 429, wait 60s or clear db.group_messages older-than-1-min for that uid.",
+  "rca_of_the_issue": "N/A - no bugs found in this iteration."
+}

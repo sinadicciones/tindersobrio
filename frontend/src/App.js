@@ -23,6 +23,7 @@ import Privacidad from "@/pages/Privacidad";
 import CuentaSuspendida from "@/pages/CuentaSuspendida";
 import Waitlist from "@/pages/Waitlist";
 import AuthCallback from "@/pages/AuthCallback";
+import PublicProfile from "@/pages/PublicProfile";
 
 function Loader() {
   return (
@@ -80,6 +81,7 @@ function AppRouter() {
         <Route path="chats/:matchId" element={<ChatDetail />} />
         <Route path="perfil" element={<Profile />} />
         <Route path="perfil/editar" element={<EditProfile />} />
+        <Route path="usuario/:id" element={<PublicProfile />} />
         <Route path="necesito-apoyo" element={<NecesitoApoyo />} />
       </Route>
 

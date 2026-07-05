@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import api, { formatApiError } from "@/lib/api";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import api, { formatApiError, fileUrl } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, Users, Calendar, MapPin, LogOut } from "lucide-react";
+import Avatar from "@/components/Avatar";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function GroupDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
   const [group, setGroup] = useState(null);
   const [events, setEvents] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -52,10 +55,18 @@ export default function GroupDetail() {
 
   const send = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return;
-    const t = text; setText("");
-    await api.post(`/groups/${id}/messages`, { text: t });
-    const m = await api.get(`/groups/${id}/messages`); setMessages(m.data);
+    const t = text.trim();
+    if (!t) return;
+    setText("");
+    try {
+      await api.post(`/groups/${id}/messages`, { text: t });
+      const m = await api.get(`/groups/${id}/messages`);
+      setMessages(m.data);
+    } catch (ex) {
+      // Restore the input so the user doesn't lose their message.
+      setText(t);
+      toast.error(formatApiError(ex.response?.data?.detail));
+    }
   };
 
   if (!group) return <div className="p-6 text-white/60">Cargando…</div>;
@@ -119,17 +130,37 @@ export default function GroupDetail() {
 
       {tab === "chat" && group.is_member && (
         <div className="mt-4">
-          <div className="ps-card p-3 h-[50vh] overflow-y-auto space-y-2">
+          <div data-testid="group-chat-list" className="ps-card p-3 h-[55vh] overflow-y-auto space-y-3">
             {messages.length === 0 && <p className="text-white/40 text-sm text-center py-8">Sé la primera persona en escribir 👋</p>}
-            {messages.map((m) => (
-              <div key={m.id} className="text-sm">
-                <span className="font-semibold text-white/70">{m.alias}: </span><span>{m.text}</span>
-              </div>
-            ))}
+            {messages.map((m) => {
+              const mine = m.from_user === user?.id;
+              const senderPhoto = m.photo ? { photos: [m.photo], alias: m.alias } : { alias: m.alias };
+              return (
+                <div key={m.id} className={`flex gap-2 ${mine ? "flex-row-reverse" : "flex-row"}`}>
+                  {mine ? (
+                    <Avatar user={senderPhoto} size={32}/>
+                  ) : (
+                    <Link data-testid={`msg-avatar-${m.from_user}`} to={`/app/usuario/${m.from_user}`} className="shrink-0">
+                      <Avatar user={senderPhoto} size={32}/>
+                    </Link>
+                  )}
+                  <div className={`max-w-[75%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
+                    {!mine && (
+                      <Link data-testid={`msg-alias-${m.from_user}`} to={`/app/usuario/${m.from_user}`} className="text-xs text-white/60 hover:text-white/90 mb-1">
+                        {m.alias}
+                      </Link>
+                    )}
+                    <div className={`px-4 py-2.5 rounded-2xl text-sm break-words ${mine ? "ps-gradient text-white" : "bg-white/5 border border-white/10"}`}>
+                      {m.text}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <form onSubmit={send} className="mt-2 flex gap-2">
-            <input data-testid="group-chat-input" value={text} onChange={(e)=>setText(e.target.value)} className="ps-input flex-1" placeholder="Escribe…"/>
-            <button data-testid="group-chat-send" className="ps-btn-primary px-5">Enviar</button>
+            <input data-testid="group-chat-input" value={text} onChange={(e)=>setText(e.target.value)} className="ps-input flex-1" placeholder="Escribe…" maxLength={500}/>
+            <button data-testid="group-chat-send" disabled={!text.trim()} className="ps-btn-primary px-5 disabled:opacity-50">Enviar</button>
           </form>
         </div>
       )}

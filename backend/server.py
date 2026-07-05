@@ -1296,15 +1296,20 @@ async def group_messages(gid: str, user: dict = Depends(current_user)):
     if not is_member:
         raise HTTPException(status_code=403, detail="Únete al grupo para ver el chat")
     msgs = await db.group_messages.find({"group_id": gid}, {"_id": 0}).sort("created_at", 1).to_list(500)
-    # Batch fetch aliases (though messages already store alias at write time)
-    missing_uids = list({m["from_user"] for m in msgs if m.get("from_user") and m["from_user"] != "system" and not m.get("alias")})
-    if missing_uids:
-        aliases_map = {}
-        async for u in db.users.find({"id": {"$in": missing_uids}}, {"id": 1, "alias": 1, "_id": 0}):
-            aliases_map[u["id"]] = u.get("alias")
-        for msg in msgs:
-            if msg.get("from_user") and msg["from_user"] != "system" and not msg.get("alias"):
-                msg["alias"] = aliases_map.get(msg["from_user"], "Alguien")
+    # Batch-fetch alias + photo for every distinct sender at once (N+1 safe).
+    uids = list({m["from_user"] for m in msgs if m.get("from_user") and m["from_user"] != "system"})
+    profiles = {}
+    if uids:
+        async for u in db.users.find({"id": {"$in": uids}}, {"id": 1, "alias": 1, "photos": 1, "_id": 0}):
+            profiles[u["id"]] = {
+                "alias": u.get("alias") or "Alguien",
+                "photo": (u.get("photos") or [None])[0],
+            }
+    for msg in msgs:
+        p = profiles.get(msg.get("from_user"), {})
+        if not msg.get("alias"):
+            msg["alias"] = p.get("alias", "Alguien")
+        msg["photo"] = p.get("photo")
     return msgs
 
 @api.post("/groups/{gid}/messages")
