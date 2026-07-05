@@ -3,9 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { LogOut, Users, Flag, Activity, Home, MapPin, BarChart3, Mail } from "lucide-react";
+import { LogOut, Users, Flag, Activity, Home, MapPin, BarChart3, Mail, Plus } from "lucide-react";
 import Metrics from "@/pages/admin/Metrics";
 import EmailsAdmin from "@/pages/admin/EmailsAdmin";
+import EmojiPicker from "@/components/EmojiPicker";
 
 const TABS = [
   { v: "metricas", l: "Métricas", icon: BarChart3 },
@@ -275,34 +276,182 @@ function Activities() {
 
 function GroupsAdmin() {
   const [gs, setGs] = useState([]);
-  const [f, setF] = useState({ emoji:"", name:"", description:"", rules:"", is_online:false, comuna:"" });
+  const [editing, setEditing] = useState(null); // group being edited or null
+  const [showForm, setShowForm] = useState(false);
+  const [eventsPanelFor, setEventsPanelFor] = useState(null); // group.id showing events panel
+
+  const emptyGroup = { emoji: "", name: "", description: "", rules: "", is_online: false, comuna: "" };
+  const [f, setF] = useState(emptyGroup);
+
   const load = () => api.get("/groups").then((r)=>setGs(r.data));
   useEffect(() => { load(); }, []);
-  const create = async () => { await api.post("/admin/groups", f); setF({emoji:"",name:"",description:"",rules:"",is_online:false,comuna:""}); await load(); };
-  const del = async (id) => { if(!confirm("¿Eliminar?")) return; await api.delete(`/admin/groups/${id}`); await load(); };
+
+  const openCreate = () => { setEditing(null); setF(emptyGroup); setShowForm(true); };
+  const openEdit = (g) => {
+    setEditing(g.id);
+    setF({ emoji: g.emoji || "", name: g.name || "", description: g.description || "", rules: g.rules || "", is_online: !!g.is_online, comuna: g.comuna || "" });
+    setShowForm(true);
+  };
+  const save = async () => {
+    try {
+      if (editing) await api.patch(`/admin/groups/${editing}`, f);
+      else await api.post("/admin/groups", f);
+      setShowForm(false); setEditing(null); setF(emptyGroup);
+      await load();
+      toast.success(editing ? "Grupo actualizado" : "Grupo creado");
+    } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail) || "Error"); }
+  };
+  const del = async (id) => {
+    if (!window.confirm("¿Eliminar este grupo? Se borran también sus mensajes y eventos.")) return;
+    await api.delete(`/admin/groups/${id}`);
+    await load();
+  };
+
   return (
     <div className="space-y-3">
-      <div className="ps-card p-4 space-y-2">
-        <div className="flex gap-2">
-          <input placeholder="Emoji" className="ps-input w-20" value={f.emoji} onChange={(e)=>setF({...f, emoji:e.target.value})}/>
-          <input placeholder="Nombre" className="ps-input flex-1" value={f.name} onChange={(e)=>setF({...f, name:e.target.value})}/>
-        </div>
-        <textarea placeholder="Descripción" className="ps-input" value={f.description} onChange={(e)=>setF({...f, description:e.target.value})}/>
-        <textarea placeholder="Reglas" className="ps-input" value={f.rules} onChange={(e)=>setF({...f, rules:e.target.value})}/>
-        <div className="flex gap-2 items-center">
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.is_online} onChange={(e)=>setF({...f, is_online:e.target.checked})}/> Online</label>
-          <input placeholder="Comuna" className="ps-input flex-1" value={f.comuna} onChange={(e)=>setF({...f, comuna:e.target.value})}/>
-        </div>
-        <button onClick={create} className="ps-btn-primary">Crear grupo</button>
+      <div className="flex justify-between items-center">
+        <p className="ps-lab">Grupos ({gs.length})</p>
+        <button data-testid="new-group-btn" onClick={openCreate} className="ps-btn-secondary inline-flex items-center gap-1 text-xs"><Plus size={14}/> Nuevo grupo</button>
       </div>
-      {gs.map((g) => (
-        <div key={g.id} className="ps-card p-3 flex items-center gap-2">
-          <span className="text-2xl">{g.emoji}</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-bold">{g.name}</p>
-            <p className="text-xs text-white/60">{g.member_count} miembros · {g.is_online ? "Online" : g.comuna}</p>
+
+      {showForm && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={()=>setShowForm(false)}>
+          <div className="ps-card w-full max-w-md p-5 space-y-3" onClick={(e)=>e.stopPropagation()}>
+            <h3 className="font-display text-lg font-black">{editing ? "Editar grupo" : "Nuevo grupo"}</h3>
+            <div className="flex gap-2">
+              <EmojiPicker value={f.emoji} onChange={(v)=>setF({...f, emoji: v})} data-testid="group-emoji-picker"/>
+              <input data-testid="group-name" placeholder="Nombre del grupo" className="ps-input flex-1" value={f.name} onChange={(e)=>setF({...f, name:e.target.value})}/>
+            </div>
+            <textarea data-testid="group-description" placeholder="Descripción" className="ps-input" value={f.description} onChange={(e)=>setF({...f, description:e.target.value})}/>
+            <textarea data-testid="group-rules" placeholder="Reglas del grupo" className="ps-input" value={f.rules} onChange={(e)=>setF({...f, rules:e.target.value})}/>
+            <div className="flex gap-2 items-center">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.is_online} onChange={(e)=>setF({...f, is_online:e.target.checked})}/> Online</label>
+              <input data-testid="group-comuna" placeholder="Comuna" className="ps-input flex-1" value={f.comuna} onChange={(e)=>setF({...f, comuna:e.target.value})}/>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={()=>setShowForm(false)} className="ps-btn-secondary flex-1">Cancelar</button>
+              <button data-testid="save-group" onClick={save} disabled={!f.name} className="ps-btn-primary flex-1">{editing ? "Guardar" : "Crear"}</button>
+            </div>
           </div>
-          <button onClick={()=>del(g.id)} className="text-xs text-red-300">Eliminar</button>
+        </div>
+      )}
+
+      {gs.map((g) => (
+        <div key={g.id} data-testid={`group-row-${g.id}`} className="ps-card p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{g.emoji || "🙂"}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold">{g.name}</p>
+              <p className="text-xs text-white/60">{g.member_count || 0} miembros · {g.is_online ? "Online" : g.comuna || "sin comuna"}</p>
+            </div>
+            <button data-testid={`toggle-events-${g.id}`} onClick={()=>setEventsPanelFor(eventsPanelFor === g.id ? null : g.id)} className="text-xs text-white/80 underline">
+              {eventsPanelFor === g.id ? "Ocultar eventos" : "Ver eventos"}
+            </button>
+            <button data-testid={`edit-group-${g.id}`} onClick={()=>openEdit(g)} className="text-xs text-white/80">Editar</button>
+            <button data-testid={`delete-group-${g.id}`} onClick={()=>del(g.id)} className="text-xs text-red-300">Eliminar</button>
+          </div>
+          {eventsPanelFor === g.id && <EventsPanel group={g}/>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EventsPanel({ group }) {
+  const [events, setEvents] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const empty = { emoji: "", title: "", description: "", when: "", location: "", address: "", map_link: "", capacity: 20 };
+  const [f, setF] = useState(empty);
+
+  const load = () => api.get(`/groups/${group.id}/events`).then((r)=>setEvents(r.data));
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openCreate = () => { setEditing(null); setF({ ...empty, location: group.comuna || "" }); setShowForm(true); };
+  const openEdit = (ev) => {
+    setEditing(ev.id);
+    // Convert ISO to datetime-local (local time)
+    let whenLocal = ev.when || "";
+    if (whenLocal) {
+      const d = new Date(whenLocal);
+      const off = d.getTimezoneOffset() * 60000;
+      whenLocal = new Date(d.getTime() - off).toISOString().slice(0, 16);
+    }
+    setF({ emoji: ev.emoji || "", title: ev.title || "", description: ev.description || "", when: whenLocal,
+      location: ev.location || "", address: ev.address || "", map_link: ev.map_link || "", capacity: ev.capacity || 20 });
+    setShowForm(true);
+  };
+  const save = async () => {
+    try {
+      const payload = { ...f, group_id: group.id, when: new Date(f.when).toISOString() };
+      if (editing) await api.patch(`/admin/events/${editing}`, payload);
+      else await api.post("/admin/events", payload);
+      setShowForm(false); setEditing(null); setF(empty);
+      await load();
+      toast.success(editing ? "Evento actualizado" : "Evento creado");
+    } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail) || "Error"); }
+  };
+  const del = async (id) => { if (!window.confirm("¿Eliminar evento?")) return; await api.delete(`/admin/events/${id}`); await load(); };
+
+  const CAP_PRESETS = [{ v: 10, l: "10" }, { v: 20, l: "20" }, { v: 50, l: "50" }, { v: 9999, l: "Sin límite" }];
+
+  return (
+    <div className="mt-2 pt-3 border-t border-white/[.08] space-y-2">
+      <div className="flex justify-between items-center">
+        <p className="text-[11px] uppercase tracking-wider text-white/50 font-bold">Eventos ({events.length})</p>
+        <button data-testid={`new-event-${group.id}`} onClick={openCreate} className="ps-btn-secondary inline-flex items-center gap-1 text-xs"><Plus size={12}/> Nuevo evento</button>
+      </div>
+      {showForm && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={()=>setShowForm(false)}>
+          <div className="ps-card w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
+            <h3 className="font-display text-lg font-black">{editing ? "Editar evento" : "Nuevo evento"}</h3>
+            <div className="flex gap-2">
+              <EmojiPicker value={f.emoji} onChange={(v)=>setF({...f, emoji: v})} data-testid="event-emoji-picker"/>
+              <input data-testid="event-title" placeholder="Título del evento" className="ps-input flex-1" value={f.title} onChange={(e)=>setF({...f, title:e.target.value})}/>
+            </div>
+            <textarea data-testid="event-description" placeholder="Descripción" rows={2} className="ps-input" value={f.description} onChange={(e)=>setF({...f, description:e.target.value})}/>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Cuándo</label>
+              <input data-testid="event-when" type="datetime-local" className="ps-input" value={f.when} onChange={(e)=>setF({...f, when: e.target.value})}/>
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Dirección exacta</label>
+              <input data-testid="event-address" placeholder="Ej: Café Wonderland, Providencia 1234" className="ps-input" value={f.address} onChange={(e)=>setF({...f, address:e.target.value})}/>
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Comuna / zona</label>
+              <input data-testid="event-location" placeholder="Comuna" className="ps-input" value={f.location} onChange={(e)=>setF({...f, location:e.target.value})}/>
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Link Google Maps (opcional)</label>
+              <input data-testid="event-map-link" type="url" placeholder="https://maps.google.com/…" className="ps-input" value={f.map_link} onChange={(e)=>setF({...f, map_link:e.target.value})}/>
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Capacidad</label>
+              <div className="flex gap-2">
+                {CAP_PRESETS.map((c) => (
+                  <button key={c.v} type="button" data-testid={`event-cap-${c.v}`} onClick={()=>setF({...f, capacity: c.v})}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${f.capacity === c.v ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}>{c.l}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button onClick={()=>setShowForm(false)} className="ps-btn-secondary flex-1">Cancelar</button>
+              <button data-testid="save-event" onClick={save} disabled={!f.title || !f.when} className="ps-btn-primary flex-1">{editing ? "Guardar" : "Crear"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {events.length === 0 && <p className="text-xs text-white/50">Sin eventos aún.</p>}
+      {events.map((ev) => (
+        <div key={ev.id} data-testid={`event-row-${ev.id}`} className="bg-white/[.03] rounded-2xl p-2.5 flex items-center gap-2">
+          <span className="text-lg">{ev.emoji || "📅"}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">{ev.title}</p>
+            <p className="text-[11px] text-white/60 truncate">{new Date(ev.when).toLocaleString("es-CL")} · {ev.attendee_count || 0}/{ev.capacity >= 999 ? "∞" : ev.capacity} · {ev.address || ev.location}</p>
+          </div>
+          <button data-testid={`edit-event-${ev.id}`} onClick={()=>openEdit(ev)} className="text-[11px] text-white/80">Editar</button>
+          <button data-testid={`delete-event-${ev.id}`} onClick={()=>del(ev.id)} className="text-[11px] text-red-300">Eliminar</button>
         </div>
       ))}
     </div>

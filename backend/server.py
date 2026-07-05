@@ -439,10 +439,12 @@ class GroupIn(BaseModel):
 
 class EventIn(BaseModel):
     group_id: str
+    emoji: Optional[str] = ""
     title: str
     description: str
     when: str
     location: str
+    address: Optional[str] = ""
     map_link: Optional[str] = ""
     capacity: int = 20
 
@@ -1894,23 +1896,58 @@ async def accept_plan(plan_id: str, user: dict = Depends(current_user)):
 
 @api.get("/plans")
 async def my_plans(user: dict = Depends(current_user)):
+    # 1) Confirmed 1-on-1 plans (existing behavior)
     my_matches = await db.matches.find({"users": user["id"]}, {"id": 1, "users": 1, "_id": 0}).to_list(500)
-    ids = [m["id"] for m in my_matches]
-    if not ids:
-        return []
-    plans = await db.plans.find({"match_id": {"$in": ids}, "status": "accepted"}, {"_id": 0}).sort("when", 1).to_list(500)
-    if not plans:
-        return []
-    # Map match->other user
-    match_to_other = {m["id"]: next((u for u in m["users"] if u != user["id"]), None) for m in my_matches}
-    other_ids = list({v for v in match_to_other.values() if v})
-    others_by_id = {}
-    if other_ids:
-        async for u in db.users.find({"id": {"$in": other_ids}}, {"password_hash": 0, "_id": 0}):
-            others_by_id[u["id"]] = u
-    for p in plans:
-        o_id = match_to_other.get(p["match_id"])
-        p["with"] = clear_public(others_by_id[o_id], viewer=user) if o_id and o_id in others_by_id else None
+    match_ids = [m["id"] for m in my_matches]
+    plans: List[dict] = []
+    if match_ids:
+        raw = await db.plans.find({"match_id": {"$in": match_ids}, "status": "accepted"}, {"_id": 0}).sort("when", 1).to_list(500)
+        match_to_other = {m["id"]: next((u for u in m["users"] if u != user["id"]), None) for m in my_matches}
+        other_ids = list({v for v in match_to_other.values() if v})
+        others_by_id = {}
+        if other_ids:
+            async for u in db.users.find({"id": {"$in": other_ids}}, {"password_hash": 0, "_id": 0}):
+                others_by_id[u["id"]] = u
+        for p in raw:
+            o_id = match_to_other.get(p["match_id"])
+            p["kind"] = "match"
+            p["with"] = clear_public(others_by_id[o_id], viewer=user) if o_id and o_id in others_by_id else None
+            plans.append(p)
+
+    # 2) Group events the user is RSVP'd to
+    rsvps = await db.event_rsvps.find({"user_id": user["id"]}, {"_id": 0}).to_list(500)
+    if rsvps:
+        eids = [r["event_id"] for r in rsvps]
+        events = await db.events.find({"id": {"$in": eids}}, {"_id": 0}).to_list(500)
+        group_ids = list({e["group_id"] for e in events})
+        groups_by_id = {}
+        if group_ids:
+            async for g in db.groups.find({"id": {"$in": group_ids}}, {"_id": 0}):
+                groups_by_id[g["id"]] = g
+        attendee_counts: Dict[str, int] = {}
+        for eid in eids:
+            attendee_counts[eid] = await db.event_rsvps.count_documents({"event_id": eid})
+        for ev in events:
+            g = groups_by_id.get(ev.get("group_id"))
+            plans.append({
+                "id": ev["id"],
+                "kind": "group_event",
+                "when": ev.get("when"),
+                "event": {
+                    "id": ev["id"],
+                    "emoji": ev.get("emoji", ""),
+                    "title": ev.get("title", ""),
+                    "description": ev.get("description", ""),
+                    "location": ev.get("location", ""),
+                    "address": ev.get("address", ""),
+                    "map_link": ev.get("map_link", ""),
+                    "capacity": ev.get("capacity", 0),
+                    "attendee_count": attendee_counts.get(ev["id"], 0),
+                },
+                "group": {"id": g["id"], "name": g.get("name"), "emoji": g.get("emoji")} if g else None,
+            })
+    # Sort combined by when ascending
+    plans.sort(key=lambda p: p.get("when") or "")
     return plans
 
 @api.delete("/matches/{match_id}")
