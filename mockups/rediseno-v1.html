@@ -1,0 +1,385 @@
+<title>PlanSobrio — Rediseño Blanco Editorial (referencia para Emergent)</title>
+<style>
+:root{
+  --ground:#0B0C10; --surface:#14161C; --card:#1D212B;
+  --ink:#FFFFFF; --sub:#C7CBD6; --mut:#8E93A3;
+  --line:rgba(255,255,255,.16); --line-soft:rgba(255,255,255,.09);
+  --coral:#FF6B5E; --violet:#8B5CF6; --mint:#4ADE80;
+  --grad:linear-gradient(135deg,#FF6B5E 0%,#8B5CF6 100%);
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{
+  background:
+    radial-gradient(120% 90% at 12% -10%, rgba(139,92,246,.13), transparent 55%),
+    radial-gradient(120% 90% at 100% 0%, rgba(255,107,94,.09), transparent 50%),
+    var(--ground);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; padding:44px 18px 80px; line-height:1.5;
+}
+.wrap{max-width:1480px;margin:0 auto}
+.kick{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--coral);font-weight:700}
+h1{font-size:clamp(24px,3.6vw,32px);font-weight:900;letter-spacing:-.02em;margin:10px 0 8px;line-height:1.12;text-wrap:balance}
+.lede p{margin:0;color:var(--mut);font-size:15px;max-width:72ch}
+
+.row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:34px;align-items:start;justify-items:center}
+@media(max-width:1380px){.row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:740px){.row{grid-template-columns:1fr}}
+.col{display:grid;gap:12px;justify-items:center}
+.sc-name{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--sub)}
+
+/* phone */
+.phone{width:330px;max-width:100%;background:#000;border-radius:42px;padding:10px;
+  box-shadow:0 24px 60px -20px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.06) inset}
+.screen{border-radius:34px;overflow:hidden;position:relative;display:flex;flex-direction:column;height:690px;background:var(--ground)}
+svg{fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+.top{display:flex;justify-content:space-between;align-items:baseline;padding:16px 18px 6px}
+.top h3{margin:0;font-size:20px;font-weight:900;color:var(--ink)}
+.top .meta{font-size:10.5px;color:var(--sub);background:rgba(255,255,255,.07);border:1px solid var(--line);padding:4px 9px;border-radius:999px;font-variant-numeric:tabular-nums}
+.pills{display:flex;gap:7px;padding:4px 18px 12px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--sub);background:rgba(255,255,255,.05)}
+.pill.on{color:#fff;border-color:transparent;background:var(--grad)}
+.pill svg{width:13px;height:13px}
+.feed{flex:1;overflow:hidden;padding:0 14px 118px}
+
+.lab{font-size:10px;letter-spacing:.13em;text-transform:uppercase;font-weight:800;color:#fff;display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.lab::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.15);margin-left:4px}
+.lab svg{width:12px;height:12px}
+.txt{font-size:14px;line-height:1.45;color:var(--ink)}
+
+.card{margin-top:11px;border-radius:18px;padding:13px 14px;background:var(--card);border:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
+.card.ic{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:start}
+.icn{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:rgba(255,255,255,.09);border:1px solid var(--line)}
+.icn svg{width:20px;height:20px}
+.bio{position:relative;overflow:hidden}
+.bio::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--grad);border-radius:0 3px 3px 0}
+
+.nav{position:absolute;left:0;right:0;bottom:0;height:58px;background:rgba(10,11,15,.95);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;padding:0 6px;z-index:5}
+.nav a{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-weight:700;color:var(--mut);text-decoration:none;position:relative}
+.nav svg{width:20px;height:20px;stroke:currentColor}
+.nav a.on{color:#fff}
+.nav a.on::before{content:"";position:absolute;top:-9px;width:22px;height:3px;border-radius:0 0 3px 3px;background:var(--grad)}
+.nav .dot{position:absolute;top:-2px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--coral);border:2px solid #0A0B0F}
+
+/* Descubrir */
+.hero{position:relative;border-radius:26px;overflow:hidden;height:296px;
+  background:
+    radial-gradient(85% 60% at 62% 22%, rgba(255,224,196,.34), transparent 60%),
+    radial-gradient(120% 100% at 78% 8%, #2b6f86, transparent 55%),
+    linear-gradient(160deg,#3a7d93 0%,#2a5c74 42%,#1f3a52 100%);
+  box-shadow:0 16px 34px -18px rgba(0,0,0,.8)}
+.hero .scrim{position:absolute;inset:0;background:linear-gradient(180deg,transparent 30%,rgba(9,10,15,.55) 62%,rgba(9,10,15,.96) 100%)}
+.hero .info{position:absolute;left:0;right:0;bottom:0;padding:14px 15px 14px}
+.nm{font-size:24px;font-weight:900;letter-spacing:-.02em;color:#fff}
+.nm i{font-style:normal;color:rgba(255,255,255,.66);font-weight:600;font-size:17px}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:var(--mint);
+  background:rgba(74,222,128,.14);border:1px solid rgba(74,222,128,.42);padding:4px 9px;border-radius:999px;vertical-align:3px;margin-left:7px}
+.badge svg{width:11px;height:11px;stroke:var(--mint)}
+.loc{display:flex;align-items:center;gap:5px;color:rgba(255,255,255,.85);font-size:12px;margin:5px 0 10px}
+.loc svg{width:12px;height:12px}
+.loc .d{color:var(--coral);font-weight:700}
+.glass{background:rgba(14,16,22,.55);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:11px 12px}
+.glass .lab::after{background:rgba(255,255,255,.25)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#fff}
+.chip svg{width:12px;height:12px}
+.actions{position:absolute;left:0;right:0;bottom:58px;display:flex;gap:10px;padding:12px 14px;background:linear-gradient(180deg,transparent,var(--ground) 55%)}
+.bpass{flex:1;text-align:center;padding:13px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid var(--line);color:#fff;font-weight:700;font-size:13.5px}
+.blike{flex:1.5;display:flex;align-items:center;justify-content:center;gap:7px;padding:13px;border-radius:999px;background:var(--grad);color:#fff;font-weight:800;font-size:14px;box-shadow:0 12px 26px -10px rgba(255,107,94,.65)}
+.blike svg{width:15px;height:15px}
+
+/* Grupos */
+.tabs{display:flex;gap:8px;margin:4px 18px 12px;background:rgba(255,255,255,.05);border:1px solid var(--line-soft);border-radius:999px;padding:4px}
+.tab{flex:1;text-align:center;font-size:12.5px;font-weight:800;padding:8px;border-radius:999px;color:var(--sub)}
+.tab.on{background:var(--grad);color:#fff}
+.gcard{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:14px;border-radius:18px;background:var(--card);border:1px solid var(--line);margin-top:10px}
+.gicn{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid var(--line)}
+.gicn svg{width:24px;height:24px}
+.gt{font-size:14.5px;font-weight:800;color:#fff}
+.gm{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--sub);margin-top:3px}
+.gm span{display:inline-flex;align-items:center;gap:4px}
+.gm svg{width:11px;height:11px;stroke:var(--sub)}
+.member{font-size:10px;font-weight:800;color:var(--mint);border:1px solid rgba(74,222,128,.42);background:rgba(74,222,128,.12);padding:4px 8px;border-radius:999px}
+.join{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid var(--line)}
+.join svg{width:15px;height:15px}
+
+/* Chats */
+.crow{display:grid;grid-template-columns:46px 1fr auto;gap:11px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-soft)}
+.ava{width:46px;height:46px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-weight:900;font-size:17px;color:#fff}
+.ava.b{background:linear-gradient(135deg,#38BDF8,#8B5CF6)}
+.ava.c{background:linear-gradient(135deg,#FBBF24,#FF6B5E)}
+.cn{font-size:14px;font-weight:800;color:#fff}
+.cm{font-size:12px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.cm svg{width:11px;height:11px;vertical-align:-1px}
+.ct{font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums;text-align:right}
+.unread{margin-top:5px;margin-left:auto;width:18px;height:18px;border-radius:50%;background:var(--grad);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center}
+.planbar{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:14px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.4);font-size:11.5px;font-weight:700;color:#fff}
+.planbar svg{width:14px;height:14px}
+.tcard{margin-top:10px;padding:13px 14px;border-radius:18px;background:var(--card);border:1px solid var(--line)}
+.trow{display:flex;align-items:center;gap:11px}
+.tinfo .cn{font-size:14px}
+.tplan{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--sub);margin-top:2px}
+.tplan svg{width:12px;height:12px}
+.tacts{display:flex;gap:8px;margin-top:11px}
+.tya{flex:1.4;text-align:center;font-size:12px;font-weight:800;padding:9px;border-radius:999px;background:var(--grad);color:#fff}
+.tno{flex:1;text-align:center;font-size:12px;font-weight:700;padding:9px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid var(--line);color:var(--sub)}
+
+/* Perfil */
+.phead{display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:center;padding:6px 18px 0}
+.pava{width:64px;height:64px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-weight:900;font-size:24px;color:#fff}
+.pn{font-size:20px;font-weight:900;color:#fff}
+.pl{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:5px;margin-top:2px}
+.pl svg{width:12px;height:12px;stroke:var(--sub)}
+.modes{display:flex;gap:7px;flex-wrap:wrap;padding:12px 18px 2px}
+.mchip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid var(--line);color:#fff}
+.mchip svg{width:13px;height:13px}
+.mrow{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:13px 14px;border-radius:18px;background:var(--card);border:1px solid var(--line);margin-top:10px}
+.mrow .t{font-size:13.5px;font-weight:800;color:#fff}
+.mrow .s{font-size:11px;color:var(--sub);margin-top:1px}
+.mrow .go svg{width:15px;height:15px;stroke:var(--mut)}
+.mrow.sos .icn{background:rgba(255,107,94,.14);border-color:rgba(255,107,94,.45)}
+.mrow.sos .icn svg{stroke:var(--coral)}
+
+.note{max-width:330px;background:rgba(255,255,255,.04);border:1px solid var(--line-soft);border-radius:14px;padding:11px 14px;font-size:12.5px;color:var(--mut);line-height:1.55}
+.note b{color:var(--ink)}
+@media (prefers-reduced-motion: no-preference){
+  .col{animation:up .5s ease both}
+  .col:nth-child(2){animation-delay:.07s}.col:nth-child(3){animation-delay:.14s}.col:nth-child(4){animation-delay:.21s}
+  @keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-2 5-4 1 2-5z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5S13.9 16 14.5 19"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.7c2.6.2 4.3 1.6 4.9 4.3"/></symbol>
+    <symbol id="i-calheart" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4"/><path d="M12 16.6s-3-2-3-4a1.7 1.7 0 0 1 3-1.1 1.7 1.7 0 0 1 3 1.1c0 2-3 4-3 4z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 0-3.1 6.3L20 19.5l-.9-3A7.9 7.9 0 0 0 20 12z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.4" r="3.6"/><path d="M5.5 20c.8-3.6 3.4-5.4 6.5-5.4S17.7 16.4 18.5 20"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5-6.5-10.2a6.5 6.5 0 0 1 13 0C18.5 16 12 21 12 21z"/><circle cx="12" cy="10.6" r="2.2"/></symbol>
+    <symbol id="i-cup" viewBox="0 0 24 24"><path d="M4.5 8.5h11.5v6.2a4.3 4.3 0 0 1-4.3 4.3H8.8a4.3 4.3 0 0 1-4.3-4.3z"/><path d="M16 9.7h1.8a2.4 2.4 0 0 1 0 4.8H16"/><path d="M7.5 4.5c0 1 .9 1 .9 2M11.3 4.5c0 1 .9 1 .9 2"/></symbol>
+    <symbol id="i-mountain" viewBox="0 0 24 24"><path d="M3 18.5l6-9.5 4 6 3-4 5 7.5z"/><circle cx="17.3" cy="6.5" r="1.9"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M14.5 5.5l4 4L8 20l-4.6.6L4 16z"/><path d="M12.8 7.2l4 4"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.3-4.7-7.3-10.2A4.1 4.1 0 0 1 12 7.2a4.1 4.1 0 0 1 7.3 2.6C19.3 15.3 12 20 12 20z"/></symbol>
+    <symbol id="i-hands" viewBox="0 0 24 24"><path d="M7 12V6.8A1.8 1.8 0 0 1 10.6 6.6V11M10.6 8h2.8v3"/><path d="M4.5 13.5c0 3.5 2.6 6 6.4 6s6.6-2.6 6.6-6.3V9.8a1.7 1.7 0 0 0-3.4 0"/></symbol>
+    <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M8.6 14c.9 1.3 2 2 3.4 2s2.5-.7 3.4-2"/><path d="M9.3 9.6h0M14.7 9.6h0"/></symbol>
+    <symbol id="i-sprout" viewBox="0 0 24 24"><path d="M12 20v-7"/><path d="M12 13c0-3.5-2.5-6-6-6 0 3.5 2.5 6 6 6z"/><path d="M12 11c0-3 2.2-5 5.5-5 0 3-2.2 5-5.5 5z"/></symbol>
+    <symbol id="i-run" viewBox="0 0 24 24"><circle cx="14.5" cy="5" r="2"/><path d="M9 20l2.5-5L9 12l3-4 3 2.5 3.5.5"/><path d="M6 15l3-3"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.6 2.3 3.9 5.2 3.9 8.6s-1.3 6.3-3.9 8.6c-2.6-2.3-3.9-5.2-3.9-8.6S9.4 5.7 12 3.4z"/></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9h16M4 15h16M9 4.5v15M15 4.5v15"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></symbol>
+    <symbol id="i-lifebuoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="3.6"/><path d="M6 6l3.4 3.4M18 6l-3.4 3.4M18 18l-3.4-3.4M6 18l3.4-3.4"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8"/><path d="M19 14v4.5A1.5 1.5 0 0 1 17.5 20h-12A1.5 1.5 0 0 1 4 18.5v-12A1.5 1.5 0 0 1 5.5 5H10"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 4l1.8 4.9L19 10.5l-4.6 2.4L12 18l-2.4-5.1L5 10.5l5.2-1.6z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="lede">
+    <span class="kick">PlanSobrio · Rediseño “Blanco editorial” — referencia visual para Emergent</span>
+    <h1>Sistema aplicado a las 4 áreas: Descubrir, Grupos, Chats y Perfil</h1>
+    <p>Tokens: fondo #0B0C10 · tarjeta #1D212B · borde rgba(255,255,255,.16) · texto #FFFFFF · secundario #C7CBD6 · gradiente coral‑violeta solo en acciones primarias, tab activo y riel de “Sobre mí”. Cero emojis en la interfaz: familia única de íconos de línea 1.9px. Los emojis quedan solo en contenido creado por usuarios.</p>
+  </header>
+
+  <div class="row">
+
+    <!-- ============ DESCUBRIR ============ -->
+    <div class="col">
+      <span class="sc-name">1 · Descubrir</span>
+      <div class="phone"><div class="screen">
+        <div class="top"><h3>Descubrir</h3><span class="meta">17/20 me tinca</span></div>
+        <div class="pills">
+          <span class="pill on"><svg><use href="#i-hands"/></svg>Apoyo</span>
+          <span class="pill"><svg><use href="#i-smile"/></svg>Amistad</span>
+          <span class="pill"><svg><use href="#i-heart"/></svg>Amor</span>
+        </div>
+        <div class="feed">
+          <div class="hero"><div class="scrim"></div>
+            <div class="info">
+              <div class="nm">Javi_Sur <i>, 31</i><span class="badge"><svg><use href="#i-sprout"/></svg>+1 año</span></div>
+              <div class="loc"><svg><use href="#i-pin"/></svg> Ñuñoa · <span class="d">a ~10 km</span></div>
+              <div class="glass">
+                <div class="lab"><svg><use href="#i-cup"/></svg> MI PLAN IDEAL SIN ALCOHOL</div>
+                <div class="txt" style="font-size:13.5px">Un café largo con conversa profunda, después caminar sin apuro.</div>
+              </div>
+              <div class="chips">
+                <span class="chip"><svg><use href="#i-cup"/></svg>Café</span>
+                <span class="chip"><svg><use href="#i-mountain"/></svg>Trekking</span>
+              </div>
+            </div>
+          </div>
+          <div class="card bio">
+            <div class="lab"><svg><use href="#i-pencil"/></svg> SOBRE MÍ</div>
+            <div class="txt">“Reconstruyendo mi vida social a punta de cafés y caminatas. Busco gente que quiera planes de día.”</div>
+          </div>
+          <div class="card ic">
+            <span class="icn"><svg><use href="#i-mountain"/></svg></span>
+            <div><div class="lab">ME HACE BIEN CUANDO…</div>
+            <div class="txt">Salgo a la cordillera y me acuerdo de lo grande que es todo.</div></div>
+          </div>
+        </div>
+        <div class="actions"><span class="bpass">Pasar</span><span class="blike"><svg><use href="#i-heart"/></svg>Me tinca</span></div>
+        <nav class="nav">
+          <a class="on"><svg><use href="#i-compass"/></svg>Descubrir</a>
+          <a><svg><use href="#i-users"/></svg>Grupos</a>
+          <a><svg><use href="#i-calheart"/></svg>Mis planes</a>
+          <a style="position:relative"><svg><use href="#i-chat"/></svg>Chats<span class="dot"></span></a>
+          <a><svg><use href="#i-user"/></svg>Perfil</a>
+        </nav>
+      </div></div>
+      <div class="note"><b>Claves:</b> etiquetas blancas con regla fina; tarjeta “Sobre mí” con riel de gradiente; botón Me tinca con ícono de corazón (sin emoji ✨); indicador del tab activo = barra superior con gradiente.</div>
+    </div>
+
+    <!-- ============ GRUPOS ============ -->
+    <div class="col">
+      <span class="sc-name">2 · Grupos</span>
+      <div class="phone"><div class="screen">
+        <div class="top"><h3>Grupos</h3><span class="meta">4 activos</span></div>
+        <div class="tabs"><span class="tab on">Explorar</span><span class="tab">Mis grupos</span></div>
+        <div class="feed">
+          <div class="gcard">
+            <span class="gicn"><svg><use href="#i-cup"/></svg></span>
+            <div>
+              <div class="gt">Café Sobrio Santiago</div>
+              <div class="gm"><span><svg><use href="#i-users"/></svg>7</span><span><svg><use href="#i-pin"/></svg>Providencia</span></div>
+            </div>
+            <span class="member">Miembro</span>
+          </div>
+          <div class="gcard">
+            <span class="gicn"><svg><use href="#i-sprout"/></svg></span>
+            <div>
+              <div class="gt">Primeros 30 días</div>
+              <div class="gm"><span><svg><use href="#i-users"/></svg>3</span><span><svg><use href="#i-globe"/></svg>Online</span></div>
+            </div>
+            <span class="join"><svg><use href="#i-plus"/></svg></span>
+          </div>
+          <div class="gcard">
+            <span class="gicn"><svg><use href="#i-run"/></svg></span>
+            <div>
+              <div class="gt">Deporte y sobriedad</div>
+              <div class="gm"><span><svg><use href="#i-users"/></svg>3</span><span><svg><use href="#i-pin"/></svg>Ñuñoa</span></div>
+            </div>
+            <span class="join"><svg><use href="#i-plus"/></svg></span>
+          </div>
+          <div class="gcard">
+            <span class="gicn"><svg><use href="#i-film"/></svg></span>
+            <div>
+              <div class="gt">Panoramas de finde</div>
+              <div class="gm"><span><svg><use href="#i-users"/></svg>2</span><span><svg><use href="#i-pin"/></svg>Santiago</span></div>
+            </div>
+            <span class="join"><svg><use href="#i-plus"/></svg></span>
+          </div>
+          <div class="card ic" style="margin-top:14px">
+            <span class="icn"><svg><use href="#i-calheart"/></svg></span>
+            <div><div class="lab">PRÓXIMO EVENTO</div>
+            <div class="txt" style="font-size:13px">Junta de bienvenida — sáb 11 jul, 11:00 · Providencia</div></div>
+          </div>
+        </div>
+        <nav class="nav">
+          <a><svg><use href="#i-compass"/></svg>Descubrir</a>
+          <a class="on"><svg><use href="#i-users"/></svg>Grupos</a>
+          <a><svg><use href="#i-calheart"/></svg>Mis planes</a>
+          <a><svg><use href="#i-chat"/></svg>Chats</a>
+          <a><svg><use href="#i-user"/></svg>Perfil</a>
+        </nav>
+      </div></div>
+      <div class="note"><b>Claves:</b> cada grupo con ícono de línea en chip (el emoji del grupo se traduce a ícono); metadatos con mini-íconos; “Miembro” en menta; unirse = botón circular con +.</div>
+    </div>
+
+    <!-- ============ CHATS ============ -->
+    <div class="col">
+      <span class="sc-name">3 · Chats + Les tincas</span>
+      <div class="phone"><div class="screen">
+        <div class="top"><h3>Chats</h3></div>
+        <div class="tabs"><span class="tab on">Chats</span><span class="tab">Les tincas · 2</span></div>
+        <div class="feed">
+          <div class="crow">
+            <span class="ava">C</span>
+            <div><div class="cn">Cata_23</div><div class="cm">¡Me encantó el plan! ¿El sábado?</div></div>
+            <div><div class="ct">14:02</div><span class="unread">2</span></div>
+          </div>
+          <div class="crow">
+            <span class="ava b">T</span>
+            <div><div class="cn">Tomas_Trek</div><div class="cm"><svg><use href="#i-mountain"/></svg> Plan confirmado · dom 10:00</div></div>
+            <div><div class="ct">ayer</div></div>
+          </div>
+          <div class="planbar"><svg><use href="#i-cup"/></svg> Café con Cata_23 · falta la fecha <svg style="margin-left:auto"><use href="#i-arrow"/></svg></div>
+
+          <div class="lab" style="margin-top:18px"><svg><use href="#i-spark"/></svg> TE DIERON ME TINCA</div>
+          <div class="tcard">
+            <div class="trow">
+              <span class="ava c">F</span>
+              <div class="tinfo">
+                <div class="cn">Fer_Cafe, 34</div>
+                <div class="tplan"><svg><use href="#i-cup"/></svg> Le tinca ir a un café contigo</div>
+              </div>
+            </div>
+            <div class="tacts"><span class="tya">Armar plan</span><span class="tno">Pasar</span></div>
+          </div>
+        </div>
+        <nav class="nav">
+          <a><svg><use href="#i-compass"/></svg>Descubrir</a>
+          <a><svg><use href="#i-users"/></svg>Grupos</a>
+          <a><svg><use href="#i-calheart"/></svg>Mis planes</a>
+          <a class="on"><svg><use href="#i-chat"/></svg>Chats</a>
+          <a><svg><use href="#i-user"/></svg>Perfil</a>
+        </nav>
+      </div></div>
+      <div class="note"><b>Claves:</b> pestañas Chats / Les tincas con contador; el estado del plan aparece en la fila del chat y como barra violeta tocable; tarjeta de interesado con su propuesta y acciones.</div>
+    </div>
+
+    <!-- ============ PERFIL ============ -->
+    <div class="col">
+      <span class="sc-name">4 · Perfil</span>
+      <div class="phone"><div class="screen">
+        <div class="top"><h3>Perfil</h3></div>
+        <div class="phead">
+          <span class="pava">N</span>
+          <div>
+            <div class="pn">Nelson g</div>
+            <div class="pl"><svg><use href="#i-pin"/></svg> Vitacura <span class="badge" style="margin-left:6px"><svg><use href="#i-sprout"/></svg>+5 años</span></div>
+          </div>
+        </div>
+        <div class="modes">
+          <span class="mchip"><svg><use href="#i-hands"/></svg>Apoyo</span>
+          <span class="mchip"><svg><use href="#i-smile"/></svg>Amistad</span>
+          <span class="mchip"><svg><use href="#i-heart"/></svg>Amor</span>
+          <span class="mchip"><svg><use href="#i-users"/></svg>Grupos</span>
+        </div>
+        <div class="feed" style="padding-top:2px">
+          <div class="card bio">
+            <div class="lab"><svg><use href="#i-pencil"/></svg> SOBRE MÍ</div>
+            <div class="txt" style="font-size:13.5px">“Cinco años construyendo una vida que no necesita anestesia. Feliz de acompañar a quien recién parte.”</div>
+          </div>
+          <div class="mrow sos">
+            <span class="icn"><svg><use href="#i-lifebuoy"/></svg></span>
+            <div><div class="t">Necesito apoyo</div><div class="s">Respiración, mis razones y teléfonos de ayuda</div></div>
+            <span class="go"><svg><use href="#i-arrow"/></svg></span>
+          </div>
+          <div class="mrow">
+            <span class="icn"><svg><use href="#i-pencil"/></svg></span>
+            <div><div class="t">Editar perfil</div><div class="s">Fotos, frases, ubicación y modos</div></div>
+            <span class="go"><svg><use href="#i-arrow"/></svg></span>
+          </div>
+          <div class="mrow">
+            <span class="icn"><svg><use href="#i-external"/></svg></span>
+            <div><div class="t">Orientación en SinAdicciones.org</div><div class="s">Ayuda profesional y centros</div></div>
+            <span class="go"><svg><use href="#i-arrow"/></svg></span>
+          </div>
+        </div>
+        <nav class="nav">
+          <a><svg><use href="#i-compass"/></svg>Descubrir</a>
+          <a><svg><use href="#i-users"/></svg>Grupos</a>
+          <a><svg><use href="#i-calheart"/></svg>Mis planes</a>
+          <a><svg><use href="#i-chat"/></svg>Chats</a>
+          <a class="on"><svg><use href="#i-user"/></svg>Perfil</a>
+        </nav>
+      </div></div>
+      <div class="note"><b>Claves:</b> modos como chips con ícono (sin colores por modo: blanco uniforme); “Necesito apoyo” es la única fila con acento coral — jerarquía por importancia, no decoración.</div>
+    </div>
+  </div>
+</div>
