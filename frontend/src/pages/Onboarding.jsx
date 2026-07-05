@@ -106,6 +106,8 @@ export default function Onboarding() {
         // Coerce optional numeric field
         height_cm: form.height_cm ? Number(form.height_cm) : undefined,
         has_children: form.has_children || undefined,
+        // sober_time is a Literal on the backend — "" is not valid, send undefined instead
+        sober_time: form.sober_time || undefined,
       };
       delete payload.location; // don't send twice
       payload.location = location;

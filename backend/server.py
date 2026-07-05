@@ -21,7 +21,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Respons
 from fastapi.responses import Response as FastAPIResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 from core.storage import init_storage, put_object, get_object
 from core.seed_data import SEED_ACTIVITIES, SEED_GROUPS, DEMO_PROFILES, DEMO_PHOTOS, DEMO_PROMPTS
@@ -357,6 +357,13 @@ class OnboardingIn(BaseModel):
     relationship_with_substances: Literal["sin_consumo", "en_proceso", "prefiero_no_decir"]
     sober_time: Optional[Literal["<30d", "1-3m", "3-12m", ">1a", ">5a"]] = None
     show_sober_time: bool = False
+
+    @field_validator("sober_time", mode="before")
+    @classmethod
+    def _empty_sober_time_to_none(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
     favorite_activities: List[str]
     photos: List[str] = []
     videos: List[str] = []
