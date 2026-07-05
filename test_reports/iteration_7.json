@@ -1,0 +1,40 @@
+{
+  "summary": "GEOSWIPE Bloque 2 — geo migration + privacy + regressions. All 9 backend pytest cases pass. Frontend NecesitoApoyo dynamic helplines render correctly with expected data-testids and hrefs.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results_detail": {
+    "GET /api/geo/countries (public)": "PASS - Chile enabled, cities catalog includes Santiago etc",
+    "GET /api/geo/helplines?country=CL (public)": "PASS - 4 helplines returned sorted by order (Salud Responde, Prevención del suicidio, Urgencias, Orientación profesional)",
+    "GET /api/geo/helplines?country=US (public)": "PASS - returns [] gracefully",
+    "GET /api/auth/me (demo1)": "PASS - includes country='CL' and location {country, city, comuna, coords:{type:'Point',coordinates:[lng,lat]}} within Providencia range",
+    "GET /api/discover?mode=amistad privacy": "PASS - candidates never expose coords/_id/email/password_hash; required public keys present (id, alias, comuna, city, country, modes)",
+    "PATCH /api/profile/me {comuna:'Ñuñoa'}": "PASS - location auto-derived to Ñuñoa centroid ~[-70.60,-33.46]",
+    "PATCH /api/profile/me with coords": "PASS - coords persisted rounded to 4 decimals (e.g., [-70.5568,-33.4123])",
+    "POST /api/like": "PASS - works with target_user_id + mode, quota decrements on like",
+    "New user onboarding": "PASS - registered test_geo_<ts>@example.com, onboarded with comuna=Vitacura -> got country=CL and location coords ~[-70.58,-33.38]",
+    "DELETE /api/profile/me": "PASS - cascade delete works, subsequent /auth/me returns 401",
+    "Frontend /app/necesito-apoyo": "PASS - all four data-testids (tel-salud tel:6003607777, tel-suicidio tel:*4141, tel-urgencias tel:131, link-sinadicciones https://sinadicciones.org) render with correct hrefs after login as demo1"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7_geo.py",
+    "/app/test_reports/pytest/iter7_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1523 lines — well past the 700-line threshold. Strongly recommend splitting into routers/modules (auth, profile, discover, likes/matches, messages, admin, geo) plus a services layer. This will get worse as more features land.",
+    "build_location_doc is clean and idempotent. Good defensive fallbacks (coords -> comuna -> city -> default country centroid).",
+    "Privacy contract in clear_public() looks correct — coords are stripped and only country/city/comuna are exposed. Consider adding a unit test that asserts this snapshot to guard against regression when new fields are added to user docs.",
+    "In PATCH /profile/me, `payload = body.model_dump(exclude_unset=True)` correctly means partial updates work. But when only `location` is sent without comuna, current_loc/comuna fallback logic is reasonable — well handled.",
+    "Backfill loop at startup writes country='CL' unconditionally — fine for launch, but when the app goes multi-country the backfill should be gated by an already-existing country field."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration7_geo.py (new)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (helpline cards verified)"},
+  "test_credentials": "demo1@plansobrio.cl / Demo1234! (used); admin: contacto@sinadicciones.org / Jodorowsky100 (not needed this iter)",
+  "seed_data_creation": "Created + deleted one test user test_geo_<ts>@example.com via onboarding+DELETE flow.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GEOSWIPE Bloque 2 fully verified: public /api/geo endpoints, location backfill on /auth/me for demo1, PATCH location auto-derivation from comuna + coord rounding to 4dp, discover privacy (no coords/email leak), onboarding auto-populates location for new users, DELETE cascades. NecesitoApoyo frontend renders 4 dynamic helpline cards with expected data-testids. server.py file size (1523 LOC) is the main code-hygiene concern — split into routers when possible.",
+  "rca_of_the_issue": "N/A - no bugs found"
+}

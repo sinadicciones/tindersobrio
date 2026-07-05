@@ -22,7 +22,10 @@ from pydantic import BaseModel, Field, EmailStr
 
 from core.storage import init_storage, put_object, get_object
 from core.seed_data import SEED_ACTIVITIES, SEED_GROUPS, DEMO_PROFILES, DEMO_PHOTOS, DEMO_PROMPTS
-from core.geo_seed import RM_CENTROIDS, SANTIAGO_CENTER, COUNTRIES_SEED, HELPLINES_SEED_CL
+from core.geo_seed import (
+    RM_CENTROIDS, SANTIAGO_CENTER, COUNTRIES_SEED, HELPLINES_SEED_CL,
+    city_coords_for, default_country_coords,
+)
 
 # ------------------------------------------------------------------
 # Config
@@ -150,6 +153,32 @@ def calc_age(birthdate_str: str) -> Optional[int]:
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+def build_location_doc(country: str, comuna: Optional[str], city: Optional[str], coords: Optional[list]) -> dict:
+    """Build a normalized `location` doc.
+
+    Prefers explicit coords (from GPS/IP), falls back to comuna/city centroid,
+    and finally to the country default centroid. Returns None only if we truly
+    cannot resolve anything (unknown country + no coords).
+    """
+    country = (country or "CL").upper()
+    resolved = None
+    if coords and len(coords) == 2:
+        resolved = [round(float(coords[0]), 4), round(float(coords[1]), 4)]
+    if resolved is None and comuna:
+        resolved = city_coords_for(country, comuna)
+    if resolved is None and city:
+        resolved = city_coords_for(country, city)
+    if resolved is None:
+        resolved = default_country_coords(country)
+    if resolved is None:
+        return None
+    return {
+        "country": country,
+        "city": city or comuna,
+        "comuna": comuna,
+        "coords": {"type": "Point", "coordinates": resolved},
+    }
+
 # ------------------------------------------------------------------
 # Models
 # ------------------------------------------------------------------
@@ -161,6 +190,13 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
+
+class LocationIn(BaseModel):
+    country: str = "CL"
+    city: Optional[str] = None
+    comuna: Optional[str] = None
+    coords: Optional[List[float]] = None  # [lng, lat]
+
 
 class OnboardingIn(BaseModel):
     alias: str
@@ -178,6 +214,7 @@ class OnboardingIn(BaseModel):
     videos: List[str] = []
     prompts: List[dict]  # [{q, a}]
     accepted_rules: bool
+    location: Optional[LocationIn] = None
 
 class ProfileUpdateIn(BaseModel):
     alias: Optional[str] = None
@@ -192,6 +229,7 @@ class ProfileUpdateIn(BaseModel):
     photos: Optional[List[str]] = None
     videos: Optional[List[str]] = None
     prompts: Optional[List[dict]] = None
+    location: Optional[LocationIn] = None
 
 class LikeIn(BaseModel):
     target_user_id: str
@@ -302,6 +340,22 @@ async def me(user: dict = Depends(current_user)):
     return user
 
 # ------------------------------------------------------------------
+# Geo (public)
+# ------------------------------------------------------------------
+@api.get("/geo/countries")
+async def list_countries():
+    """Returns available countries (only enabled ones exposed to app clients)."""
+    docs = await db.countries.find({"enabled": True}, {"_id": 0}).sort("order", 1).to_list(50)
+    return docs
+
+@api.get("/geo/helplines")
+async def list_helplines(country: str = Query("CL")):
+    """Returns emergency/support helplines for a country."""
+    country = country.upper()
+    docs = await db.helplines.find({"country": country}, {"_id": 0}).sort("order", 1).to_list(50)
+    return docs
+
+# ------------------------------------------------------------------
 # Uploads
 # ------------------------------------------------------------------
 @api.post("/uploads/photo")
@@ -384,6 +438,16 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
         raise HTTPException(status_code=400, detail="Elige al menos 3 actividades")
     if "amor" in body.modes and not body.photos:
         raise HTTPException(status_code=400, detail="Necesitas al menos 1 foto para el modo Amor")
+
+    # Derive location: use provided (GPS/IP) if present, else fall back to comuna centroid.
+    loc_in = body.location.model_dump() if body.location else {}
+    location = build_location_doc(
+        country=loc_in.get("country") or "CL",
+        comuna=loc_in.get("comuna") or body.comuna,
+        city=loc_in.get("city") or body.comuna,
+        coords=loc_in.get("coords"),
+    )
+
     update = {
         "alias": body.alias.strip(),
         "gender": body.gender,
@@ -400,13 +464,29 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
         "prompts": body.prompts,
         "accepted_rules_at": now_iso(),
         "onboarding_complete": True,
+        "country": (location or {}).get("country", "CL"),
     }
+    if location:
+        update["location"] = location
     await db.users.update_one({"id": user["id"]}, {"$set": update})
     return {"ok": True}
 
 @api.patch("/profile/me")
 async def update_profile(body: ProfileUpdateIn, user: dict = Depends(current_user)):
-    update = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    payload = body.model_dump(exclude_unset=True)
+    update = {k: v for k, v in payload.items() if v is not None and k != "location"}
+    # If location or comuna changed, re-derive the location doc.
+    if body.location is not None or body.comuna is not None:
+        loc_in = payload.get("location") or {}
+        current_loc = user.get("location") or {}
+        country = loc_in.get("country") or current_loc.get("country") or "CL"
+        comuna = payload.get("comuna") or loc_in.get("comuna") or user.get("comuna")
+        city = loc_in.get("city") or comuna
+        coords = loc_in.get("coords")
+        location = build_location_doc(country=country, comuna=comuna, city=city, coords=coords)
+        if location:
+            update["location"] = location
+            update["country"] = location["country"]
     if update:
         await db.users.update_one({"id": user["id"]}, {"$set": update})
     return {"ok": True}
@@ -1281,6 +1361,12 @@ async def seed_admin_and_data():
     await db.files.create_index("user_id")
     await db.activities.create_index("active")
     await db.groups.create_index("active")
+    # Geo indexes (idempotent)
+    await db.users.create_index([("location.coords", "2dsphere")])
+    await db.users.create_index("country")
+    await db.groups.create_index([("location.coords", "2dsphere")])
+    await db.countries.create_index("code", unique=True)
+    await db.helplines.create_index([("country", 1), ("order", 1)])
 
     # Admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
@@ -1381,6 +1467,37 @@ async def seed_admin_and_data():
             {"alias": alias, "is_demo": True, "$or": [{"photos": []}, {"photos": {"$exists": False}}]},
             {"$set": {"photos": urls}},
         )
+
+    # ---- GEO seed ----
+    # Countries catalog (idempotent upsert).
+    for idx, c in enumerate(COUNTRIES_SEED):
+        await db.countries.update_one(
+            {"code": c["code"]},
+            {"$set": {
+                "code": c["code"], "name": c["name"], "flag": c["flag"],
+                "enabled": c.get("enabled", False), "timezone": c.get("timezone"),
+                "cities": c.get("cities", []), "order": idx,
+            }},
+            upsert=True,
+        )
+    # Helplines (idempotent per name+country).
+    for h in HELPLINES_SEED_CL:
+        await db.helplines.update_one(
+            {"country": h["country"], "name": h["name"]},
+            {"$set": h},
+            upsert=True,
+        )
+
+    # Backfill `location` + `country` on users missing them (demos, admin, early testers).
+    async for u in db.users.find({"location": {"$exists": False}}, {"id": 1, "comuna": 1, "_id": 0}):
+        loc = build_location_doc(country="CL", comuna=u.get("comuna"), city=u.get("comuna"), coords=None)
+        if loc:
+            await db.users.update_one({"id": u["id"]}, {"$set": {"location": loc, "country": "CL"}})
+    # Same for groups
+    async for g in db.groups.find({"location.coords": {"$exists": False}}, {"id": 1, "comuna": 1, "_id": 0}):
+        loc = build_location_doc(country="CL", comuna=g.get("comuna"), city=g.get("comuna"), coords=None)
+        if loc:
+            await db.groups.update_one({"id": g["id"]}, {"$set": {"location": loc, "country": "CL"}})
 
 @app.on_event("startup")
 async def on_startup():

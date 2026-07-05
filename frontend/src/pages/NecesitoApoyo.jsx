@@ -9,9 +9,15 @@ export default function NecesitoApoyo() {
   const nav = useNavigate();
   const [reasons, setReasons] = useState([]);
   const [text, setText] = useState("");
+  const [helplines, setHelplines] = useState([]);
 
   const load = () => api.get("/reasons").then((r)=>setReasons(r.data));
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get("/geo/helplines", { params: { country: "CL" } })
+      .then((r) => setHelplines(r.data || []))
+      .catch(() => setHelplines([]));
+  }, []);
 
   const add = async () => {
     if (!text.trim()) return;
@@ -19,6 +25,21 @@ export default function NecesitoApoyo() {
     catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
   };
   const del = async (id) => { await api.delete(`/reasons/${id}`); await load(); };
+
+  // Fallback helplines used if the DB collection is empty for any reason.
+  const FALLBACK_HELPLINES = [
+    { name: "Salud Responde", phone: "6003607777", display: "600 360 7777", color: "apoyo" },
+    { name: "Prevención del suicidio", phone: "*4141", display: "*4141", color: "amistad" },
+    { name: "Urgencias", phone: "131", display: "131", color: "primary" },
+    { name: "Orientación profesional", url: "https://sinadicciones.org", display: "sinadicciones.org", color: "neutral" },
+  ];
+  const HELPLINE_COLORS = {
+    apoyo:    "bg-[#38BDF8]/15 border-[#38BDF8]/40 hover:bg-[#38BDF8]/25 text-[#38BDF8]",
+    amistad:  "bg-[#FBBF24]/15 border-[#FBBF24]/40 hover:bg-[#FBBF24]/25 text-[#FBBF24]",
+    primary:  "bg-[#FF6B5E]/15 border-[#FF6B5E]/40 hover:bg-[#FF6B5E]/25 text-[#FF6B5E]",
+    neutral:  "bg-white/5 border-white/10 hover:bg-white/10 text-white/70",
+  };
+  const linesToShow = helplines.length > 0 ? helplines : FALLBACK_HELPLINES;
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6">
@@ -55,18 +76,29 @@ export default function NecesitoApoyo() {
       {/* Telefonos */}
       <section className="mt-5 space-y-2">
         <h2 className="font-display text-xl font-bold">Teléfonos de ayuda en Chile</h2>
-        <a data-testid="tel-salud" href="tel:6003607777" className="flex items-center gap-3 px-4 py-4 rounded-2xl bg-[#38BDF8]/15 border border-[#38BDF8]/40 hover:bg-[#38BDF8]/25 transition">
-          <Phone className="text-[#38BDF8]"/><div className="flex-1"><p className="font-display font-bold">Salud Responde</p><p className="text-sm text-white/70">600 360 7777</p></div>
-        </a>
-        <a data-testid="tel-suicidio" href="tel:*4141" className="flex items-center gap-3 px-4 py-4 rounded-2xl bg-[#FBBF24]/15 border border-[#FBBF24]/40 hover:bg-[#FBBF24]/25 transition">
-          <Phone className="text-[#FBBF24]"/><div className="flex-1"><p className="font-display font-bold">Prevención del suicidio</p><p className="text-sm text-white/70">*4141</p></div>
-        </a>
-        <a data-testid="tel-urgencias" href="tel:131" className="flex items-center gap-3 px-4 py-4 rounded-2xl bg-[#FF6B5E]/15 border border-[#FF6B5E]/40 hover:bg-[#FF6B5E]/25 transition">
-          <Phone className="text-[#FF6B5E]"/><div className="flex-1"><p className="font-display font-bold">Urgencias</p><p className="text-sm text-white/70">131</p></div>
-        </a>
-        <a data-testid="link-sinadicciones" href="https://sinadicciones.org" target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition">
-          <ExternalLink className="text-white/70"/><div className="flex-1"><p className="font-display font-bold">Orientación profesional</p><p className="text-sm text-white/70">SinAdicciones.org</p></div>
-        </a>
+        {linesToShow.map((h, i) => {
+          const cls = HELPLINE_COLORS[h.color] || HELPLINE_COLORS.neutral;
+          const isLink = !!h.url;
+          const href = isLink ? h.url : `tel:${h.phone}`;
+          const TESTID_MAP = { "Salud Responde": "tel-salud", "Prevención del suicidio": "tel-suicidio", "Urgencias": "tel-urgencias", "Orientación profesional": "link-sinadicciones" };
+          const testId = TESTID_MAP[h.name] || (isLink ? "helpline-link" : "helpline-tel");
+          const Icon = isLink ? ExternalLink : Phone;
+          return (
+            <a
+              key={h.name || i}
+              data-testid={testId}
+              href={href}
+              {...(isLink ? { target: "_blank", rel: "noreferrer" } : {})}
+              className={`flex items-center gap-3 px-4 py-4 rounded-2xl border transition ${cls}`}
+            >
+              <Icon className={cls.split(" ").find((c) => c.startsWith("text-")) || "text-white/70"}/>
+              <div className="flex-1">
+                <p className="font-display font-bold text-white">{h.name}</p>
+                <p className="text-sm text-white/70">{h.display}</p>
+              </div>
+            </a>
+          );
+        })}
       </section>
 
       <p className="mt-6 text-xs text-white/40 text-center">PlanSobrio no reemplaza tratamiento profesional ni atención de urgencia.</p>

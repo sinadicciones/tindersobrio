@@ -70,4 +70,23 @@ HELPLINES_SEED_CL = [
     {"country": "CL", "name": "Salud Responde", "phone": "6003607777", "display": "600 360 7777", "color": "apoyo", "order": 1},
     {"country": "CL", "name": "Prevención del suicidio", "phone": "*4141", "display": "*4141", "color": "amistad", "order": 2},
     {"country": "CL", "name": "Urgencias", "phone": "131", "display": "131", "color": "primary", "order": 3},
+    {"country": "CL", "name": "Orientación profesional", "phone": "", "display": "sinadicciones.org", "color": "neutral", "order": 4, "url": "https://sinadicciones.org"},
 ]
+
+
+def city_coords_for(country_code: str, city: str):
+    """Return [lng, lat] for a known city or comuna in a country, or None."""
+    if country_code == "CL":
+        if city in RM_CENTROIDS:
+            return RM_CENTROIDS[city]
+        for c in COUNTRIES_SEED[0]["cities"]:
+            if c["name"] == city:
+                return c["coords"]
+    return None
+
+
+def default_country_coords(country_code: str):
+    """Country capital / launch centroid used as a last-resort fallback."""
+    if country_code == "CL":
+        return SANTIAGO_CENTER
+    return None
