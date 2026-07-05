@@ -145,6 +145,52 @@ export default function ChatDetail() {
         </div>
       </div>
 
+      {/* Sticky plan status bar */}
+      {match && (() => {
+        const proposals = match.proposals || {};
+        const myAct = proposals[user.id];
+        const otherAct = proposals[match.other?.id];
+        const status = match.plan_status;
+        if (status === "confirmed") {
+          const a = match.confirmed_activity;
+          return (
+            <div data-testid="plan-status-confirmed" className="mt-2 px-4 py-2 rounded-2xl border border-[#4ADE80]/40 bg-[#4ADE80]/10 flex items-center gap-2 text-sm">
+              <span>{a?.emoji || "✅"}</span>
+              <span className="flex-1 truncate">{a?.name || "Plan"} · confirmado</span>
+            </div>
+          );
+        }
+        const chips = [];
+        if (myAct && otherAct && myAct.id !== otherAct.id) {
+          chips.push({ ...myAct, label: `${myAct.emoji} ${myAct.name}` });
+          chips.push({ ...otherAct, label: `${otherAct.emoji} ${otherAct.name}` });
+        } else if (myAct || otherAct) {
+          const one = myAct || otherAct;
+          chips.push({ ...one, label: `${one.emoji} ${one.name}` });
+        }
+        return (
+          <div data-testid="plan-status-bar" className="mt-2 px-3 py-2 rounded-2xl border border-white/10 bg-white/5 flex items-center gap-2 text-xs">
+            <Calendar size={14} className="text-[#FF6B5E] shrink-0"/>
+            {chips.length ? (
+              <div className="flex-1 flex flex-wrap gap-1.5">
+                {chips.map((c, i) => (
+                  <button key={i} data-testid={`plan-chip-${i}`}
+                    onClick={()=>setPlanModal(true)}
+                    className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 text-[11px]">
+                    {c.label}
+                  </button>
+                ))}
+                <span className="text-white/50 self-center">¿Cuál va primero?</span>
+              </div>
+            ) : (
+              <button onClick={()=>setPlanModal(true)} className="flex-1 text-left text-white/60">
+                ¿Armamos un plan? Toca para proponer 💡
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-4 space-y-2 pb-nav">
         {hasMore && messages.length >= 50 && (
@@ -156,7 +202,12 @@ export default function ChatDetail() {
         )}
         {messages.map((m) => {
           if (m.kind === "system") return (
-            <div key={m.id} className="text-center text-xs text-white/50 py-1">{m.text}</div>
+            <div key={m.id} data-testid="msg-system" className="my-2 mx-auto max-w-[90%] text-center">
+              <div className="inline-block px-4 py-2 rounded-2xl text-xs text-white/80 leading-relaxed"
+                style={{ background: "linear-gradient(90deg, rgba(255,107,94,0.12), rgba(139,92,246,0.12))", border: "1px solid rgba(255,255,255,0.08)" }}>
+                {m.text}
+              </div>
+            </div>
           );
           if (m.kind === "plan_proposal") {
             return (

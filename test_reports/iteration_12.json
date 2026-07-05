@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 12 — FLUJOMATCH v2. Backend: 12/12 pytest PASS covering (a) POST /like proposals writing + all 4 system-message variants (same-activity 'Están de acuerdo', different 'A X le tinca … a Y le tinca … ¿Cuál va primero?', only-one 'A X le tinca … ¿Te sumas?', no-plan '¡Se dio el match!'), (b) /matches returns proposals resolved with plan_status/confirmed_activity/confirmed_at, (c) GET /likes-received filters (matched, passed, blocked, banned) and payload shape (id/profile/mode/proposed_activity/seen/created_at) with clean public profile (no email/coords/password_hash), (d) POST /likes-received/seen + /notifications/counts.unseen_likes goes to 0, (e) total = new_matches + unread_messages + unseen_likes, (f) nudge job fires exactly once after 48h with both-sides messages and sets nudge_sent=True; second call is idempotent; skipped when plan_status='confirmed', (g) /admin/users regression: no location.coords leak. Frontend: E2E on demo1 verified: two tabs (tab-chats/tab-likes), unseen badge shows 1 → cleared after opening Les tincas, 3 like cards rendered with 'contigo' text + like-armar-{id}/like-pasar-{id} + linkable avatar/alias, activity picker modal opens with 16 pick-act-* buttons pre-selected on sender's proposal, submit-armar-plan creates match and navigates to /app/chats/{match_id} with '¡Hay match! 💛' toast, ChatDetail shows plan-status-bar chip 'Café y conversación' + '¿Cuál va primero?' text and one msg-system pill '¡Están de acuerdo! ☕ Café y conversación. Solo falta el cuándo 😊' with gradient border. BottomNav chats-badge counts include unseen_likes (verified via code inspection: line 55 of BottomNav.jsx sums new_matches + unread_messages + unseen_likes).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results_detail": {
+    "backend_like_case_a_same_activity": "PASS",
+    "backend_like_case_b_different_activities": "PASS",
+    "backend_like_case_c_only_one_proposes": "PASS",
+    "backend_like_case_d_no_proposal": "PASS",
+    "backend_matches_proposals_resolved": "PASS",
+    "backend_likes_received_shape_and_counts_and_seen": "PASS",
+    "backend_likes_received_excludes_matched": "PASS",
+    "backend_likes_received_excludes_passed": "PASS",
+    "backend_nudge_job_fires_once_idempotent": "PASS",
+    "backend_nudge_skipped_on_confirmed": "PASS",
+    "backend_admin_users_no_coords_regression": "PASS",
+    "frontend_tabs_and_badge": "PASS - tab-chats + tab-likes rendered; likes-badge shows unseen count '1'",
+    "frontend_les_tincas_cards": "PASS - 3 like cards with like-armar-*/like-pasar-*, 'contigo' text on 3 cards with proposed_activity",
+    "frontend_armar_plan_modal": "PASS - opens with 16 pick-act-* + submit-armar-plan; sender's proposed activity pre-highlighted",
+    "frontend_submit_creates_match_and_navigates": "PASS - POST /like → match toast → nav /app/chats/{id}",
+    "frontend_chat_plan_status_bar_and_sys_msg": "PASS - plan-status-bar renders chip; msg-system pill '¡Están de acuerdo! ...' with gradient border",
+    "frontend_seen_clears_badge": "PASS - after opening tab-likes, POST /likes-received/seen fires and badge disappears on next load",
+    "frontend_bottomnav_chatBadge_includes_unseen_likes": "CODE-VERIFIED (BottomNav.jsx L55: chatBadge = new_matches + unread_messages + (counts.unseen_likes || 0)). Live-verified via /notifications/counts response containing unseen_likes."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12_flujomatch.py",
+    "/app/test_reports/pytest/iter12_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:1073 _maybe_send_plan_nudges runs synchronously on every /matches call. Fine at current traffic; if load grows, move to a scheduled job to avoid extra reads-per-request per idle match.",
+    "server.py:1191 result.sort with reverse=False is a no-op (keys are 0/1 tuples) — proposals-first ordering works, but the reverse=False flag is superfluous. Cosmetic.",
+    "server.py:940 same-activity comparison uses `my_act['id'] == their_act['id']` — correct. But if either activity_id refers to a deleted/missing activity, acts_by_id lookup returns None and cases (a/b/c) silently collapse to (d) 'no_proposal' path. Not a bug (defensive), but consider a warn-log if a proposal activity_id has no matching activity.",
+    "Chats.jsx L28-31 openLikesTab still switches tab even if POST /likes-received/seen fails (caught, ignored). Correct UX (don't punish the user for a transient network glitch).",
+    "ChatDetail.jsx L149-192 sticky bar is not actually sticky (position not set to sticky). The status bar is inline under the header — works for the current single-scroll layout but the review-request word 'sticky' is aspirational, not literal. Not blocking.",
+    "server.py:967 legacy `proposed_activity` field still written on new match docs alongside proposals — kept for backwards compat with older clients. Consider removing after full rollout to reduce doc bloat.",
+    "server.py migration L1913 back-fills `proposals: {user: aid, other: aid}` for legacy matches by cloning the single `proposed_activity` id to BOTH sides. This is a best-effort inference and may over-represent 'same activity' cases for legacy matches — acceptable, mentioned in code comment."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration12_flujomatch.py (new)"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% of live-testable items + 1 code-verified"},
+  "test_credentials": "demo1@plansobrio.cl / Demo1234! ; demo2..demo12 same ; admin contacto@sinadicciones.org / Jodorowsky100",
+  "seed_data_creation": "During frontend E2E, seeded 1 like from demo5→demo1 (mode=amistad, activity=Café y conversación, seen=false) in mongo. Test then reciprocated via UI, so the like was consumed into a real match doc for demo1↔demo5. If cleanup desired: db.matches.delete_many({users:{$all:[demo1_id, demo5_id]}}); db.messages.delete_many({match_id: <that_match_id>}); db.likes.delete_many for that pair. Backend pytest test_zzz_cleanup already cleans demo1↔demo2, demo1↔demo3(=demo5 now), demo1↔demo4 state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 4 system-message variants confirmed live. Nudge idempotency guaranteed by nudge_sent flag on match doc. To test nudge fresh: db.matches.updateOne({id:X}, {$unset:{nudge_sent:1}}) + db.messages.deleteMany({match_id:X, kind:'system'}) then GET /matches. The demo3 seed has a block from demo3→demo1, so avoid using demo3 for likes-received tests (use demo5+). Frontend BottomNav badge for chats: verify chatBadge = new_matches + unread_messages + unseen_likes.",
+  "rca_of_the_issue": "N/A — no bugs found in this iteration."
+}

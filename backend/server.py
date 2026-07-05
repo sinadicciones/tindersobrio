@@ -899,10 +899,6 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
     if used >= 20:
         raise HTTPException(status_code=429, detail="Se acabaron tus me tinca de hoy. Vuelve mañana o revisa los grupos 👀")
 
-    activity = None
-    if body.activity_id and not body.no_plan:
-        activity = await db.activities.find_one({"id": body.activity_id}, {"_id": 0})
-
     doc = {
         "id": str(uuid.uuid4()),
         "from_user": user["id"],
@@ -911,6 +907,7 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
         "kind": "like",
         "activity_id": body.activity_id if not body.no_plan else None,
         "date": today,
+        "seen": False,  # for Les tincas notification: false until target opens the tab
         "created_at": now_iso(),
     }
     await db.likes.insert_one(doc)
@@ -918,26 +915,59 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
     # Check reciprocal like
     reciprocal = await db.likes.find_one({"from_user": body.target_user_id, "to_user": user["id"], "mode": body.mode, "kind": "like"})
     if reciprocal:
-        # Create match if not exists
         match = await db.matches.find_one({"users": {"$all": [user["id"], body.target_user_id]}, "mode": body.mode})
         if not match:
             match_id = str(uuid.uuid4())
-            proposed_activity = activity
-            if not proposed_activity and reciprocal.get("activity_id"):
-                proposed_activity = await db.activities.find_one({"id": reciprocal["activity_id"]}, {"_id": 0})
+            # NEW: store both proposals side-by-side (each user's activity_id, or None).
+            proposals = {
+                user["id"]: doc["activity_id"],
+                body.target_user_id: reciprocal.get("activity_id"),
+            }
+            # Resolve full activity docs for both sides — used by the celebration screen and system message.
+            act_ids = [v for v in proposals.values() if v]
+            acts_by_id = {}
+            if act_ids:
+                async for a in db.activities.find({"id": {"$in": act_ids}}, {"_id": 0}):
+                    acts_by_id[a["id"]] = a
+            proposals_resolved = {uid: (acts_by_id.get(aid) if aid else None) for uid, aid in proposals.items()}
+
+            other_user = await db.users.find_one({"id": body.target_user_id}, {"password_hash": 0})
+            my_alias = user.get("alias") or "alguien"
+            other_alias = (other_user or {}).get("alias") or "alguien"
+
+            my_act = proposals_resolved.get(user["id"])
+            their_act = proposals_resolved.get(body.target_user_id)
+            if my_act and their_act and my_act["id"] == their_act["id"]:
+                sys_text = f"¡Están de acuerdo! {my_act['emoji']} {my_act['name']}. Solo falta el cuándo 😊"
+            elif my_act and their_act:
+                sys_text = (
+                    f"A {my_alias} le tinca {my_act['emoji']} {my_act['name']} y a "
+                    f"{other_alias} le tinca {their_act['emoji']} {their_act['name']}. ¿Cuál va primero?"
+                )
+            elif my_act or their_act:
+                lone = my_act or their_act
+                lone_alias = my_alias if my_act else other_alias
+                sys_text = f"A {lone_alias} le tinca: {lone['emoji']} {lone['name']}. ¿Te sumas?"
+            else:
+                # Pick up to 3 shared favorite activities as inspiration.
+                my_favs = set(user.get("favorite_activities") or [])
+                their_favs = set((other_user or {}).get("favorite_activities") or [])
+                shared = list(my_favs & their_favs)[:3]
+                sys_text = "¡Se dio el match! " + (
+                    f"Panoramas que les gustan a ambos: {', '.join(shared)} 💛" if shared
+                    else "Ya pueden coordinar un panorama 💛"
+                )
+
             match_doc = {
                 "id": match_id,
                 "users": [user["id"], body.target_user_id],
                 "mode": body.mode,
-                "proposed_activity": proposed_activity,
+                "proposals": proposals,  # {user_id: activity_id | None}
+                # Kept for backward compatibility w/ /matches consumers that still read it:
+                "proposed_activity": my_act or their_act,
                 "created_at": now_iso(),
             }
             await db.matches.insert_one(match_doc)
-            # System message
-            if proposed_activity:
-                sys_text = f"A ambos les tinca: {proposed_activity['emoji']} {proposed_activity['name']}. ¿Coordinamos? 😊"
-            else:
-                sys_text = "¡Se dio el match! Ya pueden coordinar un panorama 💛"
             await db.messages.insert_one({
                 "id": str(uuid.uuid4()),
                 "match_id": match_id,
@@ -946,8 +976,13 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
                 "kind": "system",
                 "created_at": now_iso(),
             })
-            other = await db.users.find_one({"id": body.target_user_id}, {"password_hash": 0})
-            return {"match": True, "match_id": match_id, "other": clear_public(other) if other else None, "proposed_activity": proposed_activity}
+            return {
+                "match": True,
+                "match_id": match_id,
+                "other": clear_public(other_user) if other_user else None,
+                "proposals": proposals_resolved,
+                "proposed_activity": my_act or their_act,  # legacy
+            }
         else:
             # Match already existed — still signal match to the client so it can navigate to the chat
             other = await db.users.find_one({"id": body.target_user_id}, {"password_hash": 0})
@@ -998,22 +1033,171 @@ async def list_matches(user: dict = Depends(current_user)):
         last_read = reads.get(row["_id"], "1970-01-01T00:00:00+00:00")
         unread_by_match[row["_id"]] = sum(1 for c in row["msgs"] if c > last_read)
 
+    # Resolve proposals dict to full activity docs on each match for the client.
+    all_act_ids = set()
+    for m in matches:
+        for aid in (m.get("proposals") or {}).values():
+            if aid:
+                all_act_ids.add(aid)
+    acts_by_id = {}
+    if all_act_ids:
+        async for a in db.activities.find({"id": {"$in": list(all_act_ids)}}, {"_id": 0}):
+            acts_by_id[a["id"]] = a
+
     result = []
     for m in matches:
         other_id = next(u for u in m["users"] if u != uid)
         other = users_by_id.get(other_id)
         if not other:
             continue
+        proposals_raw = m.get("proposals") or {}
+        proposals_resolved = {k: (acts_by_id.get(v) if v else None) for k, v in proposals_raw.items()}
         result.append({
             "id": m["id"],
             "mode": m["mode"],
             "other": clear_public(other),
-            "proposed_activity": m.get("proposed_activity"),
+            "proposed_activity": m.get("proposed_activity"),  # legacy
+            "proposals": proposals_resolved,
+            "plan_status": m.get("plan_status"),  # None | proposed | confirmed | past | feedback
+            "confirmed_activity": m.get("confirmed_activity"),
+            "confirmed_at": m.get("confirmed_at"),
             "last_message": last_by_match.get(m["id"]),
             "unread": unread_by_match.get(m["id"], 0),
             "created_at": m["created_at"],
         })
+    # Fire the nudge check in-line (lightweight, only writes when needed).
+    await _maybe_send_plan_nudges(uid, matches, last_by_match)
     return result
+
+
+async def _maybe_send_plan_nudges(uid: str, matches: list, last_by_match: dict):
+    """Insert one soft nudge message per match at >48h with no confirmed plan
+    and at least one message from each side. Marks nudge_sent=True on the match
+    so it can never fire twice. Cheap: iterates matches already loaded."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    for m in matches:
+        if m.get("nudge_sent"):
+            continue
+        if m.get("plan_status") == "confirmed":
+            continue
+        if m.get("created_at", now_iso()) > cutoff:
+            continue
+        # Require at least one message from each side (skip the initial system msg).
+        senders = set()
+        async for msg in db.messages.find({"match_id": m["id"], "from_user": {"$ne": "system"}}, {"from_user": 1, "_id": 0}).limit(20):
+            senders.add(msg["from_user"])
+            if len(senders) >= 2:
+                break
+        if len(senders) < 2:
+            continue
+        # Build the nudge text.
+        proposals = m.get("proposals") or {}
+        act_ids = [v for v in proposals.values() if v]
+        nudge = None
+        if act_ids:
+            act = await db.activities.find_one({"id": act_ids[0]}, {"_id": 0})
+            if act:
+                nudge = f"¿Le ponemos fecha al {act['emoji']} {act['name'].lower()}? 😊"
+        if not nudge:
+            other_id = next((u for u in m["users"] if u != uid), None)
+            me = await db.users.find_one({"id": uid}, {"favorite_activities": 1, "_id": 0}) or {}
+            other = await db.users.find_one({"id": other_id}, {"favorite_activities": 1, "_id": 0}) or {}
+            shared = list(set(me.get("favorite_activities") or []) & set(other.get("favorite_activities") or []))
+            if shared:
+                nudge = f"¿Arman un plan? A ambos les gusta {shared[0]} 👀"
+            else:
+                nudge = "¿Les tinca coordinar algo esta semana? 💛"
+        await db.messages.insert_one({
+            "id": str(uuid.uuid4()),
+            "match_id": m["id"],
+            "from_user": "system",
+            "text": nudge,
+            "kind": "system",
+            "created_at": now_iso(),
+        })
+        await db.matches.update_one({"id": m["id"]}, {"$set": {"nudge_sent": True}})
+
+
+# ------------------------------------------------------------------
+# Likes recibidos ("Les tincas")
+# ------------------------------------------------------------------
+@api.get("/likes-received")
+async def likes_received(user: dict = Depends(current_user)):
+    """Likes to me that are NOT yet a match, filtered for compat/blocks/pass."""
+    uid = user["id"]
+    # 1. Existing matches (I already reciprocated) — exclude their senders/modes.
+    my_matches = await db.matches.find({"users": uid}, {"users": 1, "mode": 1, "_id": 0}).to_list(500)
+    matched_pairs = {(next(u for u in m["users"] if u != uid), m["mode"]) for m in my_matches}
+    # 2. I already passed on someone → exclude their likes.
+    my_passes = await db.likes.find({"from_user": uid, "kind": "pass"}, {"to_user": 1, "mode": 1, "_id": 0}).to_list(2000)
+    passed_pairs = {(p["to_user"], p["mode"]) for p in my_passes}
+    # 3. Blocks in either direction.
+    blocks = await db.blocks.find({"$or": [{"from_user": uid}, {"to_user": uid}]}, {"_id": 0}).to_list(2000)
+    blocked_ids = {b["from_user"] if b["from_user"] != uid else b["to_user"] for b in blocks}
+
+    likes = await db.likes.find({"to_user": uid, "kind": "like"}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    sender_ids = list({l["from_user"] for l in likes})
+    if not sender_ids:
+        return []
+    senders = {}
+    async for u in db.users.find({"id": {"$in": sender_ids}, "status": {"$ne": "banned"}}, {"password_hash": 0, "_id": 0}):
+        if u.get("status") == "suspended":
+            continue
+        if u["id"] in blocked_ids:
+            continue
+        senders[u["id"]] = u
+
+    act_ids = [l["activity_id"] for l in likes if l.get("activity_id")]
+    acts_by_id = {}
+    if act_ids:
+        async for a in db.activities.find({"id": {"$in": act_ids}}, {"_id": 0}):
+            acts_by_id[a["id"]] = a
+
+    my_gender = user.get("gender")
+    my_interested = user.get("interested_genders") or []
+    my_age = calc_age(user.get("birthdate"))
+    result = []
+    for l in likes:
+        sender_id = l["from_user"]
+        mode = l["mode"]
+        if (sender_id, mode) in matched_pairs:
+            continue
+        if (sender_id, mode) in passed_pairs:
+            continue
+        sender = senders.get(sender_id)
+        if not sender:
+            continue
+        # Amor compatibility check: I like their gender, they like mine, ages inside both prefs.
+        if mode == "amor":
+            if my_interested and sender.get("gender") not in my_interested:
+                continue
+            if my_gender and my_gender not in (sender.get("interested_genders") or []):
+                continue
+            sender_age = calc_age(sender.get("birthdate"))
+            if sender_age is None or sender_age < user.get("age_min", 18) or sender_age > user.get("age_max", 99):
+                continue
+            if my_age is None or my_age < sender.get("age_min", 18) or my_age > sender.get("age_max", 99):
+                continue
+        result.append({
+            "id": l["id"],
+            "profile": clear_public(sender),
+            "mode": mode,
+            "proposed_activity": acts_by_id.get(l.get("activity_id")) if l.get("activity_id") else None,
+            "seen": bool(l.get("seen")),
+            "created_at": l["created_at"],
+        })
+    # Ordering: with proposal first, then by date desc (already desc from mongo sort).
+    result.sort(key=lambda x: (0 if x["proposed_activity"] else 1, ), reverse=False)
+    return result
+
+
+@api.post("/likes-received/seen")
+async def mark_likes_received_seen(user: dict = Depends(current_user)):
+    """Mark all pending received likes as seen (clears the badge)."""
+    await db.likes.update_many({"to_user": user["id"], "kind": "like", "seen": {"$ne": True}}, {"$set": {"seen": True}})
+    return {"ok": True}
+
 
 # ------------------------------------------------------------------
 # Notifications
@@ -1027,7 +1211,8 @@ async def notif_counts(user: dict = Depends(current_user)):
     })
     my_matches = await db.matches.find({"users": user["id"]}, {"id": 1, "_id": 0}).to_list(500)
     if not my_matches:
-        return {"new_matches": new_matches, "unread_messages": 0, "total": new_matches}
+        unseen_likes = await db.likes.count_documents({"to_user": user["id"], "kind": "like", "seen": {"$ne": True}})
+        return {"new_matches": new_matches, "unread_messages": 0, "unseen_likes": unseen_likes, "total": new_matches + unseen_likes}
     match_ids = [m["id"] for m in my_matches]
     reads = {r["match_id"]: r["last_read_at"] async for r in db.reads.find({"user_id": user["id"], "match_id": {"$in": match_ids}}, {"_id": 0})}
     min_last_read = min(reads.values(), default="1970-01-01T00:00:00+00:00") if reads else "1970-01-01T00:00:00+00:00"
@@ -1043,7 +1228,14 @@ async def notif_counts(user: dict = Depends(current_user)):
     async for row in db.messages.aggregate(pipe):
         last_read = reads.get(row["_id"], "1970-01-01T00:00:00+00:00")
         unread_messages += sum(1 for c in row["msgs"] if c > last_read)
-    return {"new_matches": new_matches, "unread_messages": unread_messages, "total": new_matches + unread_messages}
+    # NEW: unseen "Les tincas" (received likes without match yet).
+    unseen_likes = await db.likes.count_documents({"to_user": user["id"], "kind": "like", "seen": {"$ne": True}})
+    return {
+        "new_matches": new_matches,
+        "unread_messages": unread_messages,
+        "unseen_likes": unseen_likes,
+        "total": new_matches + unread_messages + unseen_likes,
+    }
 
 @api.post("/notifications/seen-matches")
 async def seen_matches(user: dict = Depends(current_user)):
@@ -1717,6 +1909,17 @@ async def seed_admin_and_data():
         rounded = round_coords(coords[0], coords[1])
         if rounded != coords:
             await db.users.update_one({"id": u["id"]}, {"$set": {"location.coords.coordinates": rounded}})
+
+    # Migration: `proposals` field on matches. Old matches only stored a single
+    # `proposed_activity`; treat it as shared between both users so the UI can render.
+    async for m in db.matches.find({"proposals": {"$exists": False}}, {"id": 1, "users": 1, "proposed_activity": 1, "_id": 0}):
+        pa = m.get("proposed_activity") or {}
+        aid = pa.get("id") if isinstance(pa, dict) else None
+        users = m.get("users") or []
+        proposals = {u: aid for u in users}  # both share (best-effort inference)
+        await db.matches.update_one({"id": m["id"]}, {"$set": {"proposals": proposals}})
+    # Ensure existing likes are marked seen so the badge doesn't explode on startup.
+    await db.likes.update_many({"seen": {"$exists": False}}, {"$set": {"seen": True}})
 
 @app.on_event("startup")
 async def on_startup():

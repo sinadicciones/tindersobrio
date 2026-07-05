@@ -52,7 +52,7 @@ export default function BottomNav() {
     return () => { cancelled = true; if (interval) clearInterval(interval); window.removeEventListener("focus", onVis); document.removeEventListener("visibilitychange", onVis); };
   }, [location.pathname, nav]);
 
-  const chatBadge = counts.new_matches + counts.unread_messages;
+  const chatBadge = counts.new_matches + counts.unread_messages + (counts.unseen_likes || 0);
 
   return (
     <nav
