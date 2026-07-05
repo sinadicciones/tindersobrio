@@ -1,6 +1,16 @@
 # PlanSobrio - Product Requirements Document
 
-**Última actualización:** 2026-02-09
+**Última actualización:** 2026-02-10
+
+## v2.5 — Grupos y Eventos + Mis Planes RSVP (Feb 2026)
+- ✅ **Admin editar grupos**: PATCH `/api/admin/groups/{gid}` + modal en `Admin.jsx` con `EmojiPicker` (5 categorías curadas: sobrio/deporte/arte/naturaleza/otros).
+- ✅ **Admin CRUD eventos** por grupo con `EventsPanel`: `event-when` datetime-local (sin bug UTC), `event-address` dirección exacta, `event-location` comuna, `event-map-link` Google Maps URL, presets de capacidad `event-cap-10/20/50/9999` (Sin límite = 9999).
+- ✅ **Backend `EventIn`** actualizado: `address`, `map_link`, `capacity`. Email a miembros del grupo al crear evento (`event_new_in_group`).
+- ✅ **RSVP con cupos**: `POST /api/events/{eid}/rsvp` valida capacidad y devuelve 400 "Cupos agotados". `DELETE /api/events/{eid}/rsvp` libera cupo.
+- ✅ **`GET /api/plans` unificado**: devuelve tanto `kind:'match'` (planes 1-a-1 aceptados) como `kind:'group_event'` (eventos donde el user hizo RSVP) ordenados por `when` ascendente.
+- ✅ **`MisPlanes.jsx` con `EventPlanCard`**: emoji del evento, título, link al grupo (`event-plan-group-link-{eid}`), fecha, dirección + Maps, "N de CAP van" o "N personas van", botón "Ya no voy" (`event-plan-cancel-{eid}`) que confirma, hace DELETE RSVP y libera el cupo.
+- ✅ Testeado E2E (iteration_23): 10/10 backend + Playwright frontend flow completo.
+
 
 ## Concepto
 App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de conexión en un solo lugar: Apoyo, Amistad, Amor y Grupos. Diferenciador: "match por plan" — el usuario propone una actividad sobria concreta al dar like, y el chat se abre con ese plan como primer mensaje.
