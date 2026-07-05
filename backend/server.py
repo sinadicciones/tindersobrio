@@ -161,6 +161,7 @@ def clear_public(user: dict) -> dict:
         "gender": user.get("gender"),
         "modes": user.get("modes", []),
         "photos": user.get("photos", []),
+        "videos": user.get("videos", []),
         "prompts": user.get("prompts", []),
         "favorite_activities": user.get("favorite_activities", []),
         "sober_time_badge": user.get("sober_time") if user.get("show_sober_time") else None,
@@ -204,6 +205,7 @@ class OnboardingIn(BaseModel):
     show_sober_time: bool = False
     favorite_activities: List[str]
     photos: List[str] = []
+    videos: List[str] = []
     prompts: List[dict]  # [{q, a}]
     accepted_rules: bool
 
@@ -218,6 +220,7 @@ class ProfileUpdateIn(BaseModel):
     sober_time: Optional[str] = None
     favorite_activities: Optional[List[str]] = None
     photos: Optional[List[str]] = None
+    videos: Optional[List[str]] = None
     prompts: Optional[List[dict]] = None
 
 class LikeIn(BaseModel):
@@ -350,6 +353,29 @@ async def upload_photo(file: UploadFile = File(...), user: dict = Depends(curren
     })
     return {"path": result["path"], "url": f"/api/files/{result['path']}"}
 
+@api.post("/uploads/video")
+async def upload_video(file: UploadFile = File(...), user: dict = Depends(current_user)):
+    ext = (file.filename or "vid").split(".")[-1].lower()
+    if ext not in ("mp4", "mov", "webm", "m4v"):
+        raise HTTPException(status_code=400, detail="Formato no permitido (mp4, mov, webm)")
+    mime_map = {"mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm", "m4v": "video/x-m4v"}
+    mime = mime_map[ext]
+    path = f"{APP_NAME}/videos/{user['id']}/{uuid.uuid4()}.{ext}"
+    data = await file.read()
+    if len(data) > 40 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Video demasiado grande (máx 40MB, apunta a videos cortos <30s)")
+    result = put_object(path, data, mime)
+    await db.files.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "storage_path": result["path"],
+        "content_type": mime,
+        "size": result.get("size", len(data)),
+        "kind": "video",
+        "created_at": now_iso(),
+    })
+    return {"path": result["path"], "url": f"/api/files/{result['path']}"}
+
 @api.get("/files/{path:path}")
 async def download_file(path: str):
     data, content_type = get_object(path)
@@ -441,7 +467,13 @@ async def admin_delete_activity(aid: str, _: dict = Depends(require_admin)):
 # Discovery
 # ------------------------------------------------------------------
 @api.get("/discover")
-async def discover(mode: str = Query(...), user: dict = Depends(current_user)):
+async def discover(
+    mode: str = Query(...),
+    age_min: Optional[int] = Query(None),
+    age_max: Optional[int] = Query(None),
+    comuna: Optional[str] = Query(None),
+    user: dict = Depends(current_user),
+):
     if mode not in ("apoyo", "amistad", "amor"):
         raise HTTPException(status_code=400, detail="Modo inválido")
     if not user.get("onboarding_complete"):
@@ -467,20 +499,17 @@ async def discover(mode: str = Query(...), user: dict = Depends(current_user)):
         "status": {"$ne": "banned"},
         "modes": mode,
     }
+    if comuna:
+        query["comuna"] = comuna
 
     if mode == "amor":
-        # both must have amor
-        # gender compatibility - both must include each other's gender in interested_genders
         my_gender = user.get("gender")
         my_interested = user.get("interested_genders") or []
-        my_min = user.get("age_min", 18)
-        my_max = user.get("age_max", 99)
         query["gender"] = {"$in": my_interested} if my_interested else {"$exists": True}
         query["interested_genders"] = my_gender
 
     candidates = await db.users.find(query, {"password_hash": 0}).to_list(500)
 
-    # Filter by age (client-side) and score
     my_comuna = user.get("comuna")
     my_favs = set(user.get("favorite_activities", []))
     my_age = calc_age(user.get("birthdate"))
@@ -488,15 +517,17 @@ async def discover(mode: str = Query(...), user: dict = Depends(current_user)):
     scored = []
     for c in candidates:
         age = calc_age(c.get("birthdate"))
+        # Global age filter (applies to all modes if provided)
+        if age_min is not None and (age is None or age < age_min):
+            continue
+        if age_max is not None and (age is None or age > age_max):
+            continue
         if mode == "amor":
             if age is None or age < user.get("age_min", 18) or age > user.get("age_max", 99):
                 continue
             if my_age is None or my_age < c.get("age_min", 18) or my_age > c.get("age_max", 99):
                 continue
         overlap = len(my_favs & set(c.get("favorite_activities", [])))
-        # comuna score: 0 same, 1 rm-other, 2 other region
-        RM = "region_metropolitana"
-        # simple: consider we tag comuna string; if matches exactly = 0, if not = 1, "Otra región" = 2
         if c.get("comuna") == my_comuna:
             zone = 0
         elif c.get("comuna") == "Otra región" or my_comuna == "Otra región":
@@ -595,21 +626,69 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
 async def list_matches(user: dict = Depends(current_user)):
     matches = await db.matches.find({"users": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
     result = []
+    reads = {r["match_id"]: r["last_read_at"] async for r in db.reads.find({"user_id": user["id"]}, {"_id": 0})}
     for m in matches:
         other_id = [u for u in m["users"] if u != user["id"]][0]
         other = await db.users.find_one({"id": other_id}, {"password_hash": 0, "_id": 0})
         if not other:
             continue
         last_msg = await db.messages.find({"match_id": m["id"]}, {"_id": 0}).sort("created_at", -1).limit(1).to_list(1)
+        last_read = reads.get(m["id"], "1970-01-01T00:00:00+00:00")
+        unread = await db.messages.count_documents({
+            "match_id": m["id"],
+            "created_at": {"$gt": last_read},
+            "from_user": {"$nin": [user["id"], "system"]},
+        })
         result.append({
             "id": m["id"],
             "mode": m["mode"],
             "other": clear_public(other),
             "proposed_activity": m.get("proposed_activity"),
             "last_message": last_msg[0] if last_msg else None,
+            "unread": unread,
             "created_at": m["created_at"],
         })
     return result
+
+# ------------------------------------------------------------------
+# Notifications
+# ------------------------------------------------------------------
+@api.get("/notifications/counts")
+async def notif_counts(user: dict = Depends(current_user)):
+    seen_at = user.get("last_seen_matches_at", "1970-01-01T00:00:00+00:00")
+    # New matches: those created after user's last_seen_matches_at
+    new_matches = await db.matches.count_documents({
+        "users": user["id"],
+        "created_at": {"$gt": seen_at},
+    })
+    # Unread messages: sum over user's matches of messages after last_read_at from someone else
+    reads = {r["match_id"]: r["last_read_at"] async for r in db.reads.find({"user_id": user["id"]}, {"_id": 0})}
+    my_matches = await db.matches.find({"users": user["id"]}, {"id": 1, "_id": 0}).to_list(500)
+    unread_messages = 0
+    for m in my_matches:
+        last_read = reads.get(m["id"], "1970-01-01T00:00:00+00:00")
+        c = await db.messages.count_documents({
+            "match_id": m["id"],
+            "created_at": {"$gt": last_read},
+            "from_user": {"$nin": [user["id"], "system"]},
+        })
+        unread_messages += c
+    return {"new_matches": new_matches, "unread_messages": unread_messages, "total": new_matches + unread_messages}
+
+@api.post("/notifications/seen-matches")
+async def seen_matches(user: dict = Depends(current_user)):
+    await db.users.update_one({"id": user["id"]}, {"$set": {"last_seen_matches_at": now_iso()}})
+    return {"ok": True}
+
+@api.post("/matches/{match_id}/read")
+async def mark_match_read(match_id: str, user: dict = Depends(current_user)):
+    await get_match_or_403(match_id, user["id"])
+    await db.reads.update_one(
+        {"user_id": user["id"], "match_id": match_id},
+        {"$set": {"last_read_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
 
 # ------------------------------------------------------------------
 # Chat

@@ -28,6 +28,8 @@ export default function ChatDetail() {
       setMatch(cur);
       const msgs = await api.get(`/matches/${matchId}/messages`);
       setMessages(msgs.data);
+      // mark as read
+      api.post(`/matches/${matchId}/read`).catch(() => { /* ignore */ });
     } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
   };
   useEffect(() => { load(); api.get("/activities").then((r)=>setActivities(r.data)); }, [matchId]);

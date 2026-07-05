@@ -6,7 +6,10 @@ import { MessageCircle } from "lucide-react";
 
 export default function Chats() {
   const [matches, setMatches] = useState([]);
-  useEffect(() => { api.get("/matches").then((r)=>setMatches(r.data)); }, []);
+  useEffect(() => {
+    api.get("/matches").then((r) => setMatches(r.data));
+    api.post("/notifications/seen-matches").catch(() => { /* ignore */ });
+  }, []);
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6">
@@ -23,13 +26,20 @@ export default function Chats() {
         )}
         {matches.map((m) => (
           <Link key={m.id} data-testid={`chat-${m.id}`} to={`/app/chats/${m.id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/5 transition">
-            <Avatar user={m.other} size={54}/>
+            <div className="relative">
+              <Avatar user={m.other} size={54}/>
+              {m.unread > 0 && (
+                <span data-testid={`chat-unread-${m.id}`} className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1 rounded-full ps-gradient text-white text-xs font-bold flex items-center justify-center ring-2 ring-[#0E0F13]">
+                  {m.unread > 9 ? "9+" : m.unread}
+                </span>
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-display font-bold">{m.other?.alias}</p>
+                <p className={`font-display font-bold ${m.unread > 0 ? "" : ""}`}>{m.other?.alias}</p>
                 <span className="text-[10px] uppercase tracking-wider text-white/40">{m.mode}</span>
               </div>
-              <p className="text-sm text-white/60 truncate">{m.last_message?.text || "Nuevo match — di hola 👋"}</p>
+              <p className={`text-sm truncate ${m.unread > 0 ? "text-white" : "text-white/60"}`}>{m.last_message?.text || "Nuevo match — di hola 👋"}</p>
             </div>
           </Link>
         ))}

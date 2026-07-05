@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { MODES, modeColor, soberLabel } from "@/constants/comunas";
+import { MODES, modeColor, soberLabel, COMUNAS_RM } from "@/constants/comunas";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Sparkles, X, MapPin, Heart } from "lucide-react";
+import { Sparkles, X, MapPin, Heart, SlidersHorizontal } from "lucide-react";
 import Avatar from "@/components/Avatar";
 
 export default function Discover() {
@@ -21,6 +21,8 @@ export default function Discover() {
   const [planModal, setPlanModal] = useState(null); // {profile}
   const [matchModal, setMatchModal] = useState(null); // {other, activity}
   const [loading, setLoading] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState({ age_min: "", age_max: "", comuna: "" });
 
   useEffect(() => { api.get("/activities").then((r)=>setActivities(r.data)); }, []);
 
@@ -28,8 +30,12 @@ export default function Discover() {
     setLoading(true);
     setIdx(0);
     try {
+      const params = { mode: m };
+      if (filters.age_min) params.age_min = Number(filters.age_min);
+      if (filters.age_max) params.age_max = Number(filters.age_max);
+      if (filters.comuna) params.comuna = filters.comuna;
       const [{ data: cands }, { data: q }] = await Promise.all([
-        api.get(`/discover`, { params: { mode: m } }),
+        api.get(`/discover`, { params }),
         api.get(`/discover/quota`),
       ]);
       setCandidates(cands);
@@ -39,7 +45,11 @@ export default function Discover() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (mode) load(mode); }, [mode]);
+  useEffect(() => { if (mode) load(mode); /* eslint-disable-next-line */ }, [mode]);
+
+  const applyFilters = () => { setFiltersOpen(false); load(mode); };
+  const clearFilters = () => { setFilters({ age_min: "", age_max: "", comuna: "" }); setFiltersOpen(false); setTimeout(() => load(mode), 50); };
+  const activeFilterCount = (filters.age_min ? 1 : 0) + (filters.age_max ? 1 : 0) + (filters.comuna ? 1 : 0);
 
   const current = candidates[idx];
 
@@ -95,7 +105,7 @@ export default function Discover() {
         <h1 className="font-display text-2xl font-black">Descubrir</h1>
         <span data-testid="quota-remaining" className="text-xs text-white/50">{quota.remaining}/20 me tinca</span>
       </div>
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 items-center">
         {swipeModes.map((m) => (
           <button key={m.v} data-testid={`mode-${m.v}`} onClick={()=>setMode(m.v)}
             className={`px-4 py-2 rounded-full text-sm font-semibold border transition flex-shrink-0 ${mode===m.v ? "border-transparent text-white" : "bg-white/5 border-white/10 text-white/70"}`}
@@ -103,7 +113,48 @@ export default function Discover() {
             {m.emoji} {m.l}
           </button>
         ))}
+        <button data-testid="open-filters" onClick={()=>setFiltersOpen(true)}
+          className={`ml-auto flex-shrink-0 relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold border transition ${activeFilterCount>0 ? "border-transparent ps-gradient text-white" : "bg-white/5 border-white/10 text-white/70"}`}>
+          <SlidersHorizontal size={14}/> Filtros
+          {activeFilterCount > 0 && <span className="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-white/25 text-white text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>}
+        </button>
       </div>
+
+      {/* Filters modal */}
+      <AnimatePresence>
+        {filtersOpen && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+              className="ps-card w-full max-w-md p-6 relative">
+              <button onClick={()=>setFiltersOpen(false)} className="absolute top-4 right-4 text-white/50"><X size={20}/></button>
+              <h2 className="font-display text-2xl font-black">Filtros</h2>
+              <p className="text-sm text-white/60 mt-1">Afina tu búsqueda.</p>
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="text-sm text-white/60 mb-2 block">Rango de edad</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input data-testid="filter-age-min" type="number" min={18} max={99} placeholder="Desde" className="ps-input"
+                      value={filters.age_min} onChange={(e)=>setFilters({...filters, age_min: e.target.value})}/>
+                    <input data-testid="filter-age-max" type="number" min={18} max={99} placeholder="Hasta" className="ps-input"
+                      value={filters.age_max} onChange={(e)=>setFilters({...filters, age_max: e.target.value})}/>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm text-white/60 mb-2 block">Comuna</label>
+                  <select data-testid="filter-comuna" className="ps-input" value={filters.comuna} onChange={(e)=>setFilters({...filters, comuna: e.target.value})}>
+                    <option value="">Cualquiera</option>
+                    {COMUNAS_RM.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-6 flex gap-2">
+                <button data-testid="filters-clear" onClick={clearFilters} className="ps-btn-secondary flex-1">Limpiar</button>
+                <button data-testid="filters-apply" onClick={applyFilters} className="ps-btn-primary flex-1">Aplicar</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="ps-card h-[65vh] flex items-center justify-center"><div className="w-10 h-10 rounded-full border-4 border-white/10 border-t-[#FF6B5E] animate-spin"/></div>
@@ -237,7 +288,7 @@ function ProfileCard({ profile, mode, onPass, onLike }) {
         </div>
       </div>
 
-      {/* Prompts extra + intereses (scroll below card) */}
+      {/* Prompts extra + videos (scroll below card) */}
       <div className="mt-4 space-y-3">
         {profile.prompts?.slice(1).map((p, i) => (
           <div key={i} className="ps-card p-4">
@@ -245,6 +296,17 @@ function ProfileCard({ profile, mode, onPass, onLike }) {
             <p className="mt-1 text-sm">{p.a}</p>
           </div>
         ))}
+        {profile.videos && profile.videos.length > 0 && (
+          <div className="ps-card p-3">
+            <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Videos</p>
+            <div className="grid grid-cols-2 gap-2">
+              {profile.videos.map((v, i) => (
+                <video key={i} data-testid={`profile-video-${i}`} src={fileUrl(v)} controls playsInline preload="metadata"
+                  className="w-full aspect-[9/16] rounded-2xl bg-black object-cover"/>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* actions */}

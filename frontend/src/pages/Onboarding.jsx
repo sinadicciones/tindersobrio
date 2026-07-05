@@ -5,9 +5,9 @@ import api, { formatApiError, fileUrl } from "@/lib/api";
 import { COMUNAS_RM, GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Camera, X, Check } from "lucide-react";
+import { Camera, X, Check, Video } from "lucide-react";
 
-const STEPS = ["Sobre ti", "¿Qué buscas?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Reglas"];
+const STEPS = ["Sobre ti", "¿Qué buscas?", "Tu proceso", "Tus panoramas", "Fotos y videos", "Tus frases", "Reglas"];
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -15,7 +15,9 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [activities, setActivities] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const fileRef = useRef(null);
+  const videoRef = useRef(null);
 
   const [form, setForm] = useState({
     alias: "",
@@ -29,6 +31,7 @@ export default function Onboarding() {
     show_sober_time: false,
     favorite_activities: [],
     photos: [],
+    videos: [],
     prompts: [{ q: "", a: "" }, { q: "", a: "" }, { q: "", a: "" }],
     accepted_rules: false,
   });
@@ -71,6 +74,19 @@ export default function Onboarding() {
     } catch (ex) {
       toast.error(formatApiError(ex.response?.data?.detail) || "No se pudo subir la foto");
     }
+  };
+
+  const uploadVideo = async (file) => {
+    if (!file) return;
+    setUploadingVideo(true);
+    const fd = new FormData(); fd.append("file", file);
+    try {
+      const { data } = await api.post("/uploads/video", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      set("videos", [...form.videos, data.path]);
+      toast.success("Video subido");
+    } catch (ex) {
+      toast.error(formatApiError(ex.response?.data?.detail) || "No se pudo subir el video");
+    } finally { setUploadingVideo(false); }
   };
 
   const toggle = (arr, v) => arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
@@ -222,22 +238,49 @@ export default function Onboarding() {
           )}
 
           {step === 4 && (
-            <div className="mt-6">
-              <p className="text-white/60 mb-4">{form.modes.includes("amor") ? "Sube al menos 1 foto (obligatorio para modo Amor)." : "Sube 1 a 6 fotos (opcional)."} Máx 6.</p>
-              <div className="grid grid-cols-3 gap-2">
-                {form.photos.map((p, i) => (
-                  <div key={i} className="relative aspect-square rounded-2xl overflow-hidden bg-white/5">
-                    <img src={fileUrl(p)} alt="" className="w-full h-full object-cover"/>
-                    <button type="button" onClick={()=>set("photos", form.photos.filter((_,j)=>j!==i))} className="absolute top-1 right-1 bg-black/60 rounded-full p-1"><X size={14}/></button>
-                  </div>
-                ))}
-                {form.photos.length < 6 && (
-                  <button type="button" data-testid="ob-upload" onClick={()=>fileRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center text-white/60 hover:bg-white/5">
-                    <Camera size={22}/><span className="text-xs mt-1">Subir</span>
-                  </button>
-                )}
+            <div className="mt-6 space-y-5">
+              <div>
+                <p className="text-white/60 mb-3">{form.modes.includes("amor") ? "Sube al menos 1 foto (obligatorio para modo Amor)." : "Sube 1 a 6 fotos (opcional)."} Máx 6.</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {form.photos.map((p, i) => (
+                    <div key={i} className="relative aspect-square rounded-2xl overflow-hidden bg-white/5">
+                      <img src={fileUrl(p)} alt="" className="w-full h-full object-cover"/>
+                      <button type="button" onClick={()=>set("photos", form.photos.filter((_,j)=>j!==i))} className="absolute top-1 right-1 bg-black/60 rounded-full p-1"><X size={14}/></button>
+                    </div>
+                  ))}
+                  {form.photos.length < 6 && (
+                    <button type="button" data-testid="ob-upload" onClick={()=>fileRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center text-white/60 hover:bg-white/5">
+                      <Camera size={22}/><span className="text-xs mt-1">Subir</span>
+                    </button>
+                  )}
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e)=>upload(e.target.files?.[0])}/>
               </div>
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e)=>upload(e.target.files?.[0])}/>
+
+              <div>
+                <p className="text-white/60 mb-3">Videos cortos (opcional · máx 3 · &lt;30s ideal)</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {form.videos.map((v, i) => (
+                    <div key={i} className="relative aspect-[9/16] rounded-2xl overflow-hidden bg-black">
+                      <video src={fileUrl(v)} controls playsInline preload="metadata" className="w-full h-full object-cover"/>
+                      <button type="button" onClick={()=>set("videos", form.videos.filter((_,j)=>j!==i))} className="absolute top-1 right-1 bg-black/70 rounded-full p-1"><X size={14}/></button>
+                    </div>
+                  ))}
+                  {form.videos.length < 3 && (
+                    <button type="button" data-testid="ob-upload-video" disabled={uploadingVideo} onClick={()=>videoRef.current?.click()} className="aspect-[9/16] rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center text-white/60 hover:bg-white/5 disabled:opacity-50">
+                      {uploadingVideo ? (
+                        <div className="w-6 h-6 border-2 border-white/20 border-t-white/70 rounded-full animate-spin"/>
+                      ) : (
+                        <>
+                          <Video size={22}/><span className="text-xs mt-1">Video</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                <input ref={videoRef} type="file" accept="video/mp4,video/quicktime,video/webm" hidden onChange={(e)=>uploadVideo(e.target.files?.[0])}/>
+                <p className="text-xs text-white/40 mt-2">Formatos: mp4, mov, webm · Máx 40MB. Muestra un panorama tuyo :)</p>
+              </div>
             </div>
           )}
 

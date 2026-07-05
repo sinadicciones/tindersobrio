@@ -4,7 +4,7 @@ import api, { formatApiError, fileUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { COMUNAS_RM, GENDERS, MODES, SOBER_TIMES, PROMPTS } from "@/constants/comunas";
 import { toast } from "sonner";
-import { ArrowLeft, X, Camera } from "lucide-react";
+import { ArrowLeft, X, Camera, Video } from "lucide-react";
 
 export default function EditProfile() {
   const { user, refresh } = useAuth();
@@ -20,11 +20,14 @@ export default function EditProfile() {
     sober_time: user?.sober_time || "",
     favorite_activities: user?.favorite_activities || [],
     photos: user?.photos || [],
+    videos: user?.videos || [],
     prompts: user?.prompts || [{q:"",a:""},{q:"",a:""},{q:"",a:""}],
   });
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const [acts, setActs] = useState([]);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const fileRef = useRef(null);
+  const videoRef = useRef(null);
 
   useEffect(() => { api.get("/activities").then((r)=>setActs(r.data)); }, []);
 
@@ -35,6 +38,18 @@ export default function EditProfile() {
     const fd = new FormData(); fd.append("file", file);
     try { const { data } = await api.post("/uploads/photo", fd, { headers: {"Content-Type": "multipart/form-data"} }); set("photos", [...f.photos, data.path]); }
     catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
+  };
+
+  const uploadVideo = async (file) => {
+    if (!file) return;
+    setUploadingVideo(true);
+    const fd = new FormData(); fd.append("file", file);
+    try {
+      const { data } = await api.post("/uploads/video", fd, { headers: {"Content-Type": "multipart/form-data"} });
+      set("videos", [...f.videos, data.path]);
+      toast.success("Video subido");
+    } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
+    finally { setUploadingVideo(false); }
   };
 
   const save = async () => {
@@ -124,6 +139,31 @@ export default function EditProfile() {
             )}
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e)=>upload(e.target.files?.[0])}/>
+        </div>
+
+        <div>
+          <label className="text-sm text-white/60 mb-2 block">Videos cortos (máx 3 · &lt;30s ideal)</label>
+          <div className="grid grid-cols-3 gap-2">
+            {f.videos.map((v, i) => (
+              <div key={i} className="relative aspect-[9/16] rounded-2xl overflow-hidden bg-black">
+                <video src={fileUrl(v)} controls playsInline preload="metadata" className="w-full h-full object-cover"/>
+                <button onClick={()=>set("videos", f.videos.filter((_,j)=>j!==i))} className="absolute top-1 right-1 bg-black/70 rounded-full p-1"><X size={14}/></button>
+              </div>
+            ))}
+            {f.videos.length < 3 && (
+              <button data-testid="edit-video-upload" disabled={uploadingVideo} onClick={()=>videoRef.current?.click()} className="aspect-[9/16] rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center text-white/60 disabled:opacity-50">
+                {uploadingVideo ? (
+                  <div className="w-6 h-6 border-2 border-white/20 border-t-white/70 rounded-full animate-spin"/>
+                ) : (
+                  <>
+                    <Video size={20}/><span className="text-xs mt-1">Subir</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          <input ref={videoRef} type="file" accept="video/mp4,video/quicktime,video/webm" hidden onChange={(e)=>uploadVideo(e.target.files?.[0])}/>
+          <p className="text-xs text-white/40 mt-2">Formatos: mp4, mov, webm · Máx 40MB</p>
         </div>
 
         <div>

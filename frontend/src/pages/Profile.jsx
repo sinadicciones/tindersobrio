@@ -39,6 +39,13 @@ export default function Profile() {
             ))}
           </div>
         )}
+        {user.videos?.length > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {user.videos.map((v, i) => (
+              <video key={i} data-testid={`profile-video-${i}`} src={fileUrl(v)} controls playsInline preload="metadata" className="w-full aspect-[9/16] rounded-2xl bg-black object-cover"/>
+            ))}
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
           {(user.modes || []).map((v) => {
             const m = MODES.find((x) => x.v === v);
