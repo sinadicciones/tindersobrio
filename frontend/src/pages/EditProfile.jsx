@@ -2,17 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { COMUNAS_RM, GENDERS, MODES, SOBER_TIMES, PROMPTS } from "@/constants/comunas";
+import { GENDERS, MODES, SOBER_TIMES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
 import { ArrowLeft, X, Camera } from "lucide-react";
+import LocationPicker from "@/components/LocationPicker";
 
 export default function EditProfile() {
   const { user, refresh } = useAuth();
   const nav = useNavigate();
+  const initialLocation = user?.location ? {
+    country: user.location.country || "CL",
+    city: user.location.city || user.comuna,
+    comuna: user.location.comuna || user.comuna,
+  } : (user?.comuna ? { country: "CL", city: user.comuna, comuna: user.comuna } : null);
+
   const [f, setF] = useState({
     alias: user?.alias || "",
-    comuna: user?.comuna || "",
     modes: user?.modes || [],
     interested_genders: user?.interested_genders || [],
     age_min: user?.age_min || 22,
@@ -21,8 +27,11 @@ export default function EditProfile() {
     sober_time: user?.sober_time || "",
     favorite_activities: user?.favorite_activities || [],
     photos: user?.photos || [],
+    bio: user?.bio || "",
     prompts: user?.prompts || [{q:"",a:""},{q:"",a:""},{q:"",a:""}],
   });
+  const [locationDraft, setLocationDraft] = useState(initialLocation);
+  const [locationChanged, setLocationChanged] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const [acts, setActs] = useState([]);
   const fileRef = useRef(null);
@@ -40,8 +49,26 @@ export default function EditProfile() {
   };
 
   const save = async () => {
-    try { await api.patch("/profile/me", f); await refresh(); toast.success("Perfil actualizado"); nav("/app/perfil"); }
-    catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
+    try {
+      const payload = { ...f };
+      // Only include location when the user explicitly changed it. This avoids
+      // silently pushing GPS coordinates back to the comuna centroid on every save.
+      if (locationChanged && locationDraft) {
+        payload.location = {
+          country: (locationDraft.country || "CL").toUpperCase(),
+          city: locationDraft.city || locationDraft.comuna,
+          comuna: locationDraft.comuna,
+          coords: locationDraft.coords, // may be undefined for manual → server derives
+        };
+        payload.comuna = locationDraft.comuna;
+      }
+      await api.patch("/profile/me", payload);
+      await refresh();
+      toast.success("Perfil actualizado");
+      nav("/app/perfil");
+    } catch (ex) {
+      toast.error(formatApiError(ex.response?.data?.detail));
+    }
   };
 
   return (
@@ -54,11 +81,24 @@ export default function EditProfile() {
           <label className="text-sm text-white/60 mb-2 block">Alias</label>
           <input data-testid="edit-alias" className="ps-input" value={f.alias} onChange={(e)=>set("alias", e.target.value)}/>
         </div>
+
+        <LocationPicker
+          value={locationDraft}
+          onChange={(loc)=>{ setLocationDraft(loc); setLocationChanged(true); }}
+        />
+
         <div>
-          <label className="text-sm text-white/60 mb-2 block">Comuna</label>
-          <select className="ps-input" value={f.comuna} onChange={(e)=>set("comuna", e.target.value)}>
-            {COMUNAS_RM.map((c)=><option key={c}>{c}</option>)}
-          </select>
+          <label className="text-sm text-white/60 mb-2 block">Sobre mí</label>
+          <textarea
+            data-testid="edit-bio"
+            className="ps-input"
+            maxLength={300}
+            rows={3}
+            placeholder="Cuéntale a la comunidad quién eres y qué buscas…"
+            value={f.bio}
+            onChange={(e)=>set("bio", e.target.value)}
+          />
+          <p className="text-xs text-white/40 text-right mt-1">{f.bio.length}/300</p>
         </div>
 
         <div>

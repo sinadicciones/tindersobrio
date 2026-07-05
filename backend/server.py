@@ -15,6 +15,7 @@ import requests
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 
+import re
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Header, Query
 from fastapi.responses import Response as FastAPIResponse
 from starlette.middleware.cors import CORSMiddleware
@@ -137,6 +138,7 @@ def clear_public(user: dict) -> dict:
         "prompts": user.get("prompts", []),
         "favorite_activities": user.get("favorite_activities", []),
         "sober_time_badge": user.get("sober_time") if user.get("show_sober_time") else None,
+        "bio": user.get("bio") or "",
     }
     if user.get("_distance_km") is not None:
         out["distance_km"] = user["_distance_km"]
@@ -158,17 +160,42 @@ def calc_age(birthdate_str: str) -> Optional[int]:
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+
+BIO_URL_RE = re.compile(r"(https?://|www\.|\.com|\.cl|\.net|\.org|\.io|\.co\b)", re.IGNORECASE)
+BIO_PHONE_RE = re.compile(r"(?:\+?\d[\s\-\.]?){6,}")
+
+
+def validate_bio(bio: str) -> str:
+    """Return the cleaned bio or raise 400.
+
+    Rules: max 300 chars, no URLs, no phone-like sequences (6+ digits with optional
+    separators). This prevents using bio to leak contact info before matching.
+    """
+    text = (bio or "").strip()
+    if not text:
+        return ""
+    if len(text) > 300:
+        raise HTTPException(status_code=400, detail="Tu 'Sobre mí' no puede pasar de 300 caracteres")
+    if BIO_URL_RE.search(text):
+        raise HTTPException(status_code=400, detail="Guarda los links para después del match ✨")
+    if BIO_PHONE_RE.search(text):
+        raise HTTPException(status_code=400, detail="Guarda los teléfonos para después del match ✨")
+    return text
+
 def build_location_doc(country: str, comuna: Optional[str], city: Optional[str], coords: Optional[list]) -> dict:
     """Build a normalized `location` doc.
 
     Prefers explicit coords (from GPS/IP), falls back to comuna/city centroid,
     and finally to the country default centroid. Returns None only if we truly
     cannot resolve anything (unknown country + no coords).
+
+    PRIVACY: stored coords are rounded to 2 decimals (~1km grid) so an exact
+    home address can never be reconstructed even if the DB leaks.
     """
     country = (country or "CL").upper()
     resolved = None
     if coords and len(coords) == 2:
-        resolved = [round(float(coords[0]), 4), round(float(coords[1]), 4)]
+        resolved = round_coords(float(coords[0]), float(coords[1]))
     if resolved is None and comuna:
         resolved = city_coords_for(country, comuna)
     if resolved is None and city:
@@ -183,6 +210,24 @@ def build_location_doc(country: str, comuna: Optional[str], city: Optional[str],
         "comuna": comuna,
         "coords": {"type": "Point", "coordinates": resolved},
     }
+
+
+def bucket_distance_km(km: float) -> int:
+    """Round distance to a coarse bucket to prevent triangulation.
+
+    - <5 km  -> 5
+    - 5..50  -> next multiple of 5
+    - >50    -> 50 (frontend shows "50+")
+    """
+    if km <= 0:
+        return 5
+    if km <= 5:
+        return 5
+    if km >= 50:
+        return 50
+    # Round UP to next multiple of 5 (so ~7 km never leaks as "6").
+    import math
+    return int(math.ceil(km / 5.0) * 5)
 
 # ------------------------------------------------------------------
 # Models
@@ -221,6 +266,7 @@ class OnboardingIn(BaseModel):
     accepted_rules: bool
     location: Optional[LocationIn] = None
     birthdate: Optional[str] = None  # Required only for Google-auth users without one
+    bio: Optional[str] = None
 
 class ProfileUpdateIn(BaseModel):
     alias: Optional[str] = None
@@ -236,6 +282,7 @@ class ProfileUpdateIn(BaseModel):
     videos: Optional[List[str]] = None
     prompts: Optional[List[dict]] = None
     location: Optional[LocationIn] = None
+    bio: Optional[str] = None
 
 class LikeIn(BaseModel):
     target_user_id: str
@@ -329,7 +376,12 @@ async def register(body: RegisterIn, response: Response):
 async def login(body: LoginIn, response: Response):
     email = body.email.lower()
     user = await db.users.find_one({"email": email})
-    if not user or not verify_password(body.password, user.get("password_hash", "")):
+    if not user:
+        raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+    # Google-only accounts have no password_hash. Give a clear, kind hint.
+    if not user.get("password_hash"):
+        raise HTTPException(status_code=401, detail="Esta cuenta ingresa con Google. Usa el botón Continuar con Google")
+    if not verify_password(body.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
     if user.get("status") == "banned":
         raise HTTPException(status_code=403, detail="account_banned")
@@ -561,6 +613,7 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
         "onboarding_complete": True,
         "country": (location or {}).get("country", "CL"),
         "birthdate": effective_birthdate,
+        "bio": validate_bio(body.bio or ""),
     }
     if location:
         update["location"] = location
@@ -570,16 +623,27 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
 @api.patch("/profile/me")
 async def update_profile(body: ProfileUpdateIn, user: dict = Depends(current_user)):
     payload = body.model_dump(exclude_unset=True)
-    update = {k: v for k, v in payload.items() if v is not None and k != "location"}
-    # If location or comuna changed, re-derive the location doc.
-    if body.location is not None or body.comuna is not None:
+    update = {k: v for k, v in payload.items() if v is not None and k not in ("location", "bio")}
+
+    # Bio: validate before persisting (max 300, no urls, no phones).
+    if body.bio is not None:
+        update["bio"] = validate_bio(body.bio)
+
+    # Only re-derive location when the user EXPLICITLY changed their location
+    # (either sent a `location` object, or changed `comuna` to a different value).
+    # This prevents editing the alias/photos/etc from silently pushing the GPS
+    # coordinates back to the comuna centroid.
+    location_changed = body.location is not None
+    comuna_changed = (
+        body.comuna is not None
+        and (body.comuna or "").strip() != (user.get("comuna") or "").strip()
+    )
+    if location_changed or comuna_changed:
         loc_in = payload.get("location") or {}
         current_loc = user.get("location") or {}
-        # Prefer explicit country from the request, else current country, else CL.
-        # If the user is updating comuna alone, treat it as a CL comuna change (our catalog is CL-only).
         country = loc_in.get("country")
         if not country:
-            country = "CL" if payload.get("comuna") and not body.location else (current_loc.get("country") or "CL")
+            country = "CL" if comuna_changed and not body.location else (current_loc.get("country") or "CL")
         comuna = payload.get("comuna") or loc_in.get("comuna") or user.get("comuna")
         city = loc_in.get("city") or comuna
         coords = loc_in.get("coords")
@@ -719,7 +783,9 @@ async def discover(
         ]
         candidates = [d async for d in db.users.aggregate(pipeline)]
         for c in candidates:
-            c["_distance_km"] = round((c.pop("_distance_m", 0) / 1000.0), 1)
+            # Bucket distance for privacy (see bucket_distance_km).
+            raw_km = c.pop("_distance_m", 0) / 1000.0
+            c["_distance_km"] = bucket_distance_km(raw_km)
     else:
         candidates = await db.users.find(query, {"password_hash": 0}).to_list(500)
 
@@ -1624,6 +1690,15 @@ async def seed_admin_and_data():
         loc = build_location_doc(country="CL", comuna=g.get("comuna"), city=g.get("comuna"), coords=None)
         if loc:
             await db.groups.update_one({"id": g["id"]}, {"$set": {"location": loc, "country": "CL"}})
+
+    # Privacy migration: re-round coords stored with more than 2 decimals down to 2 (~1km grid).
+    async for u in db.users.find({"location.coords.coordinates": {"$exists": True}}, {"id": 1, "location": 1, "_id": 0}):
+        coords = (u.get("location") or {}).get("coords", {}).get("coordinates")
+        if not coords or len(coords) != 2:
+            continue
+        rounded = round_coords(coords[0], coords[1])
+        if rounded != coords:
+            await db.users.update_one({"id": u["id"]}, {"$set": {"location.coords.coordinates": rounded}})
 
 @app.on_event("startup")
 async def on_startup():

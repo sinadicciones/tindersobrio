@@ -55,6 +55,31 @@ export async function getIpLocation({ timeoutMs = 4000 } = {}) {
 }
 
 /**
+ * Reverse-geocode a specific lat/lng (from GPS) into country + city/comuna.
+ * This is DIFFERENT from getIpLocation() — that one uses the browser IP and can
+ * return a totally different city (proxies, VPN). Here we pass real coords.
+ */
+export async function reverseGeocode(lat, lng, { timeoutMs = 4000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const url = `${IP_ENDPOINT}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}&localityLanguage=es`;
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error("rev-http-" + res.status);
+    const j = await res.json();
+    // BigDataCloud returns `city`, `locality`, and `principalSubdivision`.
+    // In Chile, `locality` maps to the comuna (e.g. "Providencia"), `city` to the wider one.
+    return {
+      lat, lng,
+      city: j.city || j.locality || null,
+      comuna: j.locality || j.city || null,
+      country: j.countryCode || null,
+      source: "gps",
+    };
+  } finally { clearTimeout(timer); }
+}
+
+/**
  * Full detection. Never throws. Returns null if both attempts fail.
  * Enriches GPS results with country/city from a follow-up IP call (best-effort).
  */
@@ -66,13 +91,14 @@ export async function detectLocation({ forceRefresh = false } = {}) {
   let result = null;
   try {
     const gps = await getGpsCoords();
-    // Fire IP call in parallel to enrich country/city — GPS alone doesn't give us that.
+    // Enrich with reverse-geocode using the ACTUAL coords (not IP, which can be a different city).
     let enrich = null;
-    try { enrich = await getIpLocation(); } catch { /* ignore */ }
+    try { enrich = await reverseGeocode(gps.lat, gps.lng); } catch { /* ignore */ }
     result = {
       lat: gps.lat, lng: gps.lng, source: "gps",
-      country: enrich?.country || "CL",
+      country: enrich?.country || null,
       city: enrich?.city || null,
+      comuna: enrich?.comuna || null,
     };
   } catch {
     try { result = await getIpLocation(); } catch { result = null; }

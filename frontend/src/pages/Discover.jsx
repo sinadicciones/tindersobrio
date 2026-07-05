@@ -7,7 +7,6 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate as fmAni
 import { toast } from "sonner";
 import { Sparkles, X, MapPin, Heart, SlidersHorizontal } from "lucide-react";
 import Avatar from "@/components/Avatar";
-import { detectLocation } from "@/lib/geo";
 
 export default function Discover() {
   const { user } = useAuth();
@@ -26,27 +25,6 @@ export default function Discover() {
   const [filters, setFilters] = useState({ age_min: "", age_max: "", comuna: "", radius_km: "" });
 
   useEffect(() => { api.get("/activities").then((r)=>setActivities(r.data)); }, []);
-
-  // Silent location refresh once per session: get GPS/IP → PATCH profile → cached for 24h.
-  // We only patch when source === 'gps' to avoid moving users based on a shared IP
-  // (proxies, VPN, or a container's egress). IP is still used for the waitlist gate on register.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const loc = await detectLocation().catch(() => null);
-      if (cancelled || !loc || loc.source !== "gps") return;
-      try {
-        await api.patch("/profile/me", {
-          location: {
-            country: (loc.country || "CL").toUpperCase(),
-            city: loc.city || undefined,
-            coords: [loc.lng, loc.lat],
-          },
-        });
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   // Ref used by ProfileCard to receive the "return card" command when modal closes without submitting
   const cardResetRef = useRef(null);
@@ -445,7 +423,7 @@ function ProfileCard({ profile, mode, onPass, onLike, resetRef }) {
                 </span>
               )}
             </div>
-            <p data-testid="profile-comuna" className="text-sm text-white/80 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}{profile.distance_km != null && (<span data-testid="profile-distance" className="text-white/60"> · a {profile.distance_km} km</span>)}</p>
+            <p data-testid="profile-comuna" className="text-sm text-white/80 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}{profile.distance_km != null && (<span data-testid="profile-distance" className="text-white/60"> · a {profile.distance_km >= 50 ? "50+" : `~${profile.distance_km}`} km</span>)}</p>
             {profile.prompts?.slice(0,1).map((p, i) => (
               <div key={i} className="ps-card p-3">
                 <p className="text-xs text-white/50">{p.q}</p>
@@ -458,6 +436,13 @@ function ProfileCard({ profile, mode, onPass, onLike, resetRef }) {
 
       {/* Prompts extra (scroll below card) */}
       <div className="mt-4 space-y-3">
+        {profile.bio && (
+          <div data-testid="profile-bio" className="relative pl-4 pr-4 py-4 rounded-2xl overflow-hidden" style={{ background: "linear-gradient(180deg, #1B1F2A 0%, #161922 100%)", boxShadow: "0 4px 24px rgba(0,0,0,0.35)" }}>
+            <div className="absolute left-0 top-0 bottom-0 w-1 ps-gradient rounded-l-2xl"/>
+            <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "#FF6B5E" }}>✍️ Sobre mí</p>
+            <p className="mt-2 text-white leading-relaxed" style={{ fontSize: "16px" }}>“{profile.bio}”</p>
+          </div>
+        )}
         {profile.prompts?.slice(1).map((p, i) => (
           <div key={i} className="ps-card p-4">
             <p className="text-xs text-white/50">{p.q}</p>

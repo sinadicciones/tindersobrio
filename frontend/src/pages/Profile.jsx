@@ -58,6 +58,13 @@ export default function Profile() {
             return m ? <span key={v} className="ps-chip" style={{ background: `${m.color}22`, borderColor: `${m.color}55`, color: m.color }}>{m.emoji} {m.l}</span> : null;
           })}
         </div>
+        {user.bio && (
+          <div data-testid="profile-page-bio" className="relative mt-4 pl-4 pr-4 py-4 rounded-2xl overflow-hidden" style={{ background: "linear-gradient(180deg, #1B1F2A 0%, #161922 100%)", boxShadow: "0 4px 24px rgba(0,0,0,0.35)" }}>
+            <div className="absolute left-0 top-0 bottom-0 w-1 ps-gradient rounded-l-2xl"/>
+            <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "#FF6B5E" }}>✍️ Sobre mí</p>
+            <p className="mt-2 text-white leading-relaxed" style={{ fontSize: "16px" }}>“{user.bio}”</p>
+          </div>
+        )}
         {user.prompts?.map((p, i) => (
           <div key={i} className="mt-3 ps-card p-3 bg-white/5">
             <p className="text-xs text-white/50">{p.q}</p>

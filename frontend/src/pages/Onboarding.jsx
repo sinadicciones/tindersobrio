@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import api, { formatApiError, fileUrl } from "@/lib/api";
-import { COMUNAS_RM, GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
+import { GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
-import { detectLocation } from "@/lib/geo";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Camera, X, Check } from "lucide-react";
+import LocationPicker from "@/components/LocationPicker";
 
-const STEPS = ["Sobre ti", "¿Qué buscas?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Reglas"];
+const STEPS = ["Sobre ti", "¿Qué buscas?", "¿Dónde estás?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Reglas"];
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -23,8 +23,8 @@ export default function Onboarding() {
   const [form, setForm] = useState({
     alias: "",
     gender: "",
-    comuna: "",
     birthdate: "",
+    location: null, // { country, city, comuna, coords, source }
     modes: [],
     interested_genders: [],
     age_min: 22, age_max: 40,
@@ -34,6 +34,7 @@ export default function Onboarding() {
     favorite_activities: [],
     photos: [],
     videos: [],
+    bio: "",
     prompts: [{ q: "", a: "" }, { q: "", a: "" }, { q: "", a: "" }],
     accepted_rules: false,
   });
@@ -45,34 +46,35 @@ export default function Onboarding() {
   const back = () => setStep((s) => Math.max(0, s - 1));
 
   const canNext = () => {
-    if (step === 0) return form.alias.length >= 2 && form.gender && form.comuna && (!needsBirthdate || form.birthdate);
+    if (step === 0) return form.alias.length >= 2 && form.gender && (!needsBirthdate || form.birthdate);
     if (step === 1) return form.modes.length > 0 && (!form.modes.includes("amor") || (form.interested_genders.length && form.age_min && form.age_max));
-    if (step === 2) return !!form.relationship_with_substances;
-    if (step === 3) return form.favorite_activities.length >= 3;
-    if (step === 4) return form.modes.includes("amor") ? form.photos.length >= 1 : true;
-    if (step === 5) return form.prompts.every((p) => p.q && p.a.trim().length > 0);
-    if (step === 6) return form.accepted_rules;
+    if (step === 2) return !!(form.location && form.location.comuna);
+    if (step === 3) return !!form.relationship_with_substances;
+    if (step === 4) return form.favorite_activities.length >= 3;
+    if (step === 5) return form.modes.includes("amor") ? form.photos.length >= 1 : true;
+    if (step === 6) return form.prompts.every((p) => p.q && p.a.trim().length > 0);
+    if (step === 7) return form.accepted_rules;
     return true;
   };
 
   const submit = async () => {
     setSaving(true);
     try {
-      // Best-effort location. Only send explicit coords when source === 'gps' (real device).
-      // If IP-only or denied, we omit coords and the server derives them from `comuna`.
-      let location = undefined;
-      try {
-        const loc = await detectLocation();
-        if (loc && loc.source === "gps") {
-          location = {
-            country: (loc.country || "CL").toUpperCase(),
-            city: loc.city || form.comuna,
-            comuna: form.comuna,
-            coords: [loc.lng, loc.lat],
-          };
-        }
-      } catch { /* ignore */ }
-      await api.post("/profile/onboarding", { ...form, birthdate: form.birthdate || undefined, location });
+      const location = form.location ? {
+        country: (form.location.country || "CL").toUpperCase(),
+        city: form.location.city || form.location.comuna,
+        comuna: form.location.comuna,
+        coords: form.location.coords, // undefined for manual → server derives
+      } : undefined;
+      const payload = {
+        ...form,
+        comuna: form.location?.comuna || "",
+        birthdate: form.birthdate || undefined,
+        location,
+      };
+      delete payload.location; // don't send twice
+      payload.location = location;
+      await api.post("/profile/onboarding", payload);
       await refresh();
       toast.success("¡Listo! Bienvenide a PlanSobrio 💛");
       nav("/app/descubrir");
@@ -140,13 +142,6 @@ export default function Onboarding() {
                   ))}
                 </div>
               </div>
-              <div>
-                <label className="text-sm text-white/60 mb-2 block">Comuna</label>
-                <select data-testid="ob-comuna" className="ps-input" value={form.comuna} onChange={(e)=>set("comuna", e.target.value)}>
-                  <option value="">Elige…</option>
-                  {COMUNAS_RM.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
             </div>
           )}
 
@@ -198,6 +193,17 @@ export default function Onboarding() {
 
           {step === 2 && (
             <div className="mt-6 space-y-4">
+              <p className="text-white/60">Necesitamos saber dónde estás para mostrarte gente y planes cerca.</p>
+              <LocationPicker
+                value={form.location}
+                onChange={(loc)=>set("location", loc)}
+                onOutsideChile={()=>nav("/waitlist")}
+              />
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="mt-6 space-y-4">
               <div className="ps-card p-4 text-sm text-white/70">
                 🔒 Esto es privado. Nunca se muestra en tu perfil a menos que tú quieras.
               </div>
@@ -234,7 +240,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="mt-6">
               <p className="text-white/60 mb-4">Elige mínimo 3 panoramas que te gustan.</p>
               <div className="grid grid-cols-2 gap-2">
@@ -254,7 +260,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="mt-6">
               <p className="text-white/60 mb-4">{form.modes.includes("amor") ? "Sube al menos 1 foto (obligatorio para modo Amor)." : "Sube 1 a 6 fotos (opcional)."} Máx 6.</p>
               <div className="grid grid-cols-3 gap-2">
@@ -274,8 +280,21 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <div className="mt-6 space-y-4">
+              <div>
+                <label className="text-sm text-white/60 mb-2 block">Sobre mí (opcional)</label>
+                <textarea
+                  data-testid="ob-bio"
+                  className="ps-input"
+                  maxLength={300}
+                  rows={3}
+                  placeholder="Cuéntale a la comunidad quién eres y qué buscas, en tus palabras…"
+                  value={form.bio}
+                  onChange={(e)=>set("bio", e.target.value)}
+                />
+                <p className="text-xs text-white/40 text-right mt-1">{form.bio.length}/300</p>
+              </div>
               <p className="text-white/60">Elige 3 preguntas y respóndelas (máx 150 caracteres).</p>
               {form.prompts.map((p, idx) => (
                 <div key={idx} className="ps-card p-4 space-y-3">
@@ -290,7 +309,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 6 && (
+          {step === 7 && (
             <div className="mt-6 space-y-4">
               <div className="ps-card p-5 space-y-3 text-sm leading-relaxed">
                 <p className="font-bold text-lg font-display">Reglas de la comunidad</p>
