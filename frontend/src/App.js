@@ -1,56 +1,78 @@
-import { useEffect } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { Toaster } from "sonner";
+import BottomNav from "@/components/BottomNav";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Onboarding from "@/pages/Onboarding";
+import Discover from "@/pages/Discover";
+import Groups from "@/pages/Groups";
+import GroupDetail from "@/pages/GroupDetail";
+import MisPlanes from "@/pages/MisPlanes";
+import Chats from "@/pages/Chats";
+import ChatDetail from "@/pages/ChatDetail";
+import Profile from "@/pages/Profile";
+import EditProfile from "@/pages/EditProfile";
+import NecesitoApoyo from "@/pages/NecesitoApoyo";
+import Admin from "@/pages/Admin";
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function Loader() {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
-
-function App() {
-  return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+    <div className="min-h-screen flex items-center justify-center bg-[#0E0F13]">
+      <div className="w-14 h-14 rounded-full border-4 border-white/10 border-t-[#FF6B5E] animate-spin"/>
     </div>
   );
 }
 
-export default App;
+function RequireAuth({ children, requireOnboarding = true, adminOnly = false }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Loader />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (adminOnly && user.role !== "admin") return <Navigate to="/app/descubrir" replace />;
+  if (requireOnboarding && !user.onboarding_complete && user.role !== "admin") return <Navigate to="/onboarding" replace />;
+  return children;
+}
+
+function AppShell() {
+  return (
+    <>
+      <Outlet />
+      <BottomNav />
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Toaster position="top-center" theme="dark" richColors />
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/registro" element={<Register />} />
+          <Route path="/onboarding" element={<RequireAuth requireOnboarding={false}><Onboarding /></RequireAuth>} />
+
+          <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
+            <Route index element={<Navigate to="descubrir" replace />} />
+            <Route path="descubrir" element={<Discover />} />
+            <Route path="grupos" element={<Groups />} />
+            <Route path="grupos/:id" element={<GroupDetail />} />
+            <Route path="mis-planes" element={<MisPlanes />} />
+            <Route path="chats" element={<Chats />} />
+            <Route path="chats/:matchId" element={<ChatDetail />} />
+            <Route path="perfil" element={<Profile />} />
+            <Route path="perfil/editar" element={<EditProfile />} />
+            <Route path="necesito-apoyo" element={<NecesitoApoyo />} />
+          </Route>
+
+          <Route path="/admin" element={<RequireAuth adminOnly requireOnboarding={false}><Admin /></RequireAuth>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}

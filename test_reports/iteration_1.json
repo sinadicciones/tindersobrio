@@ -1,0 +1,41 @@
+{
+  "summary": "First iteration full backend + frontend test of PlanSobrio MVP. 14/14 backend pytest passed covering auth, onboarding validation (amor+photos), seed data, discovery mode filtering, like/match reciprocity + system message, propose/accept plan, daily quota (20 -> 429), photo upload (Emergent object storage) + fetch, reasons CRUD, block/report + discover exclusion, admin dashboard/reports/users/ban+reactivate/activities+groups CRUD. Frontend flows passed: Landing content + CTAs, Admin login redirect to /admin with dashboard stats, demo1 login redirects to Descubrir, bottom nav 5 items, mode tabs (demo1 sees amistad+amor, demo2 does NOT see amor), 4 seed groups listed, group join, event visible, Necesito Apoyo has breathing + reasons + 3 phones (600 360 7777, *4141, 131) + SinAdicciones link, reason add works, register under-18 shows 'Debes ser mayor de 18 años' error. One critical UI bug found: bottom nav overlaps 'Me tinca' button on mobile viewport (Discover missing pb-nav padding).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "CORS", "issue": "server.py uses allow_origins=[\"*\"] with allow_credentials=True — browsers reject cookies with wildcard origin. Not a blocker because frontend uses Bearer token from localStorage, but the httpOnly cookie set by /auth/login is effectively dead across origins."},
+      {"endpoint": "seed_admin_and_data", "issue": "Demo profile Fer_Cafe has modes=['amor'] and photos=[] — seeded directly bypasses onboarding validation. It will still appear in /discover?mode=amor since query is `modes: 'amor'`. Consider seeding at least a placeholder photo for demos that include amor."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Discover.jsx", "issue": "Fixed BottomNav overlays the 'Pasar' / 'Me tinca ✨' action buttons on mobile viewport (420x900). Playwright reported 'subtree intercepts pointer events' 56 retries. Root cause: Discover container uses only `pt-6` but no bottom padding, while BottomNav is `fixed bottom-0` ~72px tall. Add `pb-nav` (defined in index.css as padding-bottom:6rem) to the outer div in Discover.jsx (line 92).", "selector": "[data-testid=\"me-tinca-btn\"]", "priority": "HIGH"},
+      {"component": "Admin.jsx header", "issue": "'Explorar la app' button label wraps to 3 lines inside a narrow pill on mobile (see screenshot). Consider shortening label or using icon-only on <640px.", "selector": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Discover mobile", "issues": ["Bottom nav collides with action buttons — likely affects Groups, Chats, MisPlanes, Profile similarly if they don't use pb-nav utility."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add `pb-nav` (or explicit `pb-32`) to the root wrapper of Discover.jsx (and audit Groups, Chats, MisPlanes, Profile, GroupDetail, ChatDetail) so BottomNav doesn't cover interactive content on short screens.",
+    "Consider fixing CORS: replace allow_origins=['*'] with explicit FRONTEND_URL when allow_credentials=True (Bearer-token auth still works, but cookie auth is broken across cross-origin).",
+    "Optionally seed at least one photo for demo profiles that include modo Amor so amor-discovery cards render properly."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1146 lines — split routers into modules (auth, profile, discover, chat, groups, admin) for maintainability (>700 line rule).",
+    "CORS misconfiguration: allow_origins=['*'] with allow_credentials=True is silently ignored by browsers for cookie flows.",
+    "Discover.jsx and other AppShell pages must reserve space for fixed BottomNav (use pb-nav utility)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (created)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "~92% (11/12 flows pass; me-tinca click blocked by nav overlay)"},
+  "test_credentials": "Admin: contacto@sinadicciones.org / Jodorowsky100. Demo users: demo1..demo12@plansobrio.cl / Demo1234!",
+  "seed_data_creation": "None (used existing seed). Test users created via API: TEST_adult_*, TEST_kid_*, TEST_quota_* (small volume, safe to leave).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend endpoints fully covered by /app/backend/tests/backend_test.py — reuse. All seed & demo assumptions from problem statement verified. Frontend blocker is only bottom-nav overlap on Discover mobile viewport; once main agent adds pb-nav to Discover (and ideally other app-shell pages), re-run playwright to confirm Me tinca -> plan modal -> like/match flow.",
+  "rca of the issue": "Bug: 'Me tinca ✨' un-clickable on mobile. RCA: <BottomNav> renders as fixed bottom-0 with pointer-events-auto on the inner card. Discover's ProfileCard occupies 70vh + action-buttons row appended below it. On viewport 420x900 (mobile) the actions row sits at ~y=780 while BottomNav card sits around y=804 — they overlap. Fix: apply pb-nav to the Discover outer wrapper (class already defined in index.css:109 as padding-bottom:6rem). Reproduction: login demo1@plansobrio.cl, on Descubrir tap 'Me tinca ✨' — click is intercepted by BottomNav.\n\nMinor: Fer_Cafe seeded with modes:['amor'] and empty photos. RCA: seed_admin_and_data bypasses OnboardingIn validator. Not a bug per se but leaves a photo-less profile in the amor discover pool."
+}

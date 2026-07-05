@@ -1,0 +1,28 @@
+import axios from "axios";
+
+const BASE = process.env.REACT_APP_BACKEND_URL;
+export const API = `${BASE}/api`;
+
+const api = axios.create({ baseURL: API, withCredentials: false });
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("ps_token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export function formatApiError(detail) {
+  if (detail == null) return "Algo salió mal. Intenta de nuevo.";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map((e) => (e && typeof e.msg === "string" ? e.msg : JSON.stringify(e))).filter(Boolean).join(" · ");
+  if (detail && typeof detail.msg === "string") return detail.msg;
+  return String(detail);
+}
+
+export function fileUrl(path) {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  return `${API}/files/${path}`;
+}
+
+export default api;
