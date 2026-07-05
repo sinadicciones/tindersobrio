@@ -22,7 +22,9 @@ export function formatApiError(detail) {
 export function fileUrl(path) {
   if (!path) return null;
   if (path.startsWith("http")) return path;
-  return `${API}/files/${path}`;
+  const token = localStorage.getItem("ps_token");
+  const suffix = token ? `?auth=${encodeURIComponent(token)}` : "";
+  return `${API}/files/${path}${suffix}`;
 }
 
 export default api;

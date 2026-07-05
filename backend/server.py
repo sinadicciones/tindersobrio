@@ -238,7 +238,7 @@ class ProposePlanIn(BaseModel):
 
 class ReportIn(BaseModel):
     target_user_id: str
-    category: str
+    category: Literal["ofrece_sustancias", "acoso", "perfil_falso", "mala_conducta_cita", "otro"]
     details: Optional[str] = ""
 
 class BlockIn(BaseModel):
@@ -377,9 +377,29 @@ async def upload_video(file: UploadFile = File(...), user: dict = Depends(curren
     return {"path": result["path"], "url": f"/api/files/{result['path']}"}
 
 @api.get("/files/{path:path}")
-async def download_file(path: str):
+async def download_file(path: str, request: Request, auth: Optional[str] = Query(None)):
+    # Auth: Authorization header first, else ?auth= query param (for <img src>)
+    token = None
+    header = request.headers.get("Authorization", "")
+    if header.startswith("Bearer "):
+        token = header[7:]
+    if not token and auth:
+        token = auth
+    if not token:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        payload = jwt.decode(token, jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Token inválido")
+        u = await db.users.find_one({"id": payload["sub"]}, {"status": 1, "_id": 0})
+        if not u or u.get("status") == "banned":
+            raise HTTPException(status_code=401, detail="No autenticado")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Sesión expirada")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token inválido")
     data, content_type = get_object(path)
-    return FastAPIResponse(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=86400"})
+    return FastAPIResponse(content=data, media_type=content_type, headers={"Cache-Control": "private, max-age=3600"})
 
 # ------------------------------------------------------------------
 # Profile / Onboarding
@@ -569,8 +589,51 @@ async def discover_quota(user: dict = Depends(current_user)):
 # ------------------------------------------------------------------
 # Like / Pass / Match
 # ------------------------------------------------------------------
+async def _is_blocked(a: str, b: str) -> bool:
+    return bool(await db.blocks.find_one({"$or": [
+        {"from_user": a, "to_user": b},
+        {"from_user": b, "to_user": a},
+    ]}))
+
+async def _validate_like_target(actor: dict, target_id: str, mode: str) -> dict:
+    """Validate that the target is a legit person the actor is allowed to like."""
+    if target_id == actor["id"]:
+        raise HTTPException(status_code=403, detail="No puedes darte me tinca a ti mismo")
+    target = await db.users.find_one({"id": target_id}, {"password_hash": 0, "_id": 0})
+    if not target:
+        raise HTTPException(status_code=403, detail="Este perfil no está disponible")
+    if target.get("status") in ("banned", "suspended"):
+        raise HTTPException(status_code=403, detail="Este perfil no está disponible")
+    if not target.get("onboarding_complete"):
+        raise HTTPException(status_code=403, detail="Este perfil no está disponible")
+    if mode not in target.get("modes", []):
+        raise HTTPException(status_code=403, detail="Esta persona no tiene ese modo activado")
+    if await _is_blocked(actor["id"], target_id):
+        raise HTTPException(status_code=403, detail="No es posible interactuar con este perfil")
+    if mode == "amor":
+        # Both sides must be gender-compatible
+        actor_gender = actor.get("gender")
+        actor_interested = set(actor.get("interested_genders") or [])
+        target_gender = target.get("gender")
+        target_interested = set(target.get("interested_genders") or [])
+        if target_gender not in actor_interested or actor_gender not in target_interested:
+            raise HTTPException(status_code=403, detail="No hay compatibilidad de género para modo Amor")
+        # Age ranges both ways
+        actor_age = calc_age(actor.get("birthdate"))
+        target_age = calc_age(target.get("birthdate"))
+        if actor_age is None or target_age is None:
+            raise HTTPException(status_code=403, detail="Edad no disponible")
+        if target_age < actor.get("age_min", 18) or target_age > actor.get("age_max", 99):
+            raise HTTPException(status_code=403, detail="Fuera de tu rango de edad")
+        if actor_age < target.get("age_min", 18) or actor_age > target.get("age_max", 99):
+            raise HTTPException(status_code=403, detail="Fuera del rango de edad de la otra persona")
+    return target
+
 @api.post("/pass")
 async def pass_user(body: LikeIn, user: dict = Depends(current_user)):
+    # Even for a pass, refuse if blocked in any direction
+    if body.target_user_id != user["id"] and await _is_blocked(user["id"], body.target_user_id):
+        raise HTTPException(status_code=403, detail="No es posible interactuar con este perfil")
     doc = {
         "id": str(uuid.uuid4()),
         "from_user": user["id"],
@@ -585,6 +648,9 @@ async def pass_user(body: LikeIn, user: dict = Depends(current_user)):
 
 @api.post("/like")
 async def like_user(body: LikeIn, user: dict = Depends(current_user)):
+    # Server-side validation: target compatibility + block check
+    await _validate_like_target(user, body.target_user_id, body.mode)
+
     today = datetime.now(timezone.utc).date().isoformat()
     used = await db.likes.count_documents({"from_user": user["id"], "kind": "like", "date": today})
     if used >= 20:
@@ -722,6 +788,18 @@ async def get_match_or_403(match_id: str, uid: str) -> dict:
         raise HTTPException(status_code=404, detail="Match no encontrado")
     return m
 
+async def _ensure_not_blocked_in_match(match: dict, uid: str):
+    other_id = next((u for u in match["users"] if u != uid), None)
+    if other_id and await _is_blocked(uid, other_id):
+        raise HTTPException(status_code=403, detail="No es posible interactuar con este perfil")
+
+async def _rate_limit_messages(uid: str, per_minute: int = 60):
+    since = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    recent = await db.messages.count_documents({"from_user": uid, "created_at": {"$gt": since}})
+    recent += await db.group_messages.count_documents({"from_user": uid, "created_at": {"$gt": since}})
+    if recent >= per_minute:
+        raise HTTPException(status_code=429, detail="Estás enviando muchos mensajes muy rápido. Respira un poco 💛")
+
 @api.get("/matches/{match_id}/messages")
 async def get_messages(match_id: str, user: dict = Depends(current_user)):
     await get_match_or_403(match_id, user["id"])
@@ -730,7 +808,9 @@ async def get_messages(match_id: str, user: dict = Depends(current_user)):
 
 @api.post("/matches/{match_id}/messages")
 async def send_message(match_id: str, body: MessageIn, user: dict = Depends(current_user)):
-    await get_match_or_403(match_id, user["id"])
+    match = await get_match_or_403(match_id, user["id"])
+    await _ensure_not_blocked_in_match(match, user["id"])
+    await _rate_limit_messages(user["id"])
     doc = {
         "id": str(uuid.uuid4()),
         "match_id": match_id,
@@ -746,6 +826,7 @@ async def send_message(match_id: str, body: MessageIn, user: dict = Depends(curr
 @api.post("/matches/{match_id}/propose-plan")
 async def propose_plan(match_id: str, body: ProposePlanIn, user: dict = Depends(current_user)):
     m = await get_match_or_403(match_id, user["id"])
+    await _ensure_not_blocked_in_match(m, user["id"])
     act = await db.activities.find_one({"id": body.activity_id}, {"_id": 0})
     if not act:
         raise HTTPException(status_code=404, detail="Actividad no encontrada")
@@ -830,6 +911,7 @@ async def block_user(body: BlockIn, user: dict = Depends(current_user)):
 
 @api.post("/report")
 async def report_user(body: ReportIn, user: dict = Depends(current_user)):
+    priority = "high" if body.category == "ofrece_sustancias" else "normal"
     doc = {
         "id": str(uuid.uuid4()),
         "from_user": user["id"],
@@ -837,6 +919,7 @@ async def report_user(body: ReportIn, user: dict = Depends(current_user)):
         "category": body.category,
         "details": body.details or "",
         "status": "open",
+        "priority": priority,
         "created_at": now_iso(),
     }
     await db.reports.insert_one(doc)
@@ -922,6 +1005,7 @@ async def send_group_message(gid: str, body: MessageIn, user: dict = Depends(cur
     is_member = await db.group_members.find_one({"group_id": gid, "user_id": user["id"]})
     if not is_member:
         raise HTTPException(status_code=403, detail="Únete al grupo para escribir")
+    await _rate_limit_messages(user["id"])
     doc = {
         "id": str(uuid.uuid4()),
         "group_id": gid,
@@ -982,13 +1066,20 @@ async def admin_dashboard(_: dict = Depends(require_admin)):
 
 @api.get("/admin/reports")
 async def admin_list_reports(_: dict = Depends(require_admin)):
-    reports = await db.reports.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Sort: high priority + open first, then by date desc
+    reports = await db.reports.find({}, {"_id": 0}).to_list(500)
     for r in reports:
+        r.setdefault("priority", "high" if r.get("category") == "ofrece_sustancias" else "normal")
         f = await db.users.find_one({"id": r["from_user"]}, {"alias": 1, "email": 1, "_id": 0})
         t = await db.users.find_one({"id": r["target_user"]}, {"alias": 1, "email": 1, "_id": 0})
         r["from_alias"] = f.get("alias") if f else None
         r["target_alias"] = t.get("alias") if t else None
         r["target_email"] = t.get("email") if t else None
+    reports.sort(key=lambda r: (
+        0 if (r.get("priority") == "high" and r.get("status") == "open") else 1,
+        0 if r.get("status") == "open" else 1,
+        -datetime.fromisoformat(r["created_at"]).timestamp() if isinstance(r.get("created_at"), str) else 0,
+    ))
     return reports
 
 @api.post("/admin/reports/{rid}/resolve")
@@ -1250,11 +1341,12 @@ async def on_startup():
 # ------------------------------------------------------------------
 app.include_router(api)
 
+# CORS: allow only trusted frontend origins from env (comma-separated FRONTEND_URL).
+_frontend_urls = [u.strip() for u in os.environ.get("FRONTEND_URL", "http://localhost:3000").split(",") if u.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
-    allow_origin_regex=".*",
+    allow_origins=_frontend_urls,
     allow_methods=["*"],
     allow_headers=["*"],
 )

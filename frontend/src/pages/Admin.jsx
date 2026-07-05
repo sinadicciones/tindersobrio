@@ -89,10 +89,17 @@ function Reports() {
     <div className="space-y-3">
       {rs.length === 0 && <p className="text-white/50">Sin reportes.</p>}
       {rs.map((r) => (
-        <div key={r.id} className="ps-card p-4">
+        <div key={r.id} className={`ps-card p-4 ${r.priority === "high" && r.status === "open" ? "border-2 border-[#FF6B5E]/60 bg-[#FF6B5E]/5" : ""}`}>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <p className="font-bold">{r.category}</p>
+              <p className="font-bold flex items-center gap-2">
+                {r.priority === "high" && r.status === "open" && <span data-testid={`priority-high-${r.id}`} className="ps-chip text-xs" style={{ background: "rgba(255,107,94,0.2)", color: "#FF6B5E", borderColor: "rgba(255,107,94,0.5)" }}>🚨 Alta prioridad</span>}
+                {r.category === "ofrece_sustancias" ? "Ofrece alcohol o drogas"
+                  : r.category === "acoso" ? "Acoso o presión"
+                  : r.category === "perfil_falso" ? "Perfil falso"
+                  : r.category === "mala_conducta_cita" ? "Mala conducta en una cita"
+                  : r.category === "otro" ? "Otro" : r.category}
+              </p>
               <p className="text-xs text-white/60">De <span className="text-white">{r.from_alias || "?"}</span> · Sobre <span className="text-white">{r.target_alias || r.target_email}</span></p>
             </div>
             <span className={`ps-chip ${r.status === "open" ? "text-[#FBBF24]" : "text-[#4ADE80]"}`}>{r.status}</span>

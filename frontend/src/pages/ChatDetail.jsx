@@ -185,7 +185,7 @@ function ReportModal({ targetId, onClose }) {
         <h2 className="font-display text-2xl font-black">Reportar usuario</h2>
         <div className="mt-4 space-y-2">
           {REPORT_CATEGORIES.map((c) => (
-            <button key={c} data-testid={`report-cat-${c}`} onClick={()=>setCat(c)} className={`w-full text-left px-4 py-3 rounded-2xl border ${cat===c ? "ps-gradient border-transparent" : "bg-white/5 border-white/10"}`}>{c}</button>
+            <button key={c.v} data-testid={`report-cat-${c.v}`} onClick={()=>setCat(c.v)} className={`w-full text-left px-4 py-3 rounded-2xl border ${cat===c.v ? "ps-gradient border-transparent" : "bg-white/5 border-white/10"}`}>{c.l}</button>
           ))}
           <textarea data-testid="report-details" className="ps-input" rows={3} placeholder="Cuéntanos más (opcional)…" value={det} onChange={(e)=>setDet(e.target.value)}/>
         </div>

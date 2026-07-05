@@ -1,0 +1,40 @@
+{
+  "summary": "BLOQUE 2 (security hardening) fully validated. Backend: 42/42 tests pass (17 new BLOQUE 2 + 25 previous regression). Verified: (1) POST /api/like server-side validation for mode-not-enabled and amor gender/age compatibility returns 403 with Spanish messages; (2) /api/pass blocks bidirectionally when a block exists; (3) messages & propose-plan after a block return 403/404 (match deleted); (4) message rate limit triggers 429 after 60/min in group chat; (5) CORS: allowed origin echoed correctly on OPTIONS from FastAPI middleware at localhost:8001 (edge/Cloudflare adds ACAO=* at the public URL, which is an ingress-layer thing outside the app); (6) /api/files/{path} requires auth via Bearer or ?auth= query, invalid token 401; (7) POST /api/report rejects invalid category with 422, sets priority='high' for ofrece_sustancias and 'normal' otherwise; (8) GET /api/admin/reports sorts high-open first. Frontend: verified Cata_23 Unsplash portrait renders correctly in Descubrir/Amor mode (naturalWidth=800), Perfil uploaded photo fetched via /api/files/*?auth=<token> returns 200 (no 401 errors), Report modal shows 5 Spanish-labeled category buttons with data-testid=report-cat-*, Admin Reportes tab shows 3 high-priority reports first with red border and data-testid=priority-high-<id> pill '🚨 Alta prioridad'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "OPTIONS at public URL", "issue": "Cloudflare/K8s ingress injects Access-Control-Allow-Origin: * on OPTIONS, overriding the FastAPI CORSMiddleware. App-level CORS is correct (verified via localhost:8001). If strict CORS at edge is required, that must be configured in the ingress/Cloudflare, not the backend."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter3_results.xml",
+    "/app/test_reports/pytest/iter3_full.xml"
+  ],
+  "action_items": [
+    "Optional: harden edge/ingress CORS (Cloudflare rules) so ACAO isn't '*' at the public URL. Not a blocker since browsers only trust one ACAO header and the backend already refuses disallowed origins for actual requests."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 1356 lines — should be split into routers module (auth/discover/chat/uploads/admin/security) once BLOQUE 3 lands.",
+    "_rate_limit_messages queries messages + group_messages collections per call; add a compound index on (from_user, created_at) if not present.",
+    "admin/reports sort uses in-memory Python sort; fine for demo scale but should be a DB $sort/pipeline for scaling.",
+    "CORSMiddleware config is correct; FRONTEND_URL supports comma-separated values (BLOQUE 2 requirement). Edge proxy behavior is out of app scope."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (created)"
+  ],
+  "success_rate": {"backend": "100% (17/17 new + 25/25 previous = 42/42)", "frontend": "100% on BLOQUE 2 flows"},
+  "test_credentials": "Admin: contacto@sinadicciones.org / Jodorowsky100. Demo: demo1..demo12@plansobrio.cl / Demo1234!. Test user for photo/discover render: TEST_seeamor_1f073f@ex.com / abcdef (created during testing).",
+  "seed_data_creation": "Created 3 open high-priority 'ofrece_sustancias' reports and 1 'otro' report during testing (visible in Admin > Reportes). Also created several TEST_ prefixed users (blk_*, msgblk_*, seeamor_*) with completed onboarding. Uploaded one 1x1 PNG for seeamor test user photo. Sent ~60 group chat messages from demo1 during rate limit test (in first available group). Consider a cleanup pass if these skew analytics.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Use /app/backend/tests/test_iteration3.py for BLOQUE 2 regression. All 3 test files run together in ~72s. Note: CORS test hits http://localhost:8001 directly because the public URL edge proxy overrides ACAO. The block-then-message flow deletes the match server-side (see /api/block), so the follow-up message call returns 404 (not 403) — both are correct security outcomes; test asserts either. Fer_Cafe (demo4) has only amor mode; Cata_23 (demo1) has amistad+amor; useful for cross-mode test cases. Rate limit is 60 msgs/min across matches + group_messages combined.",
+  "rca of the issue": "N/A — no defects found in BLOQUE 2 implementation."
+}

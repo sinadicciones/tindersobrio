@@ -39,11 +39,11 @@ export const MODES = [
 ];
 
 export const REPORT_CATEGORIES = [
-  "Ofrece alcohol o drogas",
-  "Acoso o presión",
-  "Perfil falso",
-  "Mala conducta en una cita",
-  "Otro",
+  { v: "ofrece_sustancias", l: "Ofrece alcohol o drogas" },
+  { v: "acoso", l: "Acoso o presión" },
+  { v: "perfil_falso", l: "Perfil falso" },
+  { v: "mala_conducta_cita", l: "Mala conducta en una cita" },
+  { v: "otro", l: "Otro" },
 ];
 
 export const modeColor = (mode) => {

@@ -143,7 +143,7 @@ class TestVideoUpload:
         body = r.json()
         assert "path" in body and "url" in body
         # Fetch
-        f = requests.get(f"{BASE}{body['url']}", timeout=30)
+        f = requests.get(f"{BASE}{body['url']}", headers=_h(t), timeout=30)
         assert f.status_code == 200
         ct = f.headers.get("Content-Type", "")
         assert ct.startswith("video/"), f"expected video content-type, got {ct}"
