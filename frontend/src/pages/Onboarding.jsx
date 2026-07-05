@@ -12,6 +12,19 @@ import { Icon, iconForActivity } from "@/lib/icons";
 
 const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: UsersIcon };
 
+// Same rules as backend `validate_bio` — keep in sync so users get immediate feedback.
+const BIO_URL_RE = /(?:https?:\/\/[^\s]+|\bwww\.[a-z0-9-]{2,}|\b[a-z0-9-]{3,}\.(?:com|cl|net|org|io|co|app|es|ar|mx|pe|uy|xyz|info)\b)/i;
+const BIO_PHONE_RE = /(?:\+?\d[\s\-.]?){6,}/;
+
+function validateBioClient(bio) {
+  const text = (bio || "").trim();
+  if (!text) return null;
+  if (text.length > 300) return "Tu 'Sobre mí' no puede pasar de 300 caracteres";
+  if (BIO_URL_RE.test(text)) return "Guarda los links para después del match ✨";
+  if (BIO_PHONE_RE.test(text)) return "Guarda los teléfonos para después del match ✨";
+  return null;
+}
+
 const STEPS = ["Sobre ti", "¿Qué buscas?", "¿Dónde estás?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Detalles sobre ti", "Reglas"];
 
 export default function Onboarding() {
@@ -63,6 +76,8 @@ export default function Onboarding() {
     if (step === 4) return form.favorite_activities.length >= 3;
     if (step === 5) return form.modes.includes("amor") ? form.photos.length >= 1 : true;
     if (step === 6) {
+      // Bio: block if contains obvious link/phone before letting user continue.
+      if (validateBioClient(form.bio)) return false;
       // At least 1 non-empty prompt (question + answer), max 6.
       const valid = form.prompts.filter((p) => p.q && (p.a || "").trim().length > 0);
       return valid.length >= 1 && valid.length <= 6;
@@ -314,7 +329,12 @@ export default function Onboarding() {
                   value={form.bio}
                   onChange={(e)=>set("bio", e.target.value)}
                 />
-                <p className="text-xs text-white/40 text-right mt-1">{form.bio.length}/300</p>
+                <div className="flex items-start justify-between mt-1 gap-2">
+                  {validateBioClient(form.bio) ? (
+                    <p data-testid="bio-error" className="text-xs" style={{ color: "#FF6B5E" }}>{validateBioClient(form.bio)}</p>
+                  ) : <span/>}
+                  <p className="text-xs text-white/40 whitespace-nowrap">{form.bio.length}/300</p>
+                </div>
               </div>
               <p className="text-white/60">Escribe entre 1 y 6 frases. Puedes agregar más cuando quieras.</p>
               {form.prompts.map((p, idx) => (

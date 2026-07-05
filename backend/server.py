@@ -248,7 +248,18 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-BIO_URL_RE = re.compile(r"(https?://|www\.|\.com|\.cl|\.net|\.org|\.io|\.co\b)", re.IGNORECASE)
+# Match REAL URLs / domains only. Requires:
+#   1) http(s):// prefix, OR
+#   2) www.<something>, OR
+#   3) At least 2 alphanumeric chars, a dot, a real TLD, and a word boundary.
+# This avoids false positives like "vamos.com amigos" being flagged when the
+# user just missed a space, while still blocking "misitio.com" or "instagram.com".
+BIO_URL_RE = re.compile(
+    r"(?:https?://[^\s]+"
+    r"|\bwww\.[a-z0-9-]{2,}"
+    r"|\b[a-z0-9-]{3,}\.(?:com|cl|net|org|io|co|app|es|ar|mx|pe|uy|xyz|info)\b)",
+    re.IGNORECASE,
+)
 BIO_PHONE_RE = re.compile(r"(?:\+?\d[\s\-\.]?){6,}")
 
 

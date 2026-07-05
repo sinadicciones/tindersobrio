@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 19: verified the bio URL regex false-positive fix that was blocking users from completing onboarding at Paso 9. Backend regex now requires 3+ alphanum + dot + real TLD + word boundary. Added new test file /app/backend/tests/test_iteration19_bio_regex.py with 15 tests (12 for validate_bio via PATCH /profile/me + 3 E2E via POST /profile/onboarding including the exact bug repro 'Vamos.como amigos'). All 15 pass. Frontend regex mirrors backend exactly (verified in browser via page.evaluate over 10 cases — 10/10 pass).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration19_bio_regex.py"
+  ],
+  "action_items": [
+    "The user-reported production bug is fixed in preview. Safe to redeploy to plansobrio.com.",
+    "Demo users (demo1..demo12@plansobrio.cl) are NOT seeded in the current preview DB (only 1 admin user exists). This makes older regression suites (test_iteration10_ajustesv2.py, etc.) skip/fail with 401 login. Not a regression from this bug fix, but worth investigating: `demo_seed_enabled` may have been set to false by a prior admin wipe. Consider adding an admin `/api/admin/reseed-demos` endpoint or documenting the manual re-seed steps for testers."
+  ],
+  "critical_code_review_comments": [
+    "Backend regex `\\b[a-z0-9-]{3,}\\.(?:com|cl|...)\\b` and frontend `BIO_URL_RE` in Onboarding.jsx are duplicated string-for-string. Consider centralizing to a shared constant (e.g., src/lib/validation.js + backend/core/validators.py) with a small linter test that keeps them in sync — otherwise future TLD additions can drift.",
+    "www case: regex matches 'www.google' (stopping at the 3rd alternative branch on the '.com' portion). For 'www.google.com' this correctly rejects. But 'www.ab' would ALSO match the www branch (`\\bwww\\.[a-z0-9-]{2,}`) even without a TLD — likely acceptable since anything looking like 'www.something' is spammy, but flag if you want stricter matching.",
+    "The 'co' TLD is included in the reject list. This means 'busco.co sas' will now match (5 alphanum + .co + word boundary → reject). If users write phrases like 'gente que busco.co' that's unlikely, but 'busco.como' is safe (no boundary). Current implementation is a reasonable trade-off.",
+    "Missing GET /api/profile/me: only PATCH/DELETE exist for /profile/me. All reads go through /api/auth/me. Not a bug but worth noting; the old iteration10 tests used /profile/me and would 404."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration19_bio_regex.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 new tests pass; regex + PATCH + E2E onboarding all green)",
+    "frontend": "100% for regex mirror check (10/10 cases). Full multi-step UI walk not executed (auth-context rehydrate blocker); code-review confirmed data-testid='bio-error' wired at Onboarding.jsx L334 and canNext step 6 blocks on validateBioClient L80."
+  },
+  "test_credentials": "Admin login works: contacto@sinadicciones.org / Jodorowsky100. Demo users (demo1..demo12) are NOT seeded in preview DB — new tests self-provision via /api/auth/register with @example.com emails.",
+  "seed_data_creation": "Each test registers its own ephemeral user via /api/auth/register (no shared state). Old iteration tests that depend on demo1/demo2 will fail until demos are reseeded.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The bio regex false-positive bug (iteration 19) is fully verified fixed. If demo users need to be reseeded for older test suites, check core.seed_data and app_settings.demo_seed_enabled flag. Preview backend URL: https://comunidad-sobria.preview.emergentagent.com. Backend GET /api/profile/me does NOT exist — use GET /api/auth/me to read the current user profile.",
+  "rca of the issue": "OLD regex `(https?://|www\\.|\\.com|\\.cl|\\.net|\\.org|\\.io|\\.co\\b)` matched the bare substring '.com' inside normal Spanish words (e.g., 'Vamos.como amigos'). NEW regex `(?:https?://[^\\s]+|\\bwww\\.[a-z0-9-]{2,}|\\b[a-z0-9-]{3,}\\.(?:com|cl|net|org|io|co|app|es|ar|mx|pe|uy|xyz|info)\\b)` requires 3+ alphanumeric chars before the dot AND a word boundary after the TLD, so only real domains match. Mitigation shipped: (1) backend server.py L257-262 updated regex, (2) frontend Onboarding.jsx L16 mirrored regex + validateBioClient added L19-26, (3) inline `data-testid='bio-error'` message at L334 gives feedback in step 6 (not step 9), (4) canNext() step 6 (L80) blocks Next button while error is present. All verified via backend integration tests + frontend regex evaluation. Repro of original bug (POST /profile/onboarding with bio='Vamos.como amigos') now returns 200 OK."
+}
