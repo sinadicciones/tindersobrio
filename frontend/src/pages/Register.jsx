@@ -5,6 +5,7 @@ import { formatApiError } from "@/lib/api";
 import { detectLocation } from "@/lib/geo";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
+import GoogleAuthButton from "@/components/GoogleAuthButton";
 
 export default function Register() {
   const { register } = useAuth();
@@ -45,7 +46,14 @@ export default function Register() {
         <h1 className="font-display text-4xl font-black tracking-tight">Crea tu cuenta</h1>
         <p className="mt-2 text-white/60">Empieza gratis. Solo mayores de 18 años.</p>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <div className="mt-8">
+          <GoogleAuthButton label="Registrarme con Google"/>
+          <div className="flex items-center gap-3 my-5 text-xs text-white/40">
+            <span className="flex-1 h-px bg-white/10"/> o con tu correo <span className="flex-1 h-px bg-white/10"/>
+          </div>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
           <input data-testid="register-email" type="email" required autoComplete="email" className="ps-input" placeholder="tu correo" value={email} onChange={(e)=>setEmail(e.target.value)} />
           <input data-testid="register-password" type="password" required autoComplete="new-password" minLength={6} className="ps-input" placeholder="contraseña (mín. 6)" value={password} onChange={(e)=>setPassword(e.target.value)} />
           <div>

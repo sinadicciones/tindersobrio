@@ -10,6 +10,7 @@ import random
 import logging
 import bcrypt
 import jwt
+import httpx
 import requests
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
@@ -32,6 +33,7 @@ from core.geo_seed import (
 # ------------------------------------------------------------------
 JWT_ALGORITHM = "HS256"
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_AUTH_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
 APP_NAME = os.environ.get("APP_NAME", "plansobrio")
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
@@ -218,6 +220,7 @@ class OnboardingIn(BaseModel):
     prompts: List[dict]  # [{q, a}]
     accepted_rules: bool
     location: Optional[LocationIn] = None
+    birthdate: Optional[str] = None  # Required only for Google-auth users without one
 
 class ProfileUpdateIn(BaseModel):
     alias: Optional[str] = None
@@ -343,6 +346,65 @@ async def logout(response: Response):
     response.delete_cookie("access_token", path="/")
     return {"ok": True}
 
+@api.post("/auth/google/session")
+async def google_session(request: Request, response: Response):
+    """Exchange an Emergent Google Auth `session_id` (from the URL fragment on
+    redirect) for our own JWT so the rest of the API keeps working unchanged.
+
+    The frontend sends `X-Session-ID` in the header. We call Emergent's
+    session-data endpoint from the server (never from the browser), then either
+    link to an existing account by email or create a fresh one flagged as
+    Google-provided (no password, `onboarding_complete=False`).
+    """
+    session_id = request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Falta X-Session-ID")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(EMERGENT_AUTH_SESSION_URL, headers={"X-Session-ID": session_id})
+    except Exception:
+        raise HTTPException(status_code=502, detail="No pudimos contactar el servicio de Google")
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Sesión de Google no válida")
+    data = r.json()
+    email = (data.get("email") or "").lower().strip()
+    name = data.get("name") or ""
+    picture = data.get("picture") or ""
+    if not email:
+        raise HTTPException(status_code=400, detail="Google no devolvió correo")
+
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        if existing.get("status") == "banned":
+            raise HTTPException(status_code=403, detail="account_banned")
+        if existing.get("status") == "suspended":
+            raise HTTPException(status_code=403, detail=f"account_suspended:{existing.get('suspended_until','')}")
+        uid = existing["id"]
+        await db.users.update_one({"id": uid}, {
+            "$set": {"google_name": name, "google_picture": picture, "last_google_login_at": now_iso()},
+            "$addToSet": {"auth_providers": "google"},
+        })
+    else:
+        uid = str(uuid.uuid4())
+        await db.users.insert_one({
+            "id": uid,
+            "email": email,
+            "password_hash": None,
+            "google_name": name,
+            "google_picture": picture,
+            "role": "user",
+            "status": "active",
+            "onboarding_complete": False,
+            "auth_providers": ["google"],
+            "created_at": now_iso(),
+            "last_google_login_at": now_iso(),
+            "is_demo": False,
+        })
+    token = create_access_token(uid, email)
+    set_auth_cookie(response, token)
+    user_doc = await db.users.find_one({"id": uid}, {"password_hash": 0, "_id": 0})
+    return {"user": user_doc, "token": token}
+
 @api.get("/auth/me")
 async def me(user: dict = Depends(current_user)):
     return user
@@ -464,6 +526,14 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
     if "amor" in body.modes and not body.photos:
         raise HTTPException(status_code=400, detail="Necesitas al menos 1 foto para el modo Amor")
 
+    # Google users don't have birthdate at register. Onboarding must collect it (+18 check).
+    effective_birthdate = user.get("birthdate") or body.birthdate
+    if not effective_birthdate:
+        raise HTTPException(status_code=400, detail="Necesitamos tu fecha de nacimiento")
+    age = calc_age(effective_birthdate)
+    if age is None or age < 18:
+        raise HTTPException(status_code=400, detail="Debes ser mayor de 18 años")
+
     # Derive location: use provided (GPS/IP) if present, else fall back to comuna centroid.
     loc_in = body.location.model_dump() if body.location else {}
     location = build_location_doc(
@@ -490,6 +560,7 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
         "accepted_rules_at": now_iso(),
         "onboarding_complete": True,
         "country": (location or {}).get("country", "CL"),
+        "birthdate": effective_birthdate,
     }
     if location:
         update["location"] = location

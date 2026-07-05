@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 9 — Emergent Google Auth surface + onboarding birthdate gate + regressions. 10/10 backend tests pass. Frontend URL construction, AuthCallback hash cleanup, AuthContext race guard, and Onboarding ob-birthdate visibility for Google-only users all verified via mongo-seeded user + minted JWT.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results_detail": {
+    "POST /api/auth/google/session (no header)": "PASS - 400 'Falta X-Session-ID'",
+    "POST /api/auth/google/session (bogus id)": "PASS - 401 'Sesión de Google no válida'",
+    "Link-by-email simulation": "PASS - registered user + mongo patch adds google to auth_providers; password_hash intact; email/password login still returns 200",
+    "Onboarding rejects missing birthdate (Google-only user via mongo+JWT)": "PASS - 400 'Necesitamos tu fecha de nacimiento'",
+    "Onboarding rejects underage (DOB 2015)": "PASS - 400 'Debes ser mayor de 18 años'",
+    "Onboarding succeeds with DOB 1993-05-10": "PASS - user.birthdate persisted, onboarding_complete=true",
+    "Regression admin login": "PASS",
+    "Regression demo1 login + /auth/me": "PASS",
+    "Regression GET /discover?mode=amistad": "PASS",
+    "Regression PATCH /profile/me": "PASS",
+    "Frontend /login google-auth-btn": "PASS - renders, label='Entrar con Google'",
+    "Frontend /registro google-auth-btn": "PASS - renders, label='Registrarme con Google'",
+    "GoogleAuthButton URL construction": "PASS - built from window.location.origin, no hardcoded fallback; matches https://auth.emergentagent.com/?redirect=<origin>/app/descubrir",
+    "AuthCallback with fake session_id": "PASS - loader shows briefly, backend returns 401, user redirected to /login, window.location.hash cleaned to ''",
+    "AuthContext race guard": "PASS - with #session_id= in URL and ps_token in localStorage, AuthProvider does NOT call /auth/me (fetch spy count = 0)",
+    "Onboarding step 0 ob-birthdate for Google-only user": "PASS - visible when user.birthdate is null (mongo-seeded user + minted JWT)"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9_google_auth.py",
+    "/app/test_reports/pytest/iter9_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py POST /auth/google/session correctly rejects missing header (400) and invalid session (401), and does server-side call to demobackend.emergentagent.com — good.",
+    "GoogleAuthButton.jsx uses window.location.origin with NO fallback — contract preserved. Header comment explicitly warns future edits.",
+    "AuthCallback.jsx clears the URL fragment via history.replaceState BEFORE the fetch, so a refresh during network latency does not retry — correct order.",
+    "AuthContext refresh() early-returns before reading ps_token when hash contains session_id — this correctly avoids the /auth/me race.",
+    "Minor: onboarding endpoint uses effective_birthdate = user.get('birthdate') or body.birthdate. If a returning Google user already completed onboarding but is somehow re-submitting with a new birthdate, the stored one wins. Acceptable but worth documenting.",
+    "server.py is now 1649 lines — recommend splitting auth (email + google) into its own router for maintainability.",
+    "google_session endpoint does not enforce rate-limiting; a valid session_id can be replayed by an attacker who steals it. Consider single-use / short-TTL enforcement (upstream Emergent may already handle this)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration9_google_auth.py (new)"],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (all 5 UI checks)"},
+  "test_credentials": "admin (contacto@sinadicciones.org / Jodorowsky100), demo1 (demo1@plansobrio.cl / Demo1234!) — no real Google credentials needed; Google flow validated by contract only.",
+  "seed_data_creation": "Created + deleted 4 ephemeral users during tests (test_link_*, 3x test_gauth_*, test_ob_ui_*). All cleaned up.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Emergent Google Auth surface is green. Full E2E Google login not tested (no shared account). If future work adds a mock/dev bypass, extend test_iteration9 with a positive path. Note: server-side link-by-email logic is only unit-verified via mongo mutation — for full confidence, exercise it with a real session that returns an email matching an existing password user."
+}

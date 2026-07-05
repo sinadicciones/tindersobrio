@@ -8,6 +8,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    // If we're returning from Emergent Google Auth, let AuthCallback handle it.
+    // It will set the JWT and reload; we skip the /auth/me probe to avoid a race.
+    if (typeof window !== "undefined" && window.location.hash?.includes("session_id=")) {
+      setLoading(false);
+      return;
+    }
     const token = localStorage.getItem("ps_token");
     if (!token) { setUser(null); setLoading(false); return; }
     try {

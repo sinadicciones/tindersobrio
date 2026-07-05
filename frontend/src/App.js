@@ -1,5 +1,5 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Toaster } from "sonner";
 import BottomNav from "@/components/BottomNav";
@@ -22,6 +22,7 @@ import Terminos from "@/pages/Terminos";
 import Privacidad from "@/pages/Privacidad";
 import CuentaSuspendida from "@/pages/CuentaSuspendida";
 import Waitlist from "@/pages/Waitlist";
+import AuthCallback from "@/pages/AuthCallback";
 
 function Loader() {
   return (
@@ -51,37 +52,49 @@ function AppShell() {
   );
 }
 
+function AppRouter() {
+  const location = useLocation();
+  // Detect Emergent Google Auth callback SYNCHRONOUSLY during render (not in useEffect)
+  // to avoid race conditions with AuthProvider's /auth/me call.
+  if (location.hash?.includes("session_id=")) {
+    return <AuthCallback />;
+  }
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/registro" element={<Register />} />
+      <Route path="/terminos" element={<Terminos />} />
+      <Route path="/privacidad" element={<Privacidad />} />
+      <Route path="/cuenta-suspendida" element={<CuentaSuspendida />} />
+      <Route path="/waitlist" element={<Waitlist />} />
+      <Route path="/onboarding" element={<RequireAuth requireOnboarding={false}><Onboarding /></RequireAuth>} />
+
+      <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
+        <Route index element={<Navigate to="descubrir" replace />} />
+        <Route path="descubrir" element={<Discover />} />
+        <Route path="grupos" element={<Groups />} />
+        <Route path="grupos/:id" element={<GroupDetail />} />
+        <Route path="mis-planes" element={<MisPlanes />} />
+        <Route path="chats" element={<Chats />} />
+        <Route path="chats/:matchId" element={<ChatDetail />} />
+        <Route path="perfil" element={<Profile />} />
+        <Route path="perfil/editar" element={<EditProfile />} />
+        <Route path="necesito-apoyo" element={<NecesitoApoyo />} />
+      </Route>
+
+      <Route path="/admin" element={<RequireAuth adminOnly requireOnboarding={false}><Admin /></RequireAuth>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Toaster position="top-center" theme="dark" richColors />
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Register />} />
-          <Route path="/terminos" element={<Terminos />} />
-          <Route path="/privacidad" element={<Privacidad />} />
-          <Route path="/cuenta-suspendida" element={<CuentaSuspendida />} />
-          <Route path="/waitlist" element={<Waitlist />} />
-          <Route path="/onboarding" element={<RequireAuth requireOnboarding={false}><Onboarding /></RequireAuth>} />
-
-          <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
-            <Route index element={<Navigate to="descubrir" replace />} />
-            <Route path="descubrir" element={<Discover />} />
-            <Route path="grupos" element={<Groups />} />
-            <Route path="grupos/:id" element={<GroupDetail />} />
-            <Route path="mis-planes" element={<MisPlanes />} />
-            <Route path="chats" element={<Chats />} />
-            <Route path="chats/:matchId" element={<ChatDetail />} />
-            <Route path="perfil" element={<Profile />} />
-            <Route path="perfil/editar" element={<EditProfile />} />
-            <Route path="necesito-apoyo" element={<NecesitoApoyo />} />
-          </Route>
-
-          <Route path="/admin" element={<RequireAuth adminOnly requireOnboarding={false}><Admin /></RequireAuth>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppRouter />
       </AuthProvider>
     </BrowserRouter>
   );

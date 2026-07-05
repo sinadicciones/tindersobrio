@@ -13,7 +13,8 @@ const STEPS = ["Sobre ti", "¿Qué buscas?", "Tu proceso", "Tus panoramas", "Fot
 
 export default function Onboarding() {
   const nav = useNavigate();
-  const { refresh } = useAuth();
+  const { user, refresh } = useAuth();
+  const needsBirthdate = !user?.birthdate;
   const [step, setStep] = useState(0);
   const [activities, setActivities] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -23,6 +24,7 @@ export default function Onboarding() {
     alias: "",
     gender: "",
     comuna: "",
+    birthdate: "",
     modes: [],
     interested_genders: [],
     age_min: 22, age_max: 40,
@@ -43,7 +45,7 @@ export default function Onboarding() {
   const back = () => setStep((s) => Math.max(0, s - 1));
 
   const canNext = () => {
-    if (step === 0) return form.alias.length >= 2 && form.gender && form.comuna;
+    if (step === 0) return form.alias.length >= 2 && form.gender && form.comuna && (!needsBirthdate || form.birthdate);
     if (step === 1) return form.modes.length > 0 && (!form.modes.includes("amor") || (form.interested_genders.length && form.age_min && form.age_max));
     if (step === 2) return !!form.relationship_with_substances;
     if (step === 3) return form.favorite_activities.length >= 3;
@@ -70,7 +72,7 @@ export default function Onboarding() {
           };
         }
       } catch { /* ignore */ }
-      await api.post("/profile/onboarding", { ...form, location });
+      await api.post("/profile/onboarding", { ...form, birthdate: form.birthdate || undefined, location });
       await refresh();
       toast.success("¡Listo! Bienvenide a PlanSobrio 💛");
       nav("/app/descubrir");
@@ -115,6 +117,19 @@ export default function Onboarding() {
                 <label className="text-sm text-white/60 mb-2 block">Tu alias público (no uses tu nombre real)</label>
                 <input data-testid="ob-alias" className="ps-input" placeholder="ej: Cata_23" value={form.alias} onChange={(e)=>set("alias", e.target.value)} maxLength={24}/>
               </div>
+              {needsBirthdate && (
+                <div>
+                  <label className="text-sm text-white/60 mb-2 block">Fecha de nacimiento (solo mayores de 18)</label>
+                  <input
+                    data-testid="ob-birthdate"
+                    type="date"
+                    className="ps-input"
+                    value={form.birthdate}
+                    onChange={(e)=>set("birthdate", e.target.value)}
+                    max={new Date(Date.now()-18*365.25*86400000).toISOString().slice(0,10)}
+                  />
+                </div>
+              )}
               <div>
                 <label className="text-sm text-white/60 mb-2 block">Género</label>
                 <div className="grid grid-cols-2 gap-2">

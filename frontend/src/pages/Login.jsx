@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
+import GoogleAuthButton from "@/components/GoogleAuthButton";
 
 export default function Login() {
   const { login } = useAuth();
@@ -48,7 +49,14 @@ export default function Login() {
         <h1 className="font-display text-4xl font-black tracking-tight">Hola de nuevo</h1>
         <p className="mt-2 text-white/60">Ingresa a seguir armando panoramas.</p>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <div className="mt-8">
+          <GoogleAuthButton label="Entrar con Google"/>
+          <div className="flex items-center gap-3 my-5 text-xs text-white/40">
+            <span className="flex-1 h-px bg-white/10"/> o con tu correo <span className="flex-1 h-px bg-white/10"/>
+          </div>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
           <input data-testid="login-email" type="email" required autoComplete="email" className="ps-input" placeholder="tu correo" value={email} onChange={(e)=>setEmail(e.target.value)} />
           <input data-testid="login-password" type="password" required autoComplete="current-password" className="ps-input" placeholder="contraseña" value={password} onChange={(e)=>setPassword(e.target.value)} />
           {err && <p data-testid="login-error" className="text-sm text-[#FF6B5E]">{err}</p>}
