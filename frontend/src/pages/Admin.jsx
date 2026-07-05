@@ -29,7 +29,16 @@ export default function Admin() {
       <div className="mx-auto max-w-4xl px-4 pt-8 pb-16">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="font-display text-3xl font-black">PlanSobrio · Admin</h1>
+            <h1 className="font-display text-3xl font-black inline-flex items-center gap-2">
+              PlanSobrio · Admin
+              <span
+                data-testid="admin-beta-badge"
+                className="inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider align-middle"
+                style={{ borderColor: "#4ADE80", color: "#4ADE80" }}
+              >
+                Beta
+              </span>
+            </h1>
             <p className="text-white/60 text-sm">Hola {user.alias}</p>
           </div>
           <div className="flex gap-2">
@@ -70,14 +79,85 @@ function Stat({ label, value, color }) {
 
 function Dashboard() {
   const [d, setD] = useState(null);
+  const [resetting, setResetting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
   useEffect(() => { api.get("/admin/dashboard").then((r)=>setD(r.data)); }, []);
+
+  const doReset = async () => {
+    if (confirmText !== "RESETEAR") { toast.error("Debes escribir RESETEAR"); return; }
+    setResetting(true);
+    try {
+      const r = await api.post("/admin/reset-beta", { confirmation: "RESETEAR" });
+      const total = Object.values(r.data.counts || {}).reduce((a, b) => a + b, 0);
+      toast.success(`Reseteo completo · ${total} documentos eliminados. Admins preservados: ${r.data.admins_preserved}`);
+      setConfirmOpen(false);
+      setConfirmText("");
+      // Reload dashboard counts
+      api.get("/admin/dashboard").then((res)=>setD(res.data));
+    } catch (ex) {
+      toast.error(formatApiError(ex.response?.data?.detail) || "No se pudo resetear");
+    } finally { setResetting(false); }
+  };
+
   if (!d) return <p className="text-white/50">Cargando…</p>;
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <Stat label="Usuarios" value={d.total_users}/>
-      <Stat label="Nuevos (7d)" value={d.new_this_week} color="#4ADE80"/>
-      <Stat label="Matches" value={d.matches} color="#FF6B5E"/>
-      <Stat label="Reportes abiertos" value={d.open_reports} color="#FBBF24"/>
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Stat label="Usuarios" value={d.total_users}/>
+        <Stat label="Nuevos (7d)" value={d.new_this_week} color="#4ADE80"/>
+        <Stat label="Matches" value={d.matches} color="#FF6B5E"/>
+        <Stat label="Reportes abiertos" value={d.open_reports} color="#FBBF24"/>
+      </div>
+
+      <div data-testid="danger-zone" className="ps-card p-5" style={{ borderColor: "rgba(255,107,94,0.5)", borderStyle: "solid", borderWidth: 1, background: "rgba(255,107,94,0.05)" }}>
+        <p className="ps-lab" style={{ color: "#FF6B5E" }}>Zona peligrosa · sólo para lanzar la beta</p>
+        <p className="mt-2 text-sm text-white/70">
+          Borra <strong>TODOS</strong> los usuarios no-admin, junto con sus likes, matches, chats, planes, reportes, fotos y preferencias.
+          También apaga la re-siembra automática de los 12 perfiles demo — la base queda limpia para siempre después.
+          <br />
+          Se conservan: admins, grupos, eventos, actividades, países, líneas de ayuda, destinatarios de emails internos e histórico de métricas.
+        </p>
+        {!confirmOpen ? (
+          <button
+            data-testid="reset-beta-open"
+            onClick={() => setConfirmOpen(true)}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold text-white"
+            style={{ background: "#FF6B5E" }}
+          >
+            Resetear beta (borrar todos los usuarios)
+          </button>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-white/85 font-semibold">Para confirmar, escribe <span style={{ color: "#FF6B5E" }}>RESETEAR</span>:</p>
+            <input
+              data-testid="reset-beta-confirm-input"
+              className="ps-input"
+              placeholder="RESETEAR"
+              value={confirmText}
+              onChange={(e)=>setConfirmText(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <button
+                data-testid="reset-beta-execute"
+                onClick={doReset}
+                disabled={resetting || confirmText !== "RESETEAR"}
+                className="px-4 py-2 rounded-2xl text-sm font-bold text-white disabled:opacity-40"
+                style={{ background: "#FF6B5E" }}
+              >
+                {resetting ? "Reseteando…" : "Confirmar y borrar todo"}
+              </button>
+              <button
+                data-testid="reset-beta-cancel"
+                onClick={() => { setConfirmOpen(false); setConfirmText(""); }}
+                className="ps-btn-secondary text-sm"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

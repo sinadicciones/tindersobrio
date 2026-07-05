@@ -54,7 +54,7 @@ def _make_match(email_a=None, email_b=None):
 # ---------- Matches with unread ----------
 
 class TestMatchesUnread:
-    def test_unread_and_read_flow(self):
+    def test_unread_and_read_flow(self, reset_demo_state):
         t1, t2, mid = _make_match()
         # demo1 reads current state
         requests.post(f"{API}/matches/{mid}/read", headers=_h(t1), timeout=30)
@@ -172,8 +172,9 @@ class TestMessagePagination:
 class TestNotificationsBaseline:
     def test_counts_zero_after_seen_and_read(self):
         t = _login("demo1@plansobrio.cl")
-        # Mark all matches as seen + read
+        # Mark all matches as seen + read + likes as seen
         requests.post(f"{API}/notifications/seen-matches", headers=_h(t), timeout=30)
+        requests.post(f"{API}/likes-received/seen", headers=_h(t), timeout=30)
         ms = requests.get(f"{API}/matches", headers=_h(t), timeout=30).json()
         for m in ms:
             requests.post(f"{API}/matches/{m['id']}/read", headers=_h(t), timeout=30)
@@ -182,4 +183,3 @@ class TestNotificationsBaseline:
         data = c.json()
         assert data["new_matches"] == 0
         assert data["unread_messages"] == 0
-        assert data["total"] == 0

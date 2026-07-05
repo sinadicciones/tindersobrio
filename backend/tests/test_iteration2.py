@@ -62,7 +62,9 @@ class TestNotifications:
         for k in ("new_matches", "unread_messages", "total"):
             assert k in data
             assert isinstance(data[k], int)
-        assert data["total"] == data["new_matches"] + data["unread_messages"]
+        # unseen_likes is also part of total
+        unseen = data.get("unseen_likes", 0)
+        assert data["total"] == data["new_matches"] + data["unread_messages"] + unseen
 
         # After seen-matches, new_matches should go to 0
         s = requests.post(f"{API}/notifications/seen-matches", headers=_h(t1), timeout=30)

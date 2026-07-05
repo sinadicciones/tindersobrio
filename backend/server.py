@@ -2294,6 +2294,86 @@ async def admin_delete_event(eid: str, _: dict = Depends(require_admin)):
     await db.event_rsvps.delete_many({"event_id": eid})
     return {"ok": True}
 
+
+# ------------------------------------------------------------------
+# Admin - Reset Beta (danger zone)
+# ------------------------------------------------------------------
+class ResetBetaIn(BaseModel):
+    confirmation: str  # must equal "RESETEAR"
+
+
+@api.post("/admin/reset-beta")
+async def admin_reset_beta(body: ResetBetaIn, admin: dict = Depends(require_admin)):
+    """Wipe ALL non-admin users + their data, and turn off demo re-seeding.
+
+    Deletes: users (role != admin), likes, matches, messages, plans, reads,
+    blocks, reasons (user-created?), reports, group_members, group_messages,
+    event_rsvps, email_log (user emails only, keep internal), email_preferences.
+    Marks user file uploads as deleted. Keeps: groups, events, activities,
+    countries, helplines, admin_notification_recipients, metrics_daily,
+    support_page_views, admin users.
+    """
+    if body.confirmation != "RESETEAR":
+        raise HTTPException(status_code=400, detail="Debes escribir RESETEAR para confirmar")
+
+    counts: Dict[str, int] = {}
+
+    # Get IDs of admin users to preserve
+    admin_ids = [d["id"] async for d in db.users.find({"role": "admin"}, {"id": 1, "_id": 0})]
+
+    # Delete non-admin users and everything tied to them
+    users_res = await db.users.delete_many({"role": {"$ne": "admin"}})
+    counts["users"] = users_res.deleted_count
+
+    # Everything else — brute delete (safe: admins never appear in these)
+    for coll, filt in [
+        ("likes", {}),
+        ("matches", {}),
+        ("messages", {}),
+        ("plans", {}),
+        ("reads", {}),
+        ("blocks", {}),
+        ("reports", {}),
+        ("group_members", {}),
+        ("group_messages", {}),
+        ("event_rsvps", {}),
+        ("email_preferences", {}),
+        # Only USER emails, keep internal team ones for audit trail
+        ("email_log", {"user_id": {"$ne": None}}),
+    ]:
+        res = await db[coll].delete_many(filt)
+        counts[coll] = res.deleted_count
+
+    # Soft-delete user file uploads (don't unlink files, just mark)
+    files_res = await db.files.update_many({}, {"$set": {"deleted": True, "deleted_at": now_iso()}})
+    counts["files_soft_deleted"] = files_res.modified_count
+
+    # Persist "demo_seed_enabled = false" so restarts never re-seed
+    await db.app_settings.update_one(
+        {"key": "demo_seed_enabled"},
+        {"$set": {"key": "demo_seed_enabled", "value": False, "updated_at": now_iso(), "updated_by": admin["id"]}},
+        upsert=True,
+    )
+
+    # Audit trail
+    await db.admin_actions.insert_one({
+        "id": str(uuid.uuid4()),
+        "admin_id": admin["id"],
+        "admin_email": admin.get("email"),
+        "action": "reset_beta",
+        "counts": counts,
+        "created_at": now_iso(),
+    })
+
+    return {"ok": True, "counts": counts, "admins_preserved": len(admin_ids)}
+
+
+@api.get("/admin/settings")
+async def admin_get_settings(_: dict = Depends(require_admin)):
+    docs = await db.app_settings.find({}, {"_id": 0}).to_list(50)
+    return {d["key"]: d["value"] for d in docs}
+
+
 # ------------------------------------------------------------------
 # Admin - Metrics (aggregate-only, privacy-first)
 # ------------------------------------------------------------------
@@ -2495,11 +2575,14 @@ async def seed_admin_and_data():
             })
         logger.info("Grupos sembrados")
 
-    # Demo profiles
+    # Demo profiles - respect persistent app_settings flag (set to False after reset-beta)
     activities = await db.activities.find({}, {"_id": 0}).to_list(100)
     act_by_name = {a["name"]: a for a in activities}
 
-    if await db.users.count_documents({"is_demo": True}) == 0:
+    seed_setting = await db.app_settings.find_one({"key": "demo_seed_enabled"}, {"_id": 0})
+    demo_seed_enabled = True if seed_setting is None else bool(seed_setting.get("value"))
+
+    if demo_seed_enabled and await db.users.count_documents({"is_demo": True}) == 0:
         for i, (alias, gs, gender, age, comuna, modes, interested, fav_names, sober) in enumerate(DEMO_PROFILES, start=1):
             bd = (datetime.now(timezone.utc).date().replace(year=datetime.now(timezone.utc).year - age)).isoformat()
             favs = [act_by_name[n]["id"] for n in fav_names if n in act_by_name]

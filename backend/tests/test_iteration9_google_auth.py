@@ -91,7 +91,7 @@ class TestOnboardingBirthdateGate:
             "show_sober_time": True,
             "favorite_activities": ["yoga", "cafe", "cine"],
             "photos": [],
-            "prompts": [],
+            "prompts": [{"q": "Un plan ideal", "a": "Un cafe conversando al sol"}],
             "accepted_rules": True,
         }
         p.update(overrides)

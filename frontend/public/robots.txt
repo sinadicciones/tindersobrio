@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /onboarding
+Disallow: /reset-password
+Disallow: /olvide-contrasena
+Disallow: /api
+
+Sitemap: https://plansobrio.com/sitemap.xml

@@ -2,6 +2,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Toaster } from "sonner";
+import { useEffect } from "react";
 import BottomNav from "@/components/BottomNav";
 
 import Landing from "@/pages/Landing";
@@ -56,6 +57,20 @@ function AppShell() {
 
 function AppRouter() {
   const location = useLocation();
+
+  // Manage <meta name="robots"> per route: noindex on private/app routes.
+  useEffect(() => {
+    const PRIVATE_PREFIXES = ["/app", "/admin", "/onboarding", "/reset-password", "/olvide-contrasena"];
+    const shouldNoindex = PRIVATE_PREFIXES.some((p) => location.pathname.startsWith(p));
+    let tag = document.querySelector('meta[name="robots"]');
+    if (!tag) {
+      tag = document.createElement("meta");
+      tag.setAttribute("name", "robots");
+      document.head.appendChild(tag);
+    }
+    tag.setAttribute("content", shouldNoindex ? "noindex, nofollow" : "index, follow");
+  }, [location.pathname]);
+
   // Detect Emergent Google Auth callback SYNCHRONOUSLY during render (not in useEffect)
   // to avoid race conditions with AuthProvider's /auth/me call.
   if (location.hash?.includes("session_id=")) {

@@ -15,6 +15,13 @@ export default function Landing() {
             <Sparkles size={22} className="text-white" />
           </div>
           <span className="font-display text-xl font-black tracking-tight">PlanSobrio</span>
+          <span
+            data-testid="beta-badge"
+            className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider"
+            style={{ borderColor: "#4ADE80", color: "#4ADE80" }}
+          >
+            Beta
+          </span>
         </div>
 
         <motion.h1
@@ -60,7 +67,10 @@ export default function Landing() {
         <p className="mt-14 text-center text-xs text-white/40 leading-relaxed">
           Solo para mayores de 18 años. PlanSobrio no reemplaza tratamiento profesional ni atención de urgencia.
         </p>
-        <div className="mt-4 text-center text-xs text-white/40 space-x-3">
+        <p data-testid="sinadicciones-credit" className="mt-4 text-center text-xs text-white/50">
+          Hecho con 💛 desde <a href="https://sinadicciones.org" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white underline">SinAdicciones.org</a>
+        </p>
+        <div className="mt-3 text-center text-xs text-white/40 space-x-3">
           <Link to="/terminos" data-testid="footer-terms" className="hover:text-white/70 underline decoration-transparent hover:decoration-current transition">Términos</Link>
           <span className="opacity-30">·</span>
           <Link to="/privacidad" data-testid="footer-privacy" className="hover:text-white/70 underline decoration-transparent hover:decoration-current transition">Privacidad</Link>

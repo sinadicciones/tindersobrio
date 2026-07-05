@@ -125,8 +125,8 @@ def test_patch_profile_location_coords_rounded(demo_headers):
     me = requests.get(f"{API}/auth/me", headers=demo_headers, timeout=20).json()
     coords = ((me.get("location") or {}).get("coords") or {}).get("coordinates")
     assert coords is not None
-    # rounded to 4 decimals
-    assert coords == [-70.5568, -33.4123], f"Not rounded to 4 dp: {coords}"
+    # rounded to 2 decimals (privacy)
+    assert coords == [-70.56, -33.41], f"Not rounded to 2 dp: {coords}"
     # cleanup: restore
     requests.patch(f"{API}/profile/me", json={"comuna": "Providencia"}, headers=demo_headers, timeout=20)
 

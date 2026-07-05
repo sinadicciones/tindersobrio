@@ -202,6 +202,15 @@ class TestRateLimit:
                 pytest.fail(f"unexpected {r.status_code}: {r.text}")
         assert limited, f"no rate limit triggered after {ok} messages"
         assert ok >= 55, f"expected ~60 to pass, got {ok}"
+        # Cleanup noise so downstream tests (iter11 no-noise) stay green
+        try:
+            import os as _os
+            from pymongo import MongoClient as _MC
+            _cli = _MC(_os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+            _db = _cli[_os.environ.get("DB_NAME", "test_database")]
+            _db.group_messages.delete_many({"text": {"$regex": r"^t\d+-[0-9a-f]"}})
+        except Exception:
+            pass
 
 
 # ---------- CORS ----------

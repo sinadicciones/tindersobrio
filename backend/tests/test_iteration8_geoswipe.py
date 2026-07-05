@@ -199,7 +199,7 @@ def test_new_user_onboarding_backfills_CL():
         "sober_time": "3-12m",
         "show_sober_time": True,
         "favorite_activities": ["act-1", "act-2", "act-3"],
-        "photos": [], "prompts": [],
+        "photos": [], "prompts": [{"q": "Un plan ideal", "a": "Un paseo tranquilo con conversacion"}],
         "accepted_rules": True,
     }
     r = s.post(f"{API}/profile/onboarding", json=ob)

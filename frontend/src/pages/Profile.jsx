@@ -193,6 +193,10 @@ export default function Profile() {
           </div>
         </button>
       </div>
+
+      <p data-testid="app-sinadicciones-credit" className="mt-8 text-center text-xs text-white/45">
+        Hecho con 💛 desde <a href="https://sinadicciones.org" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white underline">SinAdicciones.org</a>
+      </p>
     </div>
   );
 }
