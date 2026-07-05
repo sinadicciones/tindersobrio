@@ -52,13 +52,6 @@ export default function Profile() {
             ))}
           </div>
         )}
-        {user.videos?.length > 0 && (
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {user.videos.map((v, i) => (
-              <video key={i} data-testid={`profile-video-${i}`} src={fileUrl(v)} controls playsInline preload="metadata" className="w-full aspect-[9/16] rounded-2xl bg-black object-cover"/>
-            ))}
-          </div>
-        )}
         <div className="mt-4 flex flex-wrap gap-2">
           {(user.modes || []).map((v) => {
             const m = MODES.find((x) => x.v === v);
@@ -97,6 +90,12 @@ export default function Profile() {
         <a href="https://sinadicciones.org" target="_blank" rel="noreferrer" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
           <ExternalLink size={18}/><span className="font-semibold">Orientación en SinAdicciones.org</span>
         </a>
+        <Link to="/terminos" data-testid="perfil-terms" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
+          <ExternalLink size={18}/><span className="font-semibold">Términos y reglas</span>
+        </Link>
+        <Link to="/privacidad" data-testid="perfil-privacy" className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
+          <ExternalLink size={18}/><span className="font-semibold">Política de privacidad</span>
+        </Link>
         <button data-testid="logout-btn" onClick={async ()=>{await logout(); nav("/");}} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10">
           <LogOut size={18}/><span className="font-semibold">Cerrar sesión</span>
         </button>

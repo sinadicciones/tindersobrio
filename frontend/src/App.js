@@ -18,6 +18,9 @@ import Profile from "@/pages/Profile";
 import EditProfile from "@/pages/EditProfile";
 import NecesitoApoyo from "@/pages/NecesitoApoyo";
 import Admin from "@/pages/Admin";
+import Terminos from "@/pages/Terminos";
+import Privacidad from "@/pages/Privacidad";
+import CuentaSuspendida from "@/pages/CuentaSuspendida";
 
 function Loader() {
   return (
@@ -56,6 +59,9 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Register />} />
+          <Route path="/terminos" element={<Terminos />} />
+          <Route path="/privacidad" element={<Privacidad />} />
+          <Route path="/cuenta-suspendida" element={<CuentaSuspendida />} />
           <Route path="/onboarding" element={<RequireAuth requireOnboarding={false}><Onboarding /></RequireAuth>} />
 
           <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>

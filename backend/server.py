@@ -86,14 +86,14 @@ async def current_user(request: Request) -> dict:
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no existe")
     if user.get("status") == "banned":
-        raise HTTPException(status_code=403, detail="Tu cuenta fue suspendida por incumplir las reglas de la comunidad")
+        raise HTTPException(status_code=403, detail="account_banned")
     if user.get("status") == "suspended":
         until = user.get("suspended_until")
         if until:
             try:
                 until_dt = datetime.fromisoformat(until)
                 if until_dt > datetime.now(timezone.utc):
-                    raise HTTPException(status_code=403, detail=f"Cuenta suspendida hasta {until}")
+                    raise HTTPException(status_code=403, detail=f"account_suspended:{until}")
                 else:
                     await db.users.update_one({"id": user["id"]}, {"$set": {"status": "active"}, "$unset": {"suspended_until": ""}})
             except HTTPException:
@@ -121,7 +121,6 @@ def clear_public(user: dict) -> dict:
         "gender": user.get("gender"),
         "modes": user.get("modes", []),
         "photos": user.get("photos", []),
-        "videos": user.get("videos", []),
         "prompts": user.get("prompts", []),
         "favorite_activities": user.get("favorite_activities", []),
         "sober_time_badge": user.get("sober_time") if user.get("show_sober_time") else None,
@@ -273,7 +272,9 @@ async def login(body: LoginIn, response: Response):
     if not user or not verify_password(body.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
     if user.get("status") == "banned":
-        raise HTTPException(status_code=403, detail="Tu cuenta fue suspendida por incumplir las reglas de la comunidad")
+        raise HTTPException(status_code=403, detail="account_banned")
+    if user.get("status") == "suspended":
+        raise HTTPException(status_code=403, detail=f"account_suspended:{user.get('suspended_until','')}")
     token = create_access_token(user["id"], email)
     set_auth_cookie(response, token)
     user.pop("password_hash", None)
@@ -296,12 +297,12 @@ async def me(user: dict = Depends(current_user)):
 async def upload_photo(file: UploadFile = File(...), user: dict = Depends(current_user)):
     ext = (file.filename or "img").split(".")[-1].lower()
     if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
-        raise HTTPException(status_code=400, detail="Formato no permitido")
+        raise HTTPException(status_code=400, detail="Formato de imagen no válido. Prueba con JPG, PNG o WebP.")
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}[ext]
     path = f"{APP_NAME}/photos/{user['id']}/{uuid.uuid4()}.{ext}"
     data = await file.read()
     if len(data) > 8 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Foto demasiado grande (máx 8MB)")
+        raise HTTPException(status_code=400, detail="La foto pesa mucho. Máximo 8MB por imagen.")
     result = put_object(path, data, mime)
     await db.files.insert_one({
         "id": str(uuid.uuid4()),
@@ -1168,6 +1169,38 @@ async def admin_get_user(uid: str, _: dict = Depends(require_admin)):
     reports = await db.reports.find({"target_user": uid}, {"_id": 0}).to_list(200)
     actions = await db.admin_actions.find({"user_id": uid}, {"_id": 0}).to_list(200)
     return {"user": u, "reports": reports, "actions": actions}
+
+@api.post("/admin/cleanup-tests")
+async def admin_cleanup_tests(_: dict = Depends(require_admin)):
+    """Delete test users (email starts with 'test' or 'TEST_') and their artifacts."""
+    victims = await db.users.find(
+        {"email": {"$regex": r"^(test_|TEST_)", "$options": "i"}, "role": {"$ne": "admin"}},
+        {"id": 1, "email": 1, "_id": 0},
+    ).to_list(500)
+    if not victims:
+        return {"deleted_users": 0, "emails": []}
+    vids = [v["id"] for v in victims]
+    my_matches = await db.matches.find({"users": {"$in": vids}}, {"id": 1, "_id": 0}).to_list(2000)
+    match_ids = [m["id"] for m in my_matches]
+
+    await db.users.delete_many({"id": {"$in": vids}})
+    await db.likes.delete_many({"$or": [{"from_user": {"$in": vids}}, {"to_user": {"$in": vids}}]})
+    await db.matches.delete_many({"users": {"$in": vids}})
+    if match_ids:
+        await db.messages.delete_many({"match_id": {"$in": match_ids}})
+        await db.plans.delete_many({"match_id": {"$in": match_ids}})
+        await db.reads.delete_many({"match_id": {"$in": match_ids}})
+    await db.messages.delete_many({"from_user": {"$in": vids}})
+    await db.reasons.delete_many({"user_id": {"$in": vids}})
+    await db.blocks.delete_many({"$or": [{"from_user": {"$in": vids}}, {"to_user": {"$in": vids}}]})
+    # Delete reports FROM test users; keep reports ABOUT real users
+    await db.reports.delete_many({"$or": [{"from_user": {"$in": vids}}, {"target_user": {"$in": vids}}]})
+    await db.group_members.delete_many({"user_id": {"$in": vids}})
+    await db.group_messages.delete_many({"from_user": {"$in": vids}})
+    await db.event_rsvps.delete_many({"user_id": {"$in": vids}})
+    await db.reads.delete_many({"user_id": {"$in": vids}})
+    await db.files.update_many({"user_id": {"$in": vids}}, {"$set": {"is_deleted": True, "deleted_at": now_iso()}})
+    return {"deleted_users": len(vids), "emails": [v["email"] for v in victims]}
 
 # Admin CRUD groups & events
 @api.post("/admin/groups")

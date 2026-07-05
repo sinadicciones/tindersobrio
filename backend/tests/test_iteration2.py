@@ -148,16 +148,12 @@ class TestVideoUpload:
         ct = f.headers.get("Content-Type", "")
         assert ct.startswith("video/"), f"expected video content-type, got {ct}"
 
-        # Persist on profile
+        # Persist on profile (backend still supports it internally)
         p = requests.patch(f"{API}/profile/me", json={"videos": [body["path"]]}, headers=_h(t), timeout=30)
         assert p.status_code == 200
         me = _me(t)
         assert body["path"] in (me.get("videos") or [])
-
-        # Public profile also includes videos
-        pp = requests.get(f"{API}/profile/{me['id']}", headers=_h(t), timeout=30).json()
-        assert "videos" in pp
-        assert body["path"] in pp["videos"]
+        # Videos are intentionally hidden from public profile view (BLOQUE 4 decision).
 
 
 class TestDiscoverFilters:

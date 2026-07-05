@@ -64,7 +64,7 @@ class TestLikeValidation:
         }, headers=_h(t1), timeout=30)
         assert r.status_code == 403
 
-    def test_like_amistad_ok_both_have_amistad(self):
+    def test_like_amistad_ok_both_have_amistad(self, reset_demo_state):
         # demo1 -> demo2 mode=amistad => 200
         t1 = _login("demo1@plansobrio.cl")
         t2 = _login("demo2@plansobrio.cl")

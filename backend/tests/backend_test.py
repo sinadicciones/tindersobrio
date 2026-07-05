@@ -128,7 +128,7 @@ class TestDiscover:
 
 
 class TestMatchFlow:
-    def test_like_then_reciprocal_match(self):
+    def test_like_then_reciprocal_match(self, reset_demo_state):
         # demo1 (Cata_23, F, amistad+amor, interested masc+fem)
         # demo10 (Anto_Museo, F, amistad+amor, interested fem+NB)
         # both include each other's gender. Use amistad to avoid gender constraints.

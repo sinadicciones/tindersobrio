@@ -60,6 +60,11 @@ export default function Landing() {
         <p className="mt-14 text-center text-xs text-white/40 leading-relaxed">
           Solo para mayores de 18 años. PlanSobrio no reemplaza tratamiento profesional ni atención de urgencia.
         </p>
+        <div className="mt-4 text-center text-xs text-white/40 space-x-3">
+          <Link to="/terminos" data-testid="footer-terms" className="hover:text-white/70 underline decoration-transparent hover:decoration-current transition">Términos</Link>
+          <span className="opacity-30">·</span>
+          <Link to="/privacidad" data-testid="footer-privacy" className="hover:text-white/70 underline decoration-transparent hover:decoration-current transition">Privacidad</Link>
+        </div>
       </div>
     </div>
   );

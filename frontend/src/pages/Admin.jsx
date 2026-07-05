@@ -120,14 +120,28 @@ function Reports() {
 function Users2() {
   const [q, setQ] = useState("");
   const [us, setUs] = useState([]);
+  const [cleaning, setCleaning] = useState(false);
   const load = () => api.get("/admin/users", { params: { q } }).then((r)=>setUs(r.data));
   useEffect(() => { load(); }, []);
   const act = async (id, action) => { await api.post("/admin/users/action", { target_user_id: id, action, note: "" }); await load(); toast.success("Aplicado"); };
+  const cleanup = async () => {
+    if (!confirm("¿Eliminar todos los usuarios cuyo email empiece por 'test_' o 'TEST_' junto con sus reportes, matches y mensajes? No afecta perfiles demo ni al admin.")) return;
+    setCleaning(true);
+    try {
+      const { data } = await api.post("/admin/cleanup-tests");
+      toast.success(`Limpiados ${data.deleted_users} usuarios de prueba`);
+      await load();
+    } catch (ex) { toast.error(ex.response?.data?.detail || "Error"); }
+    finally { setCleaning(false); }
+  };
   return (
     <div>
-      <div className="flex gap-2 mb-4">
-        <input className="ps-input flex-1" placeholder="Buscar por alias o email" value={q} onChange={(e)=>setQ(e.target.value)}/>
+      <div className="flex gap-2 mb-4 flex-wrap">
+        <input className="ps-input flex-1 min-w-[200px]" placeholder="Buscar por alias o email" value={q} onChange={(e)=>setQ(e.target.value)}/>
         <button onClick={load} className="ps-btn-primary px-4">Buscar</button>
+        <button data-testid="admin-cleanup-tests" disabled={cleaning} onClick={cleanup} className="text-sm px-4 py-2 rounded-full bg-red-500/15 border border-red-500/40 text-red-300 hover:bg-red-500/25 disabled:opacity-50">
+          {cleaning ? "Limpiando…" : "Limpiar datos de prueba"}
+        </button>
       </div>
       <div className="space-y-2">
         {us.map((u) => (

@@ -13,9 +13,20 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.get("/auth/me");
       setUser(data);
-    } catch (_e) {
+    } catch (ex) {
+      const detail = ex.response?.data?.detail;
       localStorage.removeItem("ps_token");
       setUser(null);
+      // Redirect to friendly suspended screen if that was the reason
+      if (typeof detail === "string" && detail.startsWith("account_banned")) {
+        window.location.replace("/cuenta-suspendida?kind=banned");
+        return;
+      }
+      if (typeof detail === "string" && detail.startsWith("account_suspended")) {
+        const until = detail.includes(":") ? detail.split(":", 2)[1] : "";
+        window.location.replace(`/cuenta-suspendida?kind=suspended&until=${encodeURIComponent(until)}`);
+        return;
+      }
     } finally {
       setLoading(false);
     }

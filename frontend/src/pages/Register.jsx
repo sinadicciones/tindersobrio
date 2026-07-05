@@ -51,7 +51,7 @@ export default function Register() {
         </form>
 
         <p className="mt-6 text-xs text-white/40 leading-relaxed">
-          Al continuar aceptas nuestras reglas de comunidad. PlanSobrio no reemplaza tratamiento profesional ni atención de urgencia.
+          Al continuar aceptas nuestros <Link to="/terminos" className="underline decoration-[#FF6B5E]">términos</Link> y <Link to="/privacidad" className="underline decoration-[#FF6B5E]">política de privacidad</Link>. PlanSobrio no reemplaza tratamiento profesional ni atención de urgencia.
         </p>
         <p className="mt-6 text-center text-sm text-white/60">
           ¿Ya tienes cuenta? <Link to="/login" className="text-white font-semibold underline decoration-[#FF6B5E]">Entra</Link>

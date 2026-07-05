@@ -23,8 +23,17 @@ export default function Login() {
       else if (!u.onboarding_complete) nav("/onboarding");
       else nav("/app/descubrir");
     } catch (ex) {
-      const msg = formatApiError(ex.response?.data?.detail) || ex.message;
-      setErr(msg);
+      const detail = ex.response?.data?.detail;
+      if (typeof detail === "string" && detail.startsWith("account_banned")) {
+        nav("/cuenta-suspendida?kind=banned");
+        return;
+      }
+      if (typeof detail === "string" && detail.startsWith("account_suspended")) {
+        const until = detail.includes(":") ? detail.split(":", 2)[1] : "";
+        nav(`/cuenta-suspendida?kind=suspended&until=${encodeURIComponent(until)}`);
+        return;
+      }
+      setErr(formatApiError(detail) || ex.message);
     } finally { setLoading(false); }
   };
 

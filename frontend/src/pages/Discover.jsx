@@ -288,7 +288,7 @@ function ProfileCard({ profile, mode, onPass, onLike }) {
         </div>
       </div>
 
-      {/* Prompts extra + videos (scroll below card) */}
+      {/* Prompts extra (scroll below card) */}
       <div className="mt-4 space-y-3">
         {profile.prompts?.slice(1).map((p, i) => (
           <div key={i} className="ps-card p-4">
@@ -296,17 +296,6 @@ function ProfileCard({ profile, mode, onPass, onLike }) {
             <p className="mt-1 text-sm">{p.a}</p>
           </div>
         ))}
-        {profile.videos && profile.videos.length > 0 && (
-          <div className="ps-card p-3">
-            <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Videos</p>
-            <div className="grid grid-cols-2 gap-2">
-              {profile.videos.map((v, i) => (
-                <video key={i} data-testid={`profile-video-${i}`} src={fileUrl(v)} controls playsInline preload="metadata"
-                  className="w-full aspect-[9/16] rounded-2xl bg-black object-cover"/>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* actions */}
