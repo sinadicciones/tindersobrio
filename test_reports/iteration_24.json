@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 24 — Verified sober_time='' bugfix, new 'sin_problema' relationship option with optional show_relationship badge, and the new global RequestValidationError Spanish handler. Backend: 9/9 pytest tests pass in /app/backend/tests/test_iteration24_relationship_and_validation.py covering (a) POST /profile/onboarding accepts sober_time='' and persists as None (previously 422); (b) OnboardingIn accepts relationship_with_substances='sin_problema' with show_relationship=true and clear_public exposes relationship_badge='sin_problema'; (c) PATCH /profile/me toggles show_relationship on/off and flips relationship_with_substances between 'sin_problema' and 'sin_consumo'; (d) clear_public hides relationship_badge when show_relationship=false or when relationship_with_substances='prefiero_no_decir'; (e) global handler returns {\"detail\":\"<msg español>\"} 422 for missing field ('Falta completar: género.'), invalid literal ('Elige una opción válida para tu relación con el alcohol y las drogas.'), and missing query param on /discover ('Falta completar: mode.'); (f) regression: demo1 (sin_consumo + show_sober_time=true) still sees sober_time_badge. Frontend (Playwright, mobile viewport 390x900): EditProfile at /app/perfil/editar renders all 4 chips edit-rel-sin_consumo|en_proceso|sin_problema|prefiero_no_decir; edit-show-relationship toggle appears iff sin_problema is selected and hides for sin_consumo; sober-time block toggles correctly between the two; save via PATCH /profile/me succeeds with toast 'Perfil actualizado'. Onboarding step 3 rendering verified via visual inspection and testid checks: all 4 ob-rel-* chips present; ob-show-relationship appears only for sin_problema; SOBER_TIMES presets + ob-show-sober disappear for sin_problema and prefiero_no_decir; reappear for sin_consumo/en_proceso (screenshot confirms). PublicProfile /app/usuario/{id} shows pp-relationship-badge text 'Sin problemas con dependencias'; Profile /app/perfil shows profile-relationship-badge text 'Sin problemas con dependencias' when show_relationship=true, relationship_with_substances='sin_problema' AND sober_time is falsy (confirmed via API view /profile/{id} → {sober_time_badge:null, relationship_badge:'sin_problema'}).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration24_relationship_and_validation.py",
+    "/app/test_reports/pytest/iter24.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:64-138 _humanize_validation_error — solid mapping, but relies on `errors()[0]` only. If a payload has multiple missing fields, users see only the first. Consider joining the first N field labels ('Falta completar: género, comuna.') for a richer hint.",
+    "server.py:307 clear_public — the `prefiero_no_decir` string is hard-coded in the badge guard. If a future value is added, remember to update the exclusion list. Consider a dedicated `RELATIONSHIP_PUBLIC` allow-list constant.",
+    "server.py:1109 PATCH /profile/me filters out `None` values (`if v is not None`). This means users can never clear sober_time via PATCH (sending null is silently dropped). Fine now that sin_problema doesn't touch sober_time, but worth documenting: to migrate a user off sober_time you need direct DB access.",
+    "Onboarding.jsx:111 — payload.sober_time is coerced to `undefined` when falsy client-side (defense in depth). Combined with the backend field_validator, this bug can't regress. Good dual fix.",
+    "EditProfile.jsx:88-89 — same defense-in-depth (`delete payload.sober_time` if empty). Consistent.",
+    "Profile.jsx:113 — the badge condition `!user.sober_time` means a user who chooses sin_problema but still has a lingering sober_time in DB will never see the relationship badge on their own profile. This is intentional per spec but slightly confusing UX: consider showing both badges when they don't conflict, or provide UI to clear sober_time when switching to sin_problema."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration24_relationship_and_validation.py (NEW — 9 tests)"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (EditProfile chips, save, Profile badge, PublicProfile badge, Onboarding step 3 conditional rendering all verified)"},
+  "test_credentials": "admin: contacto@sinadicciones.org / Jodorowsky100; demo1@plansobrio.cl / Demo1234!; test users created with pattern test_iter24_*/test_ui24*@plansobrio.cl / Testing1234!",
+  "seed_data_creation": "Created ~10 throwaway test users (test_iter24_* + test_ui24*) during backend + frontend runs. No admin cleanup endpoint found (/admin/cleanup-tests returns 404); recommend adding one or purging manually via mongo shell.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "EditProfile route is /app/perfil/editar (NOT /app/editar). PublicProfile route is /app/usuario/{id}. Register route is /registro (NOT /register). LocationPicker flow: click data-testid=location-prefer-manual → manual-city select → manual-comuna select → click manual-apply → ob-next enables. Profile-relationship-badge is hidden when user.sober_time is truthy even if show_relationship=true — this is by-spec, not a bug. Backend PATCH /profile/me drops null values, so you can't clear sober_time via PATCH; use a fresh user or admin DB tool. The global 422 handler returns a plain string in `detail` (not the array Pydantic normally returns) — any client parsing exception.response.data.detail as an array will now break; verified formatApiError() handles both cases in frontend.",
+  "rca of the issue": "N/A — no bugs found in this iteration. The original bug (sober_time='' → 422) is fixed via dual defense: (1) backend OnboardingIn.field_validator '_empty_sober_time_to_none' converts '' → None before Literal validation, (2) frontend Onboarding.submit + EditProfile.save strip empty sober_time from payload before PATCH/POST."
+}

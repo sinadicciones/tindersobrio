@@ -47,6 +47,7 @@ export default function Onboarding() {
     relationship_with_substances: "",
     sober_time: "",
     show_sober_time: false,
+    show_relationship: false,
     favorite_activities: [],
     photos: [],
     videos: [],
@@ -251,6 +252,7 @@ export default function Onboarding() {
                   {[
                     {v:"sin_consumo", l:"Vivo sin alcohol ni drogas"},
                     {v:"en_proceso", l:"Estoy en proceso de dejarlo"},
+                    {v:"sin_problema", l:"No tengo problemas con dependencias"},
                     {v:"prefiero_no_decir", l:"Prefiero no decir"},
                   ].map((o) => (
                     <button type="button" key={o.v} data-testid={`ob-rel-${o.v}`}
@@ -260,21 +262,35 @@ export default function Onboarding() {
                     </button>
                   ))}
                 </div>
+                {form.relationship_with_substances === "sin_problema" && (
+                  <label className="flex items-center gap-3 mt-3 text-sm">
+                    <input
+                      type="checkbox"
+                      data-testid="ob-show-relationship"
+                      className="w-5 h-5 accent-[#4ADE80]"
+                      checked={form.show_relationship}
+                      onChange={(e)=>set("show_relationship", e.target.checked)}
+                    />
+                    <span>Mostrar en mi perfil como insignia</span>
+                  </label>
+                )}
               </div>
-              <div>
-                <label className="text-sm text-white/60 mb-2 block">Tiempo sin consumo (opcional)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {SOBER_TIMES.map((s) => (
-                    <button type="button" key={s.v} data-testid={`ob-time-${s.v}`}
-                      onClick={()=>set("sober_time", form.sober_time===s.v ? "" : s.v)}
-                      className={`px-3 py-2.5 rounded-2xl text-sm font-semibold border ${form.sober_time===s.v ? "bg-[#4ADE80]/20 border-[#4ADE80]/50 text-[#4ADE80]" : "bg-white/5 border-white/10"}`}>{s.l}</button>
-                  ))}
+              {form.relationship_with_substances !== "sin_problema" && form.relationship_with_substances !== "prefiero_no_decir" && (
+                <div>
+                  <label className="text-sm text-white/60 mb-2 block">Tiempo sin consumo (opcional)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SOBER_TIMES.map((s) => (
+                      <button type="button" key={s.v} data-testid={`ob-time-${s.v}`}
+                        onClick={()=>set("sober_time", form.sober_time===s.v ? "" : s.v)}
+                        className={`px-3 py-2.5 rounded-2xl text-sm font-semibold border ${form.sober_time===s.v ? "bg-[#4ADE80]/20 border-[#4ADE80]/50 text-[#4ADE80]" : "bg-white/5 border-white/10"}`}>{s.l}</button>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-3 mt-2">
+                    <input type="checkbox" data-testid="ob-show-sober" className="w-5 h-5 accent-[#4ADE80]" checked={form.show_sober_time} onChange={(e)=>set("show_sober_time", e.target.checked)}/>
+                    <span className="text-sm">Mostrar mi tiempo en mi perfil como insignia</span>
+                  </label>
                 </div>
-              </div>
-              <label className="flex items-center gap-3 mt-2">
-                <input type="checkbox" data-testid="ob-show-sober" className="w-5 h-5 accent-[#4ADE80]" checked={form.show_sober_time} onChange={(e)=>set("show_sober_time", e.target.checked)}/>
-                <span className="text-sm">Mostrar mi tiempo en mi perfil como insignia</span>
-              </label>
+              )}
             </div>
           )}
 

@@ -52,3 +52,11 @@ export const modeColor = (mode) => {
 };
 
 export const soberLabel = (v) => SOBER_TIMES.find((s) => s.v === v)?.l || v;
+
+export const RELATIONSHIP_LABELS = {
+  sin_consumo: "Vive sin alcohol ni drogas",
+  en_proceso: "En proceso",
+  sin_problema: "Sin problemas con dependencias",
+  prefiero_no_decir: "Prefiere no decir",
+};
+export const relationshipLabel = (v) => RELATIONSHIP_LABELS[v] || v;

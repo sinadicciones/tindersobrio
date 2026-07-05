@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { MODES, modeColor, soberLabel, COMUNAS_RM } from "@/constants/comunas";
+import { MODES, modeColor, soberLabel, relationshipLabel, COMUNAS_RM } from "@/constants/comunas";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate as fmAnimate } from "framer-motion";
 import { toast } from "sonner";
 import { Sparkles, X, MapPin, Heart, SlidersHorizontal, HeartHandshake, Smile, Sprout, PencilLine, Ruler, Baby, Star } from "lucide-react";
@@ -441,6 +441,11 @@ function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef 
               {profile.sober_time_badge && (
                 <span className="inline-flex items-center gap-1 text-[10.5px] font-bold tracking-tight px-2 py-1 rounded-full" style={{ color: "#4ADE80", background: "rgba(74,222,128,.14)", border: "1px solid rgba(74,222,128,.42)" }}>
                   <Sprout size={11} strokeWidth={1.9}/> {soberLabel(profile.sober_time_badge)}
+                </span>
+              )}
+              {!profile.sober_time_badge && profile.relationship_badge && (
+                <span data-testid="discover-relationship-badge" className="inline-flex items-center gap-1 text-[10.5px] font-bold tracking-tight px-2 py-1 rounded-full" style={{ color: "#4ADE80", background: "rgba(74,222,128,.14)", border: "1px solid rgba(74,222,128,.42)" }}>
+                  <Sprout size={11} strokeWidth={1.9}/> {relationshipLabel(profile.relationship_badge)}
                 </span>
               )}
             </div>

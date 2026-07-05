@@ -4,7 +4,7 @@ import api, { formatApiError, fileUrl } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine, HeartHandshake, Smile, Heart, Users as UsersIcon, Ruler, Baby, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import Avatar from "@/components/Avatar";
-import { MODES, REPORT_CATEGORIES } from "@/constants/comunas";
+import { MODES, REPORT_CATEGORIES, relationshipLabel } from "@/constants/comunas";
 
 const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: UsersIcon };
 
@@ -109,6 +109,9 @@ export default function PublicProfile() {
           <p className="mt-1 text-sm text-white/70 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}</p>
           {profile.sober_time_badge && (
             <p className="mt-2 text-xs text-[#4ADE80] flex items-center gap-1"><Sparkles size={12}/> {profile.sober_time_badge} sin consumo</p>
+          )}
+          {!profile.sober_time_badge && profile.relationship_badge && (
+            <p data-testid="pp-relationship-badge" className="mt-2 text-xs text-[#4ADE80] flex items-center gap-1"><Sparkles size={12}/> {relationshipLabel(profile.relationship_badge)}</p>
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             {profile.modes?.map((v) => {

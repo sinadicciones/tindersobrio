@@ -7,7 +7,7 @@ import {
   MapPin, Sprout, ChevronRight, HeartHandshake, Smile, Heart, Users,
   Ruler, Baby, Star, Sparkles,
 } from "lucide-react";
-import { MODES, soberLabel } from "@/constants/comunas";
+import { MODES, soberLabel, relationshipLabel } from "@/constants/comunas";
 import { fileUrl, formatApiError } from "@/lib/api";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -108,6 +108,11 @@ export default function Profile() {
               {user.show_sober_time && user.sober_time && (
                 <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-full" style={{ color: "#4ADE80", background: "rgba(74,222,128,.14)", border: "1px solid rgba(74,222,128,.42)" }}>
                   <Sprout size={10} strokeWidth={1.9}/> {soberLabel(user.sober_time)}
+                </span>
+              )}
+              {user.show_relationship && user.relationship_with_substances && user.relationship_with_substances !== "prefiero_no_decir" && !user.sober_time && (
+                <span data-testid="profile-relationship-badge" className="ml-2 inline-flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-full" style={{ color: "#4ADE80", background: "rgba(74,222,128,.14)", border: "1px solid rgba(74,222,128,.42)" }}>
+                  <Sprout size={10} strokeWidth={1.9}/> {relationshipLabel(user.relationship_with_substances)}
                 </span>
               )}
             </p>

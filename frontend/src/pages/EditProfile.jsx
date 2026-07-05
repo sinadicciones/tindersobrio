@@ -29,6 +29,8 @@ export default function EditProfile() {
     age_max: user?.age_max || 40,
     show_sober_time: !!user?.show_sober_time,
     sober_time: user?.sober_time || "",
+    relationship_with_substances: user?.relationship_with_substances || "",
+    show_relationship: !!user?.show_relationship,
     favorite_activities: user?.favorite_activities || [],
     photos: user?.photos || [],
     bio: user?.bio || "",
@@ -82,6 +84,9 @@ export default function EditProfile() {
         payload.height_cm = Number(payload.height_cm);
       }
       if (!payload.has_children) delete payload.has_children;
+      // Literal fields on backend: empty string is not a valid value → strip it
+      if (!payload.sober_time) delete payload.sober_time;
+      if (!payload.relationship_with_substances) delete payload.relationship_with_substances;
       // Filter out empty prompts; server enforces 1..6 non-empty
       payload.prompts = f.prompts.filter((p) => (p.q || "").trim() && (p.a || "").trim());
       if (payload.prompts.length < 1) {
@@ -206,6 +211,37 @@ export default function EditProfile() {
         </div>
 
         <div>
+          <label className="text-sm text-white/60 mb-2 block">Tu relación con el alcohol y las drogas</label>
+          <div className="space-y-2">
+            {[
+              {v:"sin_consumo", l:"Vivo sin alcohol ni drogas"},
+              {v:"en_proceso", l:"Estoy en proceso de dejarlo"},
+              {v:"sin_problema", l:"No tengo problemas con dependencias"},
+              {v:"prefiero_no_decir", l:"Prefiero no decir"},
+            ].map((o) => (
+              <button type="button" key={o.v} data-testid={`edit-rel-${o.v}`}
+                onClick={()=>set("relationship_with_substances", o.v)}
+                className={`w-full text-left px-4 py-3 rounded-2xl border transition ${f.relationship_with_substances===o.v ? "ps-gradient border-transparent" : "bg-white/5 border-white/10"}`}>
+                {o.l}
+              </button>
+            ))}
+          </div>
+          {f.relationship_with_substances === "sin_problema" && (
+            <label className="flex items-center gap-3 mt-3 text-sm">
+              <input
+                type="checkbox"
+                data-testid="edit-show-relationship"
+                className="w-5 h-5 accent-[#4ADE80]"
+                checked={f.show_relationship}
+                onChange={(e)=>set("show_relationship", e.target.checked)}
+              />
+              Mostrar en mi perfil
+            </label>
+          )}
+        </div>
+
+        {f.relationship_with_substances !== "sin_problema" && f.relationship_with_substances !== "prefiero_no_decir" && (
+        <div>
           <label className="text-sm text-white/60 mb-2 block">Insignia de tiempo sin consumo</label>
           <div className="grid grid-cols-2 gap-2">
             {SOBER_TIMES.map((s) => (
@@ -218,6 +254,7 @@ export default function EditProfile() {
             Mostrar en mi perfil
           </label>
         </div>
+        )}
 
         <div>
           <label className="text-sm text-white/60 mb-2 block">Tus frases <span className="text-white/40">(1–6)</span></label>

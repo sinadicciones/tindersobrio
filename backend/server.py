@@ -54,6 +54,90 @@ logger = logging.getLogger("plansobrio")
 logging.basicConfig(level=logging.INFO)
 
 # ------------------------------------------------------------------
+# Global validation error handler — turns raw Pydantic 422s into a
+# single friendly Chilean-Spanish message so users never see technical
+# stack traces like "Input should be '<30d', '1-3m'…".
+# ------------------------------------------------------------------
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+_FIELD_LABELS = {
+    "alias": "tu nombre visible",
+    "gender": "género",
+    "birthdate": "fecha de nacimiento",
+    "comuna": "comuna",
+    "modes": "modos",
+    "interested_genders": "géneros que te interesan",
+    "age_min": "edad mínima",
+    "age_max": "edad máxima",
+    "relationship_with_substances": "tu relación con el alcohol y las drogas",
+    "sober_time": "tiempo sin consumo",
+    "show_sober_time": "mostrar tiempo sin consumo",
+    "show_relationship": "mostrar relación en el perfil",
+    "favorite_activities": "actividades favoritas",
+    "photos": "fotos",
+    "videos": "videos",
+    "prompts": "frases",
+    "accepted_rules": "aceptación de reglas",
+    "location": "ubicación",
+    "bio": "biografía",
+    "height_cm": "estatura",
+    "has_children": "hijes",
+    "email": "correo",
+    "password": "contraseña",
+    "title": "título",
+    "when": "fecha del evento",
+    "capacity": "capacidad",
+    "address": "dirección",
+    "map_link": "link de Google Maps",
+    "description": "descripción",
+    "name": "nombre",
+    "text": "texto",
+}
+
+
+def _humanize_validation_error(exc: RequestValidationError) -> str:
+    errors = exc.errors() or []
+    if not errors:
+        return "Los datos enviados no son válidos. Revisa el formulario."
+    err = errors[0]
+    err_type = err.get("type", "")
+    loc = err.get("loc") or []
+    field = None
+    for part in reversed(loc):
+        if isinstance(part, str) and part != "body":
+            field = part
+            break
+    label = _FIELD_LABELS.get(field or "", field or "un campo")
+
+    if err_type.startswith("missing"):
+        return f"Falta completar: {label}."
+    if err_type.startswith("literal_error") or err_type.startswith("enum"):
+        return f"Elige una opción válida para {label}."
+    if err_type in ("string_too_short", "value_error.any_str.min_length"):
+        return f"El campo {label} es muy corto."
+    if err_type in ("string_too_long", "value_error.any_str.max_length"):
+        return f"El campo {label} es muy largo."
+    if err_type.startswith("int_") or err_type.startswith("float_") or "number" in err_type:
+        return f"El valor de {label} no es un número válido."
+    if err_type.startswith("value_error"):
+        msg = err.get("msg") or ""
+        # If original message already looks Spanish, surface it; else generic.
+        if any(w in msg.lower() for w in ("debe", "no ", "elige", "falta", "válid")):
+            return msg
+        return f"El valor de {label} no es válido."
+    if err_type.startswith("type_error") or err_type.startswith("bool_") or err_type.startswith("list_") or err_type.startswith("dict_"):
+        return f"El formato de {label} no es válido."
+    if err_type.startswith("email"):
+        return "El correo no tiene un formato válido."
+    return f"Revisa el campo {label}."
+
+
+@app.exception_handler(RequestValidationError)
+async def _friendly_validation_exception_handler(request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={"detail": _humanize_validation_error(exc)})
+
+# ------------------------------------------------------------------
 # Storage (see core/storage.py)
 # ------------------------------------------------------------------
 
@@ -218,6 +302,11 @@ def clear_public(user: dict, viewer: Optional[dict] = None) -> dict:
         "prompts": user.get("prompts", []),
         "favorite_activities": user.get("favorite_activities", []),
         "sober_time_badge": user.get("sober_time") if user.get("show_sober_time") else None,
+        "relationship_badge": (
+            user.get("relationship_with_substances")
+            if user.get("show_relationship") and user.get("relationship_with_substances") not in (None, "", "prefiero_no_decir")
+            else None
+        ),
         "bio": user.get("bio") or "",
     }
     if user.get("show_height") and user.get("height_cm"):
@@ -354,9 +443,10 @@ class OnboardingIn(BaseModel):
     interested_genders: Optional[List[str]] = None
     age_min: Optional[int] = None
     age_max: Optional[int] = None
-    relationship_with_substances: Literal["sin_consumo", "en_proceso", "prefiero_no_decir"]
+    relationship_with_substances: Literal["sin_consumo", "en_proceso", "sin_problema", "prefiero_no_decir"]
     sober_time: Optional[Literal["<30d", "1-3m", "3-12m", ">1a", ">5a"]] = None
     show_sober_time: bool = False
+    show_relationship: bool = False
 
     @field_validator("sober_time", mode="before")
     @classmethod
@@ -389,6 +479,8 @@ class ProfileUpdateIn(BaseModel):
     age_max: Optional[int] = None
     show_sober_time: Optional[bool] = None
     sober_time: Optional[str] = None
+    relationship_with_substances: Optional[Literal["sin_consumo", "en_proceso", "sin_problema", "prefiero_no_decir"]] = None
+    show_relationship: Optional[bool] = None
     favorite_activities: Optional[List[str]] = None
     photos: Optional[List[str]] = None
     videos: Optional[List[str]] = None
@@ -964,6 +1056,7 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
         "relationship_with_substances": body.relationship_with_substances,
         "sober_time": body.sober_time,
         "show_sober_time": body.show_sober_time,
+        "show_relationship": bool(body.show_relationship),
         "favorite_activities": body.favorite_activities,
         "photos": body.photos,
         "prompts": valid_prompts,
