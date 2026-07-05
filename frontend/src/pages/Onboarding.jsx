@@ -6,13 +6,13 @@ import { GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Camera, X, Check, ShieldAlert, HeartHandshake, Smile, Heart, Users as UsersIcon } from "lucide-react";
+import { Camera, X, Check, ShieldAlert, HeartHandshake, Smile, Heart, Users as UsersIcon, Plus, Sparkles as SparklesIcon, PencilLine } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
 import { Icon, iconForActivity } from "@/lib/icons";
 
 const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: UsersIcon };
 
-const STEPS = ["Sobre ti", "¿Qué buscas?", "¿Dónde estás?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Reglas"];
+const STEPS = ["Sobre ti", "¿Qué buscas?", "¿Dónde estás?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Detalles sobre ti", "Reglas"];
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -38,7 +38,14 @@ export default function Onboarding() {
     photos: [],
     videos: [],
     bio: "",
-    prompts: [{ q: "", a: "" }, { q: "", a: "" }, { q: "", a: "" }],
+    prompts: [{ q: "", a: "" }],
+    // Optional detail fields — user can leave them empty
+    height_cm: "",
+    has_children: "",
+    show_height: true,
+    show_children: true,
+    show_zodiac: false,
+    show_modes: true,
     accepted_rules: false,
   });
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
@@ -55,8 +62,13 @@ export default function Onboarding() {
     if (step === 3) return !!form.relationship_with_substances;
     if (step === 4) return form.favorite_activities.length >= 3;
     if (step === 5) return form.modes.includes("amor") ? form.photos.length >= 1 : true;
-    if (step === 6) return form.prompts.every((p) => p.q && p.a.trim().length > 0);
-    if (step === 7) return form.accepted_rules;
+    if (step === 6) {
+      // At least 1 non-empty prompt (question + answer), max 6.
+      const valid = form.prompts.filter((p) => p.q && (p.a || "").trim().length > 0);
+      return valid.length >= 1 && valid.length <= 6;
+    }
+    if (step === 7) return true; // Detail step is entirely optional
+    if (step === 8) return form.accepted_rules;
     return true;
   };
 
@@ -74,6 +86,11 @@ export default function Onboarding() {
         comuna: form.location?.comuna || "",
         birthdate: form.birthdate || undefined,
         location,
+        // Filter out empty prompts before submitting (server enforces 1..6 non-empty)
+        prompts: form.prompts.filter((p) => (p.q || "").trim() && (p.a || "").trim()),
+        // Coerce optional numeric field
+        height_cm: form.height_cm ? Number(form.height_cm) : undefined,
+        has_children: form.has_children || undefined,
       };
       delete payload.location; // don't send twice
       payload.location = location;
@@ -299,9 +316,23 @@ export default function Onboarding() {
                 />
                 <p className="text-xs text-white/40 text-right mt-1">{form.bio.length}/300</p>
               </div>
-              <p className="text-white/60">Elige 3 preguntas y respóndelas (máx 150 caracteres).</p>
+              <p className="text-white/60">Escribe entre 1 y 6 frases. Puedes agregar más cuando quieras.</p>
               {form.prompts.map((p, idx) => (
                 <div key={idx} className="ps-card p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="ps-lab"><PencilLine size={12} strokeWidth={1.9}/> Frase {idx + 1}</span>
+                    {form.prompts.length > 1 && (
+                      <button
+                        type="button"
+                        data-testid={`ob-prompt-remove-${idx}`}
+                        onClick={()=>set("prompts", form.prompts.filter((_,i)=>i!==idx))}
+                        className="text-white/40 hover:text-white/80 transition"
+                        aria-label="Quitar frase"
+                      >
+                        <X size={16} strokeWidth={1.9}/>
+                      </button>
+                    )}
+                  </div>
                   <select data-testid={`ob-prompt-q-${idx}`} className="ps-input" value={p.q} onChange={(e)=>{const c=[...form.prompts];c[idx]={...c[idx], q:e.target.value};set("prompts", c);}}>
                     <option value="">Elige una pregunta…</option>
                     {PROMPTS.filter((q)=>q===p.q || !form.prompts.some((pp,i)=>i!==idx && pp.q===q)).map((q)=><option key={q} value={q}>{q}</option>)}
@@ -310,10 +341,110 @@ export default function Onboarding() {
                   <p className="text-xs text-white/40 text-right">{p.a.length}/150</p>
                 </div>
               ))}
+              {form.prompts.length < 6 && (
+                <button
+                  type="button"
+                  data-testid="ob-prompt-add"
+                  onClick={()=>set("prompts", [...form.prompts, { q: "", a: "" }])}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-white/20 text-white/70 hover:bg-white/5 transition"
+                >
+                  <Plus size={16} strokeWidth={2}/> Agregar otra frase
+                </button>
+              )}
             </div>
           )}
 
           {step === 7 && (
+            <div className="mt-6 space-y-4">
+              <div className="ps-card p-4 text-sm text-[#C7CBD6] inline-flex items-start gap-2">
+                <SparklesIcon size={16} strokeWidth={1.9} className="text-[#8B5CF6] shrink-0 mt-0.5"/>
+                <span>Datos opcionales que ayudan a que otros conecten contigo. Puedes ocultarlos cuando quieras.</span>
+              </div>
+              <div>
+                <label className="text-sm text-white/60 mb-2 block">Estatura (opcional)</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    data-testid="ob-height"
+                    type="number"
+                    min={140}
+                    max={210}
+                    inputMode="numeric"
+                    className="ps-input flex-1"
+                    placeholder="ej: 170"
+                    value={form.height_cm}
+                    onChange={(e)=>set("height_cm", e.target.value)}
+                  />
+                  <span className="text-white/60 text-sm">cm</span>
+                </div>
+                <label className="flex items-center gap-3 mt-3 text-sm">
+                  <input
+                    type="checkbox"
+                    data-testid="ob-show-height"
+                    className="w-5 h-5 accent-[#8B5CF6]"
+                    checked={form.show_height}
+                    onChange={(e)=>set("show_height", e.target.checked)}
+                  />
+                  Mostrar mi estatura en el perfil
+                </label>
+              </div>
+              <div>
+                <label className="text-sm text-white/60 mb-2 block">Hijos (opcional)</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { v: "si", l: "Tengo" },
+                    { v: "no", l: "No tengo" },
+                    { v: "prefiero_no_decir", l: "Prefiero no decir" },
+                  ].map((o) => (
+                    <button
+                      type="button"
+                      key={o.v}
+                      data-testid={`ob-children-${o.v}`}
+                      onClick={()=>set("has_children", form.has_children === o.v ? "" : o.v)}
+                      className={`px-3 py-2.5 rounded-2xl text-xs font-semibold border transition ${form.has_children === o.v ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+                <label className="flex items-center gap-3 mt-3 text-sm">
+                  <input
+                    type="checkbox"
+                    data-testid="ob-show-children"
+                    className="w-5 h-5 accent-[#8B5CF6]"
+                    checked={form.show_children}
+                    onChange={(e)=>set("show_children", e.target.checked)}
+                  />
+                  Mostrar en mi perfil
+                </label>
+              </div>
+              <div>
+                <label className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    data-testid="ob-show-zodiac"
+                    className="w-5 h-5 accent-[#8B5CF6]"
+                    checked={form.show_zodiac}
+                    onChange={(e)=>set("show_zodiac", e.target.checked)}
+                  />
+                  Mostrar mi signo zodiacal (lo calculamos por tu fecha de nacimiento)
+                </label>
+              </div>
+              <div>
+                <label className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    data-testid="ob-show-modes"
+                    className="w-5 h-5 accent-[#8B5CF6]"
+                    checked={form.show_modes}
+                    onChange={(e)=>set("show_modes", e.target.checked)}
+                  />
+                  Mostrar los modos que activé (Apoyo, Amistad, Amor)
+                </label>
+              </div>
+            </div>
+          )}
+
+          {step === 8 && (
             <div className="mt-6 space-y-4">
               <div className="ps-card p-5 space-y-3 text-sm leading-relaxed">
                 <p className="font-bold text-lg font-display">Reglas de la comunidad</p>

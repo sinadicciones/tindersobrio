@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 15 - Bloque 2 onboarding/edit-profile/details/privacy end-to-end validation. ALL 22 backend pytest tests PASSED (includes TestOnboardingLite 8 new tests covering prompts 1..6 bounds, detail fields + privacy switches, /me/completeness endpoint, clear_public respect for show_height/show_children/show_zodiac/show_modes). FRONTEND verified: /app/perfil renders profile-completeness (90%), profile-completeness-percent, profile-completeness-cta, and profile-details card ('BUSCA · DETALLES' - Estatura 178 cm, Sin hijos, Cáncer) for demo1. /app/perfil/editar renders edit-details-section, edit-height, edit-children-si|no|prefiero_no_decir, edit-privacy-section, toggle-show-height/children/zodiac/modes, edit-prompt-add (add→3→4 prompts, remove→back to 3), edit-height persists after save (172cm survived reload). /app/descubrir shows discover-details 'BUSCA · DETALLES' with Estatura 175 cm + Signo Cáncer on a profile with fields. Public profile /app/usuario/{demo10_id} loads correctly but pp-details is (by design) NOT rendered because demo10 seed has no height_cm/has_children/zodiac and modes hidden -> DiscoverDetailsCard/DetailsCard return null when items empty (correct behavior, not a bug). Onboarding page shows 'Paso 1 de 9' confirming 9-step flow. All testids verified in source: ob-prompt-add/remove-N, ob-height, ob-children-si|no|prefiero_no_decir, ob-show-height/children/zodiac/modes. REGRESSION clean: admin panel /admin loads with tabs (dashboard/reportes/usuarios/actividades/grupos), /app/chats loads, /app/grupos shows 4 groups. Zero console errors during regression sweep.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter15_backend.xml"
+  ],
+  "action_items": [
+    "Documentation nit: review_request references /app/u/{id} but actual route is /app/usuario/:id (mismatch was only in the request payload, code is fine).",
+    "Optional: seed demo profiles (demo10 etc.) with height_cm/has_children/zodiac so pp-details/discover-details render in default demo state for QA visibility (currently only user-registered content triggers the card)."
+  ],
+  "critical_code_review_comments": [
+    "MODE_ICON constant still duplicated across EditProfile.jsx, Onboarding.jsx, PublicProfile.jsx, Profile.jsx - hoist to lib/icons.jsx (carried over from iteration 14).",
+    "DetailsCard (PublicProfile.jsx) and DiscoverDetailsCard (Discover.jsx) render nearly identical logic - candidate for extraction to a shared <DetailsCard/> component in components/ui to avoid drift."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% - all bloque-2 UI hooks verified, regression clean"},
+  "test_credentials": "demo1@plansobrio.cl / Demo1234! ; contacto@sinadicciones.org / Jodorowsky100",
+  "seed_data_creation": "None; used existing demo seed. New user testob{ts}@ex.cl registered to reach onboarding step verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Bloque 2 UI hooks: profile-completeness/-percent/-cta on /app/perfil (only when percent<100), profile-details always when items exist. Discover: discover-details renders under ProfileCard only when profile has height_cm||has_children||zodiac (respects viewer's visibility switches through backend clear_public). PublicProfile: pp-details same rule. Route is /app/usuario/:id (not /app/u/). EditProfile testids: edit-details-section, edit-height, edit-children-{si|no|prefiero_no_decir}, edit-privacy-section, toggle-show-{height|children|zodiac|modes}, edit-prompt-add, edit-prompt-remove-{idx}. Onboarding has 9 steps; step 6 (index) is 'Tus frases' with ob-prompt-add/remove-N and 1..6 bound enforced by backend (400 on 0 or 7+). Backend regression suite = pytest /app/backend/tests/backend_test.py (22 tests, ~13s).",
+  "rca of the issue": "N/A - feature validation, no bugs found."
+}

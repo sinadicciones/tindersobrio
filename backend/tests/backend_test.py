@@ -83,6 +83,126 @@ class TestAuth:
         assert me["modes"] == ["amistad"]
 
 
+# --- Onboarding v2 (1..6 prompts, detail fields, privacy switches, completeness) ---
+class TestOnboardingLite:
+    def _register(self):
+        email = f"TEST_lite_{uuid.uuid4().hex[:8]}@ex.com"
+        r = requests.post(f"{API}/auth/register", json={
+            "email": email, "password": "abcdef", "birthdate": "1993-07-04"
+        }, timeout=30)
+        assert r.status_code == 200, r.text
+        return r.json()["token"]
+
+    def _base_payload(self, prompts, extras=None):
+        acts = requests.get(f"{API}/activities", timeout=30).json()
+        fav_ids = [a["id"] for a in acts[:5]]
+        payload = {
+            "alias": "LiteUser",
+            "gender": "no_binario",
+            "comuna": "Ñuñoa",
+            "modes": ["amistad"],
+            "interested_genders": [],
+            "age_min": 18, "age_max": 60,
+            "relationship_with_substances": "sin_consumo",
+            "favorite_activities": fav_ids,
+            "photos": [],
+            "prompts": prompts,
+            "accepted_rules": True,
+        }
+        if extras:
+            payload.update(extras)
+        return payload
+
+    def test_onboarding_accepts_single_prompt(self):
+        t = self._register()
+        payload = self._base_payload([{"q": "Q1", "a": "A1"}])
+        r = requests.post(f"{API}/profile/onboarding", json=payload, headers=_h(t), timeout=30)
+        assert r.status_code == 200, r.text
+
+    def test_onboarding_rejects_zero_prompts(self):
+        t = self._register()
+        payload = self._base_payload([])
+        r = requests.post(f"{API}/profile/onboarding", json=payload, headers=_h(t), timeout=30)
+        assert r.status_code == 400
+
+    def test_onboarding_rejects_seven_prompts(self):
+        t = self._register()
+        prompts = [{"q": f"Q{i}", "a": f"A{i}"} for i in range(7)]
+        payload = self._base_payload(prompts)
+        r = requests.post(f"{API}/profile/onboarding", json=payload, headers=_h(t), timeout=30)
+        assert r.status_code == 400
+
+    def test_onboarding_accepts_detail_fields_and_privacy(self):
+        t = self._register()
+        payload = self._base_payload(
+            [{"q": "Q1", "a": "A1"}, {"q": "Q2", "a": "A2"}],
+            extras={
+                "height_cm": 175,
+                "has_children": "si",
+                "show_height": True,
+                "show_children": False,
+                "show_zodiac": True,
+                "show_modes": True,
+            },
+        )
+        r = requests.post(f"{API}/profile/onboarding", json=payload, headers=_h(t), timeout=30)
+        assert r.status_code == 200, r.text
+        me = requests.get(f"{API}/auth/me", headers=_h(t), timeout=30).json()
+        assert me["height_cm"] == 175
+        assert me["has_children"] == "si"
+        assert me["show_height"] is True
+        assert me["show_children"] is False
+        assert me["show_zodiac"] is True
+        assert me["zodiac"]  # derived from birthdate 1993-07-04 → Cáncer
+
+    def test_onboarding_rejects_out_of_range_height(self):
+        t = self._register()
+        payload = self._base_payload(
+            [{"q": "Q1", "a": "A1"}],
+            extras={"height_cm": 130},
+        )
+        r = requests.post(f"{API}/profile/onboarding", json=payload, headers=_h(t), timeout=30)
+        assert r.status_code == 400
+
+    def test_patch_profile_prompts_bounds(self):
+        t = self._register()
+        # First finish onboarding
+        payload = self._base_payload([{"q": "Q1", "a": "A1"}])
+        requests.post(f"{API}/profile/onboarding", json=payload, headers=_h(t), timeout=30).raise_for_status()
+        # Try to PATCH with 7 prompts -> 400
+        prompts = [{"q": f"Q{i}", "a": f"A{i}"} for i in range(7)]
+        r = requests.patch(f"{API}/profile/me", json={"prompts": prompts}, headers=_h(t), timeout=30)
+        assert r.status_code == 400
+        # PATCH with 4 prompts -> 200
+        prompts4 = [{"q": f"Q{i}", "a": f"A{i}"} for i in range(4)]
+        r2 = requests.patch(f"{API}/profile/me", json={"prompts": prompts4}, headers=_h(t), timeout=30)
+        assert r2.status_code == 200
+
+    def test_completeness_endpoint(self):
+        t = _login("demo1@plansobrio.cl", DEMO_PW)
+        r = requests.get(f"{API}/profile/me/completeness", headers=_h(t), timeout=30)
+        assert r.status_code == 200
+        body = r.json()
+        assert "percent" in body
+        assert 0 <= body["percent"] <= 100
+        # next_suggestion may be None if 100%
+        assert "next_suggestion" in body
+
+    def test_public_profile_respects_privacy_switches(self):
+        # demo1 (Cata_23) has all switches on today. Toggle show_height off & confirm it disappears from public view.
+        t1 = _login("demo1@plansobrio.cl", DEMO_PW)
+        t2 = _login("demo2@plansobrio.cl", DEMO_PW)
+        me1 = requests.get(f"{API}/auth/me", headers=_h(t1), timeout=30).json()
+        # Turn OFF show_height for demo1
+        requests.patch(f"{API}/profile/me", json={"show_height": False}, headers=_h(t1), timeout=30).raise_for_status()
+        pub = requests.get(f"{API}/profile/{me1['id']}", headers=_h(t2), timeout=30).json()
+        assert "height_cm" not in pub
+        # restore
+        requests.patch(f"{API}/profile/me", json={"show_height": True}, headers=_h(t1), timeout=30).raise_for_status()
+        pub2 = requests.get(f"{API}/profile/{me1['id']}", headers=_h(t2), timeout=30).json()
+        assert pub2.get("height_cm") == me1.get("height_cm")
+
+
 # --- Content ---
 class TestSeed:
     def test_activities_16(self):

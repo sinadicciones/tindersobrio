@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { GENDERS, MODES, SOBER_TIMES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
-import { ArrowLeft, X, Camera } from "lucide-react";
+import { ArrowLeft, X, Camera, Plus, PencilLine } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
 import { Icon, iconForActivity } from "@/lib/icons";
 import { HeartHandshake, Smile, Heart, Users as UsersIcon } from "lucide-react";
@@ -32,7 +32,15 @@ export default function EditProfile() {
     favorite_activities: user?.favorite_activities || [],
     photos: user?.photos || [],
     bio: user?.bio || "",
-    prompts: user?.prompts || [{q:"",a:""},{q:"",a:""},{q:"",a:""}],
+    prompts: (user?.prompts?.length ? user.prompts : [{ q: "", a: "" }]),
+    // Detail fields
+    height_cm: user?.height_cm ?? "",
+    has_children: user?.has_children || "",
+    // Privacy switches — respect existing values, sensible defaults
+    show_height: user?.show_height ?? false,
+    show_children: user?.show_children ?? true,
+    show_zodiac: user?.show_zodiac ?? false,
+    show_modes: user?.show_modes ?? true,
   });
   const [locationDraft, setLocationDraft] = useState(initialLocation);
   const [locationChanged, setLocationChanged] = useState(false);
@@ -55,6 +63,19 @@ export default function EditProfile() {
   const save = async () => {
     try {
       const payload = { ...f };
+      // Coerce height_cm to number|null so the API accepts it
+      if (payload.height_cm === "" || payload.height_cm == null) {
+        delete payload.height_cm;
+      } else {
+        payload.height_cm = Number(payload.height_cm);
+      }
+      if (!payload.has_children) delete payload.has_children;
+      // Filter out empty prompts; server enforces 1..6 non-empty
+      payload.prompts = f.prompts.filter((p) => (p.q || "").trim() && (p.a || "").trim());
+      if (payload.prompts.length < 1) {
+        toast.error("Deja al menos 1 frase con pregunta y respuesta");
+        return;
+      }
       // Only include location when the user explicitly changed it. This avoids
       // silently pushing GPS coordinates back to the comuna centroid on every save.
       if (locationChanged && locationDraft) {
@@ -187,16 +208,116 @@ export default function EditProfile() {
         </div>
 
         <div>
-          <label className="text-sm text-white/60 mb-2 block">Tus frases</label>
+          <label className="text-sm text-white/60 mb-2 block">Tus frases <span className="text-white/40">(1–6)</span></label>
           <div className="space-y-3">
             {f.prompts.map((p, idx) => (
               <div key={idx} className="ps-card p-3 space-y-2">
-                <select className="ps-input" value={p.q} onChange={(e)=>{const c=[...f.prompts];c[idx]={...c[idx], q:e.target.value};set("prompts", c);}}>
+                <div className="flex items-center justify-between">
+                  <span className="ps-lab"><PencilLine size={12} strokeWidth={1.9}/> Frase {idx + 1}</span>
+                  {f.prompts.length > 1 && (
+                    <button
+                      type="button"
+                      data-testid={`edit-prompt-remove-${idx}`}
+                      onClick={()=>set("prompts", f.prompts.filter((_,i)=>i!==idx))}
+                      className="text-white/40 hover:text-white/80 transition"
+                      aria-label="Quitar frase"
+                    >
+                      <X size={16} strokeWidth={1.9}/>
+                    </button>
+                  )}
+                </div>
+                <select data-testid={`edit-prompt-q-${idx}`} className="ps-input" value={p.q} onChange={(e)=>{const c=[...f.prompts];c[idx]={...c[idx], q:e.target.value};set("prompts", c);}}>
                   <option value="">Pregunta…</option>
-                  {PROMPTS.map((q)=><option key={q} value={q}>{q}</option>)}
+                  {PROMPTS.filter((q)=>q===p.q || !f.prompts.some((pp,i)=>i!==idx && pp.q===q)).map((q)=><option key={q} value={q}>{q}</option>)}
                 </select>
-                <textarea maxLength={150} rows={2} className="ps-input" value={p.a} onChange={(e)=>{const c=[...f.prompts];c[idx]={...c[idx], a:e.target.value};set("prompts", c);}}/>
+                <textarea data-testid={`edit-prompt-a-${idx}`} maxLength={150} rows={2} className="ps-input" value={p.a} onChange={(e)=>{const c=[...f.prompts];c[idx]={...c[idx], a:e.target.value};set("prompts", c);}}/>
+                <p className="text-xs text-white/40 text-right">{(p.a || "").length}/150</p>
               </div>
+            ))}
+            {f.prompts.length < 6 && (
+              <button
+                type="button"
+                data-testid="edit-prompt-add"
+                onClick={()=>set("prompts", [...f.prompts, { q: "", a: "" }])}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-white/20 text-white/70 hover:bg-white/5 transition"
+              >
+                <Plus size={16} strokeWidth={2}/> Agregar otra frase
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div data-testid="edit-details-section">
+          <label className="text-sm text-white/60 mb-2 block">Detalles sobre ti</label>
+          <div className="ps-card p-4 space-y-4">
+            <div>
+              <label className="text-xs text-white/60 mb-2 block">Estatura (cm)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  data-testid="edit-height"
+                  type="number"
+                  min={140}
+                  max={210}
+                  inputMode="numeric"
+                  className="ps-input flex-1"
+                  placeholder="ej: 170"
+                  value={f.height_cm}
+                  onChange={(e)=>set("height_cm", e.target.value)}
+                />
+                <span className="text-white/60 text-sm">cm</span>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-2 block">Hijos</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: "si", l: "Tengo" },
+                  { v: "no", l: "No tengo" },
+                  { v: "prefiero_no_decir", l: "Prefiero no decir" },
+                ].map((o) => (
+                  <button
+                    type="button"
+                    key={o.v}
+                    data-testid={`edit-children-${o.v}`}
+                    onClick={()=>set("has_children", f.has_children === o.v ? "" : o.v)}
+                    className={`px-3 py-2.5 rounded-2xl text-xs font-semibold border transition ${f.has_children === o.v ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}
+                  >
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {user?.zodiac && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-white/60">Signo zodiacal</p>
+                  <p className="font-display text-lg font-black text-white mt-0.5">{user.zodiac}</p>
+                </div>
+                <span className="text-[10px] text-white/40">Se calcula por tu fecha de nacimiento</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div data-testid="edit-privacy-section">
+          <label className="text-sm text-white/60 mb-2 block">Qué se muestra en mi perfil</label>
+          <div className="ps-card p-4 space-y-3">
+            {[
+              { key: "show_height", label: "Mi estatura", test: "toggle-show-height" },
+              { key: "show_children", label: "Si tengo hijos", test: "toggle-show-children" },
+              { key: "show_zodiac", label: "Mi signo zodiacal", test: "toggle-show-zodiac" },
+              { key: "show_modes", label: "Los modos que activé (Apoyo/Amistad/Amor)", test: "toggle-show-modes" },
+            ].map((sw) => (
+              <label key={sw.key} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-white/85">{sw.label}</span>
+                <input
+                  type="checkbox"
+                  data-testid={sw.test}
+                  className="w-5 h-5 accent-[#8B5CF6]"
+                  checked={!!f[sw.key]}
+                  onChange={(e)=>set(sw.key, e.target.checked)}
+                />
+              </label>
             ))}
           </div>
         </div>

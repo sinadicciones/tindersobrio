@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { MODES, modeColor, soberLabel, COMUNAS_RM } from "@/constants/comunas";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate as fmAnimate } from "framer-motion";
 import { toast } from "sonner";
-import { Sparkles, X, MapPin, Heart, SlidersHorizontal, HeartHandshake, Smile, Sprout, PencilLine } from "lucide-react";
+import { Sparkles, X, MapPin, Heart, SlidersHorizontal, HeartHandshake, Smile, Sprout, PencilLine, Ruler, Baby, Star } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { Icon, iconForActivity } from "@/lib/icons";
 
@@ -484,6 +484,7 @@ function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef 
             <p className="mt-1 text-white leading-relaxed text-[14px]">“{profile.bio}”</p>
           </div>
         )}
+        <DiscoverDetailsCard profile={profile}/>
         {profile.prompts?.slice(1).map((p, i) => (
           <div key={i} className="ps-card p-4 grid grid-cols-[40px_1fr] gap-3 items-start">
             <span className="ps-icn"><PencilLine size={20} strokeWidth={1.9}/></span>
@@ -505,6 +506,31 @@ function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef 
         </button>
       </div>
     </motion.div>
+  );
+}
+
+// "BUSCA · DETALLES" card - shows visible optional detail fields
+function DiscoverDetailsCard({ profile }) {
+  const items = [];
+  if (profile.height_cm) items.push({ icon: <Ruler size={14} strokeWidth={1.9}/>, label: "Estatura", value: `${profile.height_cm} cm` });
+  if (profile.has_children) {
+    const map = { si: "Tiene hijos", no: "Sin hijos" };
+    if (map[profile.has_children]) items.push({ icon: <Baby size={14} strokeWidth={1.9}/>, label: "Hijos", value: map[profile.has_children] });
+  }
+  if (profile.zodiac) items.push({ icon: <Star size={14} strokeWidth={1.9}/>, label: "Signo", value: profile.zodiac });
+  if (!items.length) return null;
+  return (
+    <div data-testid="discover-details" className="ps-card p-4">
+      <p className="ps-lab"><Sparkles size={12} strokeWidth={1.9}/> Busca · Detalles</p>
+      <ul className="mt-3 space-y-2">
+        {items.map((it, i) => (
+          <li key={i} className="flex items-center justify-between text-sm">
+            <span className="inline-flex items-center gap-2 text-[#C7CBD6]">{it.icon}{it.label}</span>
+            <span className="font-semibold text-white">{it.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -1,9 +1,11 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Avatar from "@/components/Avatar";
 import {
   LifeBuoy, PencilLine, LogOut, Settings, ExternalLink, Trash2,
   MapPin, Sprout, ChevronRight, HeartHandshake, Smile, Heart, Users,
+  Ruler, Baby, Star, Sparkles,
 } from "lucide-react";
 import { MODES, soberLabel } from "@/constants/comunas";
 import { fileUrl, formatApiError } from "@/lib/api";
@@ -15,6 +17,15 @@ const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: 
 export default function Profile() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
+  const [completeness, setCompleteness] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    api.get("/profile/me/completeness")
+      .then((r) => { if (live) setCompleteness(r.data); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [user?.id, user?.updated_at]);
 
   const delAccount = async () => {
     const first = window.confirm(
@@ -61,6 +72,32 @@ export default function Profile() {
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6 pb-24">
+      {completeness && completeness.percent < 100 && (
+        <div data-testid="profile-completeness" className="ps-card p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <p className="font-display text-[14px] font-black text-white inline-flex items-center gap-1.5">
+              <Sparkles size={14} strokeWidth={1.9}/> Completa tu perfil
+            </p>
+            <span data-testid="profile-completeness-percent" className="text-xs font-bold text-white/70">
+              {completeness.percent}%
+            </span>
+          </div>
+          <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full ps-gradient transition-all" style={{ width: `${completeness.percent}%` }}/>
+          </div>
+          {completeness.next_suggestion && (
+            <Link
+              to="/app/perfil/editar"
+              data-testid="profile-completeness-cta"
+              className="mt-3 flex items-center justify-between text-[12px] text-white/80 hover:text-white transition"
+            >
+              <span>Siguiente: {completeness.next_suggestion}</span>
+              <ChevronRight size={14} strokeWidth={1.9}/>
+            </Link>
+          )}
+        </div>
+      )}
+
       <div className="ps-card p-5">
         <div className="flex items-center gap-4">
           <Avatar user={user} size={64}/>
@@ -96,6 +133,30 @@ export default function Profile() {
             <p className="mt-1 text-white leading-relaxed text-[14px]">“{user.bio}”</p>
           </div>
         )}
+
+        {(() => {
+          const items = [];
+          if (user.show_height && user.height_cm) items.push({ icon: <Ruler size={14} strokeWidth={1.9}/>, label: "Estatura", value: `${user.height_cm} cm` });
+          if (user.show_children && user.has_children && user.has_children !== "prefiero_no_decir") {
+            const map = { si: "Tiene hijos", no: "Sin hijos" };
+            if (map[user.has_children]) items.push({ icon: <Baby size={14} strokeWidth={1.9}/>, label: "Hijos", value: map[user.has_children] });
+          }
+          if (user.show_zodiac && user.zodiac) items.push({ icon: <Star size={14} strokeWidth={1.9}/>, label: "Signo", value: user.zodiac });
+          if (!items.length) return null;
+          return (
+            <div data-testid="profile-details" className="mt-4 ps-card p-4 bg-white/[.03]">
+              <p className="ps-lab"><Sparkles size={12} strokeWidth={1.9}/> Busca · Detalles</p>
+              <ul className="mt-3 space-y-2">
+                {items.map((it, i) => (
+                  <li key={i} className="flex items-center justify-between text-sm">
+                    <span className="inline-flex items-center gap-2 text-[#C7CBD6]">{it.icon}{it.label}</span>
+                    <span className="font-semibold text-white">{it.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
         {user.photos?.length > 0 && (
           <div className="mt-4 grid grid-cols-3 gap-2">

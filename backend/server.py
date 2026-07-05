@@ -118,28 +118,110 @@ async def require_admin(user: dict = Depends(current_user)) -> dict:
 def set_auth_cookie(response: Response, token: str):
     response.set_cookie(key="access_token", value=token, httponly=True, secure=True, samesite="none", max_age=7*24*3600, path="/")
 
-def clear_public(user: dict) -> dict:
+def zodiac_from_birthdate(birthdate_str: str) -> Optional[str]:
+    """Return the western zodiac sign for a birthdate (ISO date string)."""
+    if not birthdate_str:
+        return None
+    try:
+        bd = datetime.fromisoformat(birthdate_str).date()
+    except Exception:
+        return None
+    m, d = bd.month, bd.day
+    signs = [
+        ("Capricornio", (12, 22), (1, 19)),
+        ("Acuario",     (1, 20),  (2, 18)),
+        ("Piscis",      (2, 19),  (3, 20)),
+        ("Aries",       (3, 21),  (4, 19)),
+        ("Tauro",       (4, 20),  (5, 20)),
+        ("Géminis",     (5, 21),  (6, 20)),
+        ("Cáncer",      (6, 21),  (7, 22)),
+        ("Leo",         (7, 23),  (8, 22)),
+        ("Virgo",       (8, 23),  (9, 22)),
+        ("Libra",       (9, 23),  (10, 22)),
+        ("Escorpio",    (10, 23), (11, 21)),
+        ("Sagitario",   (11, 22), (12, 21)),
+    ]
+    for name, start, end in signs:
+        s_m, s_d = start
+        e_m, e_d = end
+        if s_m == e_m:
+            if m == s_m and s_d <= d <= e_d:
+                return name
+        elif s_m < e_m:
+            if (m == s_m and d >= s_d) or (m == e_m and d <= e_d) or (s_m < m < e_m):
+                return name
+        else:  # wraps year (Capricornio)
+            if (m == s_m and d >= s_d) or (m == e_m and d <= e_d) or (m > s_m) or (m < e_m):
+                return name
+    return None
+
+
+def _is_amor_visible(target: dict, viewer: Optional[dict]) -> bool:
+    """Amor mode is only visible on a public profile to viewers who also have
+    amor active AND match the mutual gender/age preferences of the target."""
+    if not viewer:
+        return False
+    if "amor" not in (viewer.get("modes") or []):
+        return False
+    if "amor" not in (target.get("modes") or []):
+        return False
+    v_gender = viewer.get("gender")
+    t_gender = target.get("gender")
+    v_interested = viewer.get("interested_genders") or []
+    t_interested = target.get("interested_genders") or []
+    if v_interested and t_gender not in v_interested:
+        return False
+    if t_interested and v_gender not in t_interested:
+        return False
+    v_age = calc_age(viewer.get("birthdate"))
+    t_age = calc_age(target.get("birthdate"))
+    if v_age is None or t_age is None:
+        return False
+    if not (viewer.get("age_min", 18) <= t_age <= viewer.get("age_max", 99)):
+        return False
+    if not (target.get("age_min", 18) <= v_age <= target.get("age_max", 99)):
+        return False
+    return True
+
+
+def clear_public(user: dict, viewer: Optional[dict] = None) -> dict:
     """Public view of a user - hides email, private fields.
 
-    Location: only city + country + comuna (legacy) are exposed. Coordinates are
-    NEVER included; distance is added by callers that need it via _distance_km.
+    Coordinates are NEVER included; distance is added by callers via _distance_km.
+    New (Feb 2026 – onboarding liviano): optional detail fields (height_cm,
+    has_children, zodiac) are shown iff their visibility switch is on.
+    `modes` are only exposed when `show_modes` is on (default True); the "amor"
+    mode is additionally filtered out unless the viewer is amor-compatible.
     """
     loc = user.get("location") or {}
+    show_modes = user.get("show_modes", True)
+    modes = list(user.get("modes", []))
+    if not show_modes:
+        modes = []
+    elif "amor" in modes and not _is_amor_visible(user, viewer):
+        modes = [m for m in modes if m != "amor"]
     out = {
         "id": user["id"],
         "alias": user.get("alias"),
-        "age": calc_age(user.get("birthdate")) if user.get("birthdate") else None,
+        "age": calc_age(user.get("birthdate")),
         "comuna": user.get("comuna"),
         "city": loc.get("city") or user.get("comuna"),
         "country": loc.get("country") or "CL",
         "gender": user.get("gender"),
-        "modes": user.get("modes", []),
+        "modes": modes,
         "photos": user.get("photos", []),
         "prompts": user.get("prompts", []),
         "favorite_activities": user.get("favorite_activities", []),
         "sober_time_badge": user.get("sober_time") if user.get("show_sober_time") else None,
         "bio": user.get("bio") or "",
     }
+    if user.get("show_height") and user.get("height_cm"):
+        out["height_cm"] = user["height_cm"]
+    hc = user.get("has_children")
+    if user.get("show_children", True) and hc and hc != "prefiero_no_decir":
+        out["has_children"] = hc
+    if user.get("show_zodiac") and user.get("zodiac"):
+        out["zodiac"] = user["zodiac"]
     if user.get("_distance_km") is not None:
         out["distance_km"] = user["_distance_km"]
     return out
@@ -262,11 +344,18 @@ class OnboardingIn(BaseModel):
     favorite_activities: List[str]
     photos: List[str] = []
     videos: List[str] = []
-    prompts: List[dict]  # [{q, a}]
+    prompts: List[dict]  # [{q, a}] — min 1, max 6 (validated in the endpoint)
     accepted_rules: bool
     location: Optional[LocationIn] = None
-    birthdate: Optional[str] = None  # Required only for Google-auth users without one
+    birthdate: Optional[str] = None
     bio: Optional[str] = None
+    # New optional profile detail fields
+    height_cm: Optional[int] = None
+    has_children: Optional[Literal["si", "no", "prefiero_no_decir"]] = None
+    show_height: Optional[bool] = None
+    show_children: Optional[bool] = None
+    show_zodiac: Optional[bool] = None
+    show_modes: Optional[bool] = None
 
 class ProfileUpdateIn(BaseModel):
     alias: Optional[str] = None
@@ -283,6 +372,12 @@ class ProfileUpdateIn(BaseModel):
     prompts: Optional[List[dict]] = None
     location: Optional[LocationIn] = None
     bio: Optional[str] = None
+    height_cm: Optional[int] = None
+    has_children: Optional[Literal["si", "no", "prefiero_no_decir"]] = None
+    show_height: Optional[bool] = None
+    show_children: Optional[bool] = None
+    show_zodiac: Optional[bool] = None
+    show_modes: Optional[bool] = None
 
 class LikeIn(BaseModel):
     target_user_id: str
@@ -578,7 +673,17 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
     if "amor" in body.modes and not body.photos:
         raise HTTPException(status_code=400, detail="Necesitas al menos 1 foto para el modo Amor")
 
-    # Google users don't have birthdate at register. Onboarding must collect it (+18 check).
+    # Prompts: 1..6, each with a non-empty question and answer.
+    valid_prompts = [p for p in (body.prompts or []) if isinstance(p, dict) and (p.get("q") or "").strip() and (p.get("a") or "").strip()]
+    if len(valid_prompts) < 1:
+        raise HTTPException(status_code=400, detail="Escribe al menos 1 frase para tu perfil")
+    if len(valid_prompts) > 6:
+        raise HTTPException(status_code=400, detail="Máximo 6 frases en tu perfil")
+
+    # Validate optional detail fields
+    if body.height_cm is not None and not (140 <= body.height_cm <= 210):
+        raise HTTPException(status_code=400, detail="Estatura fuera de rango (140–210 cm)")
+
     effective_birthdate = user.get("birthdate") or body.birthdate
     if not effective_birthdate:
         raise HTTPException(status_code=400, detail="Necesitamos tu fecha de nacimiento")
@@ -586,7 +691,6 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
     if age is None or age < 18:
         raise HTTPException(status_code=400, detail="Debes ser mayor de 18 años")
 
-    # Derive location: use provided (GPS/IP) if present, else fall back to comuna centroid.
     loc_in = body.location.model_dump() if body.location else {}
     location = build_location_doc(
         country=loc_in.get("country") or "CL",
@@ -608,13 +712,23 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
         "show_sober_time": body.show_sober_time,
         "favorite_activities": body.favorite_activities,
         "photos": body.photos,
-        "prompts": body.prompts,
+        "prompts": valid_prompts,
         "accepted_rules_at": now_iso(),
         "onboarding_complete": True,
         "country": (location or {}).get("country", "CL"),
         "birthdate": effective_birthdate,
         "bio": validate_bio(body.bio or ""),
+        "zodiac": zodiac_from_birthdate(effective_birthdate),
+        # Visibility switches — sensible defaults following the spec
+        "show_height": body.show_height if body.show_height is not None else (body.height_cm is not None),
+        "show_children": body.show_children if body.show_children is not None else True,
+        "show_zodiac": bool(body.show_zodiac) if body.show_zodiac is not None else False,
+        "show_modes": body.show_modes if body.show_modes is not None else True,
     }
+    if body.height_cm is not None:
+        update["height_cm"] = body.height_cm
+    if body.has_children is not None:
+        update["has_children"] = body.has_children
     if location:
         update["location"] = location
     await db.users.update_one({"id": user["id"]}, {"$set": update})
@@ -623,11 +737,27 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
 @api.patch("/profile/me")
 async def update_profile(body: ProfileUpdateIn, user: dict = Depends(current_user)):
     payload = body.model_dump(exclude_unset=True)
-    update = {k: v for k, v in payload.items() if v is not None and k not in ("location", "bio")}
+    update = {k: v for k, v in payload.items() if v is not None and k not in ("location", "bio", "prompts", "height_cm")}
 
-    # Bio: validate before persisting (max 300, no urls, no phones).
     if body.bio is not None:
         update["bio"] = validate_bio(body.bio)
+
+    if body.prompts is not None:
+        valid_prompts = [p for p in body.prompts if isinstance(p, dict) and (p.get("q") or "").strip() and (p.get("a") or "").strip()]
+        if len(valid_prompts) < 1:
+            raise HTTPException(status_code=400, detail="Deja al menos 1 frase en tu perfil")
+        if len(valid_prompts) > 6:
+            raise HTTPException(status_code=400, detail="Máximo 6 frases en tu perfil")
+        update["prompts"] = valid_prompts
+
+    if body.height_cm is not None:
+        if not (140 <= body.height_cm <= 210):
+            raise HTTPException(status_code=400, detail="Estatura fuera de rango (140–210 cm)")
+        update["height_cm"] = body.height_cm
+        # If the user is setting their height for the first time and hasn't set the switch,
+        # default show_height to True.
+        if "show_height" not in payload and not user.get("height_cm"):
+            update.setdefault("show_height", True)
 
     # Only re-derive location when the user EXPLICITLY changed their location
     # (either sent a `location` object, or changed `comuna` to a different value).
@@ -660,7 +790,55 @@ async def get_public_profile(user_id: str, user: dict = Depends(current_user)):
     target = await db.users.find_one({"id": user_id}, {"password_hash": 0})
     if not target:
         raise HTTPException(status_code=404, detail="Perfil no encontrado")
-    return clear_public(target)
+    return clear_public(target, viewer=user)
+
+@api.get("/profile/me/completeness")
+async def profile_completeness(user: dict = Depends(current_user)):
+    """Weighted 0..100 score used by the frontend progress meter."""
+    score = 0
+    next_suggestion = None
+    if user.get("photos"):
+        score += 20
+    else:
+        next_suggestion = next_suggestion or "Sube al menos una foto"
+    if (user.get("bio") or "").strip():
+        score += 15
+    else:
+        next_suggestion = next_suggestion or "Escribe tu 'Sobre mí'"
+    prompts_full = [p for p in (user.get("prompts") or []) if (p.get("q") or "").strip() and (p.get("a") or "").strip()]
+    if len(prompts_full) >= 3:
+        score += 15
+    elif len(prompts_full) >= 1:
+        score += 5
+        next_suggestion = next_suggestion or "Suma otra frase a tu perfil"
+    else:
+        next_suggestion = next_suggestion or "Escribe una frase para tu perfil"
+    if len(user.get("favorite_activities") or []) >= 5:
+        score += 10
+    else:
+        next_suggestion = next_suggestion or "Elige más panoramas favoritos"
+    if user.get("height_cm"):
+        score += 10
+    else:
+        next_suggestion = next_suggestion or "Agrega tu estatura"
+    if user.get("has_children"):
+        score += 10
+    else:
+        next_suggestion = next_suggestion or "Cuéntanos si tienes hijos"
+    if user.get("show_zodiac") and user.get("zodiac"):
+        score += 5
+    elif user.get("zodiac"):
+        next_suggestion = next_suggestion or "Muestra tu signo zodiacal"
+    loc_coords = ((user.get("location") or {}).get("coords") or {}).get("coordinates")
+    # A GPS-derived location has raw coords that don't match the exact comuna centroid.
+    if loc_coords:
+        score += 15
+    else:
+        next_suggestion = next_suggestion or "Actualiza tu ubicación con GPS"
+    percent = min(100, score)
+    if percent >= 100:
+        next_suggestion = None
+    return {"percent": percent, "next_suggestion": next_suggestion}
 
 @api.delete("/profile/me")
 async def delete_account(response: Response, user: dict = Depends(current_user)):
@@ -820,7 +998,7 @@ async def discover(
         c.pop("_id", None)
         scored.append(c)
     scored.sort(key=lambda x: x["_score"])
-    result = [clear_public(c) for c in scored[:30]]
+    result = [clear_public(c, viewer=user) for c in scored[:30]]
     return result
 
 @api.get("/discover/quota")
@@ -979,14 +1157,14 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
             return {
                 "match": True,
                 "match_id": match_id,
-                "other": clear_public(other_user) if other_user else None,
+                "other": clear_public(other_user, viewer=user) if other_user else None,
                 "proposals": proposals_resolved,
                 "proposed_activity": my_act or their_act,  # legacy
             }
         else:
             # Match already existed — still signal match to the client so it can navigate to the chat
             other = await db.users.find_one({"id": body.target_user_id}, {"password_hash": 0})
-            return {"match": True, "match_id": match["id"], "other": clear_public(other) if other else None, "proposed_activity": match.get("proposed_activity")}
+            return {"match": True, "match_id": match["id"], "other": clear_public(other, viewer=user) if other else None, "proposed_activity": match.get("proposed_activity")}
     return {"match": False}
 
 @api.get("/matches")
@@ -1055,7 +1233,7 @@ async def list_matches(user: dict = Depends(current_user)):
         result.append({
             "id": m["id"],
             "mode": m["mode"],
-            "other": clear_public(other),
+            "other": clear_public(other, viewer=user),
             "proposed_activity": m.get("proposed_activity"),  # legacy
             "proposals": proposals_resolved,
             "plan_status": m.get("plan_status"),  # None | proposed | confirmed | past | feedback
@@ -1181,7 +1359,7 @@ async def likes_received(user: dict = Depends(current_user)):
                 continue
         result.append({
             "id": l["id"],
-            "profile": clear_public(sender),
+            "profile": clear_public(sender, viewer=user),
             "mode": mode,
             "proposed_activity": acts_by_id.get(l.get("activity_id")) if l.get("activity_id") else None,
             "seen": bool(l.get("seen")),
@@ -1373,7 +1551,7 @@ async def my_plans(user: dict = Depends(current_user)):
             others_by_id[u["id"]] = u
     for p in plans:
         o_id = match_to_other.get(p["match_id"])
-        p["with"] = clear_public(others_by_id[o_id]) if o_id and o_id in others_by_id else None
+        p["with"] = clear_public(others_by_id[o_id], viewer=user) if o_id and o_id in others_by_id else None
     return plans
 
 @api.delete("/matches/{match_id}")
@@ -1930,6 +2108,18 @@ async def seed_admin_and_data():
         await db.matches.update_one({"id": m["id"]}, {"$set": {"proposals": proposals}})
     # Ensure existing likes are marked seen so the badge doesn't explode on startup.
     await db.likes.update_many({"seen": {"$exists": False}}, {"$set": {"seen": True}})
+
+    # Profile enrichment migration (Feb 2026): compute zodiac from birthdate and
+    # set sensible defaults for the new visibility switches, all idempotent.
+    async for u in db.users.find({"birthdate": {"$exists": True, "$ne": None}, "zodiac": {"$exists": False}}, {"id": 1, "birthdate": 1, "_id": 0}):
+        z = zodiac_from_birthdate(u.get("birthdate"))
+        if z:
+            await db.users.update_one({"id": u["id"]}, {"$set": {"zodiac": z}})
+    # Defaults for the visibility switches so existing users behave as expected.
+    await db.users.update_many({"show_modes": {"$exists": False}}, {"$set": {"show_modes": True}})
+    await db.users.update_many({"show_zodiac": {"$exists": False}}, {"$set": {"show_zodiac": False}})
+    await db.users.update_many({"show_children": {"$exists": False}}, {"$set": {"show_children": True}})
+    await db.users.update_many({"show_height": {"$exists": False}}, {"$set": {"show_height": False}})
 
 @app.on_event("startup")
 async def on_startup():

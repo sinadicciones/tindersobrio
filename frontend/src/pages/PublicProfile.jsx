@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine, HeartHandshake, Smile, Heart, Users as UsersIcon } from "lucide-react";
+import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine, HeartHandshake, Smile, Heart, Users as UsersIcon, Ruler, Baby, Star } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { MODES, REPORT_CATEGORIES } from "@/constants/comunas";
 
@@ -75,6 +75,8 @@ export default function PublicProfile() {
             </div>
           )}
 
+          <DetailsCard profile={profile}/>
+
           {profile.prompts?.filter(p=>p.q&&p.a).map((p, i) => (
             <div key={i} className="mt-3 ps-card p-3 bg-white/5">
               <p className="text-xs text-white/50">{p.q}</p>
@@ -94,6 +96,33 @@ export default function PublicProfile() {
       </div>
 
       {reporting && <ReportModal targetId={id} onClose={()=>setReporting(false)}/>}
+    </div>
+  );
+}
+
+// "BUSCA · DETALLES" card — renders only if the target user has at least one
+// visible detail field (height, children status or zodiac). Backend `clear_public`
+// already filters out fields whose visibility switch is off.
+export function DetailsCard({ profile }) {
+  const items = [];
+  if (profile.height_cm) items.push({ icon: <Ruler size={14} strokeWidth={1.9}/>, label: "Estatura", value: `${profile.height_cm} cm` });
+  if (profile.has_children) {
+    const map = { si: "Tiene hijos", no: "Sin hijos" };
+    if (map[profile.has_children]) items.push({ icon: <Baby size={14} strokeWidth={1.9}/>, label: "Hijos", value: map[profile.has_children] });
+  }
+  if (profile.zodiac) items.push({ icon: <Star size={14} strokeWidth={1.9}/>, label: "Signo", value: profile.zodiac });
+  if (!items.length) return null;
+  return (
+    <div data-testid="pp-details" className="mt-4 ps-card p-4">
+      <p className="ps-lab"><Sparkles size={12} strokeWidth={1.9}/> Busca · Detalles</p>
+      <ul className="mt-3 space-y-2">
+        {items.map((it, i) => (
+          <li key={i} className="flex items-center justify-between text-sm">
+            <span className="inline-flex items-center gap-2 text-[#C7CBD6]">{it.icon}{it.label}</span>
+            <span className="font-semibold text-white">{it.value}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
