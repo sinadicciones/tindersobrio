@@ -28,6 +28,18 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
+## Implementado (v2.0 - Feb 2026 - Rediseño Blanco Editorial)
+- ✅ **Sistema de diseño**: nuevos tokens (`#0B0C10` fondo, `#1D212B` card, borde `.16`), gradiente coral→violeta EXCLUSIVAMENTE en botones primarios / tab activo / barrita de menú activo / avatares sin foto / riel de "Sobre mí" / pantalla de match. Menta sólo para insignia Sprout y estados confirmados. Coral suelto sólo para distancia, badge de notificaciones y fila "Necesito apoyo".
+- ✅ **Cero emojis en UI**: reemplazados en Descubrir, Grupos, Chats, Les tincas, ChatDetail (plan bar + system messages), MisPlanes, Perfil, Onboarding, EditProfile, PublicProfile, LocationPicker, NecesitoApoyo, Waitlist, CuentaSuspendida, GroupDetail. Los emojis que escriben usuarios en bio/mensajes/frases se preservan. Admin queda "mínimo funcional".
+- ✅ **Icon registry** (`/app/frontend/src/lib/icons.jsx`) con `<Icon name="..."/>` y mapa `emojiToIconName` para grupos legacy.
+- ✅ **Backend**: catálogo de actividades gana campo `icon` (nombre lucide). Migración idempotente hace backfill sobre las actividades existentes por nombre.
+- ✅ **BottomNav**: íconos lucide, barrita superior 22×3 con gradient en tab activo, badge como punto coral con anillo del fondo.
+- ✅ **Etiquetas de sección `.ps-lab`**: 10px, tracking .13em, blanco, ícono 12px + regla fina al borde. Aplicadas transversalmente.
+- ✅ **Chips uniformes en Perfil**: modos como pills blancas con ícono lucide (sin colores por modo).
+- ✅ **Tarjeta "Sobre mí"** con riel gradient a la izquierda (`.ps-bio-card`) en Descubrir y Perfil.
+- ✅ **Mockup HTML** committeado en `/app/mockups/rediseno-v1.html` como referencia permanente.
+- Cero cambios en lógica de negocio. Cero data-testid renombrados.
+
 ## Implementado (v1.6 - Feb 2026 - FLUJOMATCH v2)
 - ✅ **Match ahora guarda AMBAS propuestas**: `match.proposals = {user1_id: activity_id|null, user2_id: activity_id|null}`. Migración idempotente al startup convierte matches viejos.
 - ✅ **4 mensajes de sistema inteligentes** al momento del match:
