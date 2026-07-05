@@ -1,6 +1,6 @@
 # PlanSobrio - Product Requirements Document
 
-**Última actualización:** 2026-02-07
+**Última actualización:** 2026-02-08
 
 ## Concepto
 App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de conexión en un solo lugar: Apoyo, Amistad, Amor y Grupos. Diferenciador: "match por plan" — el usuario propone una actividad sobria concreta al dar like, y el chat se abre con ese plan como primer mensaje.
@@ -28,7 +28,27 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
-## Implementado (v2.2 - Feb 2026 - Admin Metrics Dashboard)
+## Implementado (v2.3 - Feb 2026 - Resend Email System)
+- ✅ **Motor de emails privacidad-first** (`/app/backend/core/email_service.py`, ~800 líneas):
+  - Resend con dominio `plansobrio.com` verificado, sender `PlanSobrio <hola@plansobrio.com>`.
+  - Función central `send_email` con gates: idempotencia (SHA256 de destino+tipo+event_ref), preferencias (`email_preferences`), estado del usuario (banned/deleted/undeliverable), silencio 22:00–08:00 America/Santiago (queued → drain loop 10 min), tope 1 correo interacción/día por usuario.
+  - Tokens JWT firmados para reset (1h) y unsubscribe (one-click, con header `List-Unsubscribe`).
+  - Template Blanco Editorial responsive, pie universal "Hecho con 💛 en SinAdicciones.org".
+  - Webhook `POST /api/webhooks/resend` marca bounces/complaints → `user.email_deliverable=false`.
+- ✅ **Correos transaccionales**: welcome (email + Google), password_reset (con variante "solo Google"), waitlist confirmación.
+- ✅ **Correos de interacción**: like_no_match (agrupación 24h), new_match (a ambos), plan_confirmed (a ambos), plan_reminder (09:00 CL), event_new_in_group, weekly_summary (jueves 12:00), reengage_14d (template listo).
+- ✅ **Correos internos al equipo**: admin_new_user, admin_daily_summary (08:30 CL con delta vs prom 7d), admin_grave_report (throttled 1/h).
+- ✅ **Scheduler async** con 3 loops en startup: queue_drain (10 min), scheduled_jobs (08:30 admin summary, 09:00 recordatorios, jueves 12:00 weekly), metrics daily snapshot (03:00).
+- ✅ **Endpoints públicos**: `/auth/forgot-password` (no filtra existencia), `/auth/reset-password`, `/email/unsubscribe?token=…` (GET+POST one-click).
+- ✅ **Endpoints usuario**: `GET/PATCH /profile/email-preferences` (3 categorías: matches_messages, weekly_summary, plan_reminders).
+- ✅ **Endpoints admin**: CRUD `admin/email/recipients` (seed con esteban.scl@gmail.com y nelson@sinadicciones.org), `GET /admin/email/stats`, `POST /admin/email/send-daily-summary`.
+- ✅ **UI**:
+  - `/olvide-contrasena` y `/reset-password?token=…` con Blanco Editorial.
+  - Sección "Correos que quiero recibir" en `/app/perfil/editar` con 3 toggles persistentes.
+  - Nueva pestaña "Emails" en `/admin` con destinatarios, toggles por tipo, agregar/eliminar, botón "Enviar resumen diario ahora", tabla de estadísticas por tipo.
+- ✅ **Testing**: `testing_agent_v3_fork` iter 17 → **0 issues nuevos**. 22/22 tests backend + 4 flujos frontend, envíos reales confirmados con `resend_id`.
+
+
 - ✅ **Motor de métricas privacidad-first** (`/app/backend/core/metrics.py`):
   - Sin SDKs de terceros. Todo calculado sobre nuestra propia base de datos MongoDB.
   - Snapshot nocturno a las 03:00 America/Santiago (asyncio task) → colección `metrics_daily`.
