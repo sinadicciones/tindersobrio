@@ -28,6 +28,11 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
+## Implementado (v1.1 - Feb 2026 - iteración 2)
+- ✅ **Notificaciones in-app**: endpoint `/api/notifications/counts` polling cada 15s en BottomNav, badge en Chats con conteo, toast cuando llega match/mensaje nuevo, marcado como visto al abrir /chats o un chat específico
+- ✅ **Videos cortos**: subida vía Emergent object storage (mp4/mov/webm, máx 40MB), integrado en Onboarding paso 5, EditProfile y visible en Discover card + Profile page (máx 3 videos por usuario)
+- ✅ **Filtros adicionales en Descubrir**: modal con rango de edad global (age_min/age_max) y comuna específica, badge con conteo de filtros activos, botón "Limpiar"
+
 ## Implementado (v1 - Feb 2026)
 - ✅ Auth email/pass JWT + validación 18+
 - ✅ Onboarding 7 pasos con barra de progreso (alias, género, comuna, modos, relación con consumo, actividades favoritas, fotos, prompts, reglas)
