@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { MODES, modeColor, soberLabel, COMUNAS_RM } from "@/constants/comunas";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate as fmAnimate } from "framer-motion";
 import { toast } from "sonner";
 import { Sparkles, X, MapPin, Heart, SlidersHorizontal } from "lucide-react";
 import Avatar from "@/components/Avatar";
@@ -25,6 +25,9 @@ export default function Discover() {
   const [filters, setFilters] = useState({ age_min: "", age_max: "", comuna: "" });
 
   useEffect(() => { api.get("/activities").then((r)=>setActivities(r.data)); }, []);
+
+  // Ref used by ProfileCard to receive the "return card" command when modal closes without submitting
+  const cardResetRef = useRef(null);
 
   const load = async (m) => {
     setLoading(true);
@@ -52,6 +55,7 @@ export default function Discover() {
   const activeFilterCount = (filters.age_min ? 1 : 0) + (filters.age_max ? 1 : 0) + (filters.comuna ? 1 : 0);
 
   const current = candidates[idx];
+  const nextProfile = candidates[idx + 1];
 
   const pass = async () => {
     if (!current) return;
@@ -60,6 +64,13 @@ export default function Discover() {
   };
 
   const openLike = () => { if (current) setPlanModal({ profile: current }); };
+
+  // Called when the plan modal closes WITHOUT a like being sent (user cancelled).
+  // We revert the card to the center so the user can try again and don't burn a slot.
+  const cancelPlan = () => {
+    setPlanModal(null);
+    cardResetRef.current?.();
+  };
 
   const sendLike = async (activity_id, no_plan) => {
     if (!current) return;
@@ -87,6 +98,21 @@ export default function Discover() {
     const rest = activities.filter((a) => !common.find((c) => c.id === a.id));
     return [...common, ...rest].slice(0, 3);
   };
+
+  // Keyboard shortcuts for desktop (← pass, → like)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!current || planModal || matchModal || filtersOpen) return;
+      const target = e.target;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); pass(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); openLike(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line
+  }, [current, planModal, matchModal, filtersOpen, idx]);
 
   if (!swipeModes.length) {
     return (
@@ -166,16 +192,31 @@ export default function Discover() {
           <button onClick={()=>nav("/app/grupos")} className="ps-btn-primary mt-6">Ver grupos</button>
         </div>
       ) : (
-        <ProfileCard profile={current} mode={mode} onPass={pass} onLike={openLike} />
+        <div className="relative">
+          {/* Next card peek (behind) */}
+          {nextProfile && (
+            <div key={`next-${nextProfile.id}`} className="absolute inset-x-0 top-0 pointer-events-none" style={{ transform: "scale(0.95)", opacity: 0.55, filter: "blur(0.3px)" }}>
+              <StaticProfilePreview profile={nextProfile}/>
+            </div>
+          )}
+          <ProfileCard
+            key={current.id}
+            profile={current}
+            mode={mode}
+            onPass={pass}
+            onLike={openLike}
+            resetRef={cardResetRef}
+          />
+        </div>
       )}
 
       {/* Plan Modal */}
       <AnimatePresence>
         {planModal && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={(e)=>{ if (e.target === e.currentTarget) cancelPlan(); }}>
             <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
               className="ps-card w-full max-w-md p-6 relative">
-              <button onClick={()=>setPlanModal(null)} className="absolute top-4 right-4 text-white/50"><X size={20}/></button>
+              <button onClick={cancelPlan} className="absolute top-4 right-4 text-white/50"><X size={20}/></button>
               <h2 className="font-display text-2xl font-black">¿Qué plan harías con {planModal.profile.alias}?</h2>
               <p className="mt-2 text-white/60 text-sm">Elige una actividad para proponerle o deja que ella/él/elle proponga.</p>
               <div className="mt-4 space-y-2">
@@ -238,55 +279,140 @@ export default function Discover() {
   );
 }
 
-function ProfileCard({ profile, mode, onPass, onLike }) {
+function ProfileCard({ profile, mode, onPass, onLike, resetRef }) {
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [gone, setGone] = useState(false); // true after card flies out
   const photo = profile.photos?.[photoIdx];
-  const color = modeColor(mode);
+
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-320, 0, 320], [-12, 0, 12]);
+  const likeOpacity = useTransform(x, [0, 80, 200], [0, 0.5, 1]);
+  const passOpacity = useTransform(x, [-200, -80, 0], [1, 0.5, 0]);
+  const thresholdCrossedRef = useRef(false);
+
+  // Expose a resetter so parent can bring the card back (used when plan modal is cancelled).
+  useEffect(() => {
+    if (resetRef) {
+      resetRef.current = () => { setGone(false); fmAnimate(x, 0, { type: "spring", stiffness: 380, damping: 32 }); };
+    }
+    return () => { if (resetRef) resetRef.current = null; };
+    // eslint-disable-next-line
+  }, [resetRef]);
+
+  const vibrate = () => { try { navigator.vibrate?.(10); } catch { /* ignore */ } };
+
+  const flyOut = (dir) => {
+    const w = typeof window !== "undefined" ? window.innerWidth : 500;
+    setGone(true);
+    fmAnimate(x, dir * (w * 1.2), { duration: 0.28, ease: [0.5, 0, 0.75, 0] });
+  };
+
+  const handleDragEnd = (_, info) => {
+    thresholdCrossedRef.current = false;
+    const w = typeof window !== "undefined" ? window.innerWidth : 500;
+    const threshold = Math.min(140, w * 0.35);
+    if (info.offset.x > threshold) {
+      vibrate();
+      flyOut(1);
+      // Open the plan modal AFTER a tiny delay so the fly-out is visible
+      setTimeout(() => { onLike(); }, 260);
+    } else if (info.offset.x < -threshold) {
+      vibrate();
+      flyOut(-1);
+      setTimeout(() => { onPass(); }, 260);
+    } else {
+      fmAnimate(x, 0, { type: "spring", stiffness: 400, damping: 32 });
+    }
+  };
+
+  const handleDrag = (_, info) => {
+    // Vibrate ONCE when crossing threshold in either direction
+    const w = typeof window !== "undefined" ? window.innerWidth : 500;
+    const threshold = Math.min(140, w * 0.35);
+    if (!thresholdCrossedRef.current && Math.abs(info.offset.x) > threshold) {
+      thresholdCrossedRef.current = true;
+      vibrate();
+    } else if (thresholdCrossedRef.current && Math.abs(info.offset.x) < threshold * 0.7) {
+      thresholdCrossedRef.current = false;
+    }
+  };
 
   return (
-    <motion.div key={profile.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="relative rounded-[32px] overflow-hidden bg-[#1A1C22] border border-white/5" style={{ height: "70vh", maxHeight: 720 }}>
-        {/* photo */}
-        <div className="absolute inset-0">
-          {photo ? (
-            <img src={fileUrl(photo)} alt={profile.alias} className="w-full h-full object-cover"/>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FF6B5E33, #8B5CF633)" }}>
-              <div className="w-40 h-40 rounded-full ps-gradient flex items-center justify-center text-6xl font-black font-display">
-                {profile.alias?.slice(0,1).toUpperCase()}
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} data-testid="profile-card">
+      <motion.div
+        data-testid="swipe-card"
+        drag={gone ? false : "x"}
+        dragElastic={0.7}
+        dragConstraints={{ left: 0, right: 0 }}
+        onDrag={handleDrag}
+        onDragEnd={handleDragEnd}
+        style={{ x, rotate, touchAction: "pan-y" }}
+        className="relative rounded-[32px] overflow-hidden bg-[#1A1C22] border border-white/5 select-none cursor-grab active:cursor-grabbing"
+      >
+        <div style={{ height: "70vh", maxHeight: 720 }} className="relative">
+          {/* Photo */}
+          <div className="absolute inset-0">
+            {photo ? (
+              <img src={fileUrl(photo)} alt={profile.alias} className="w-full h-full object-cover pointer-events-none" draggable={false}/>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FF6B5E33, #8B5CF633)" }}>
+                <div className="w-40 h-40 rounded-full ps-gradient flex items-center justify-center text-6xl font-black font-display">
+                  {profile.alias?.slice(0,1).toUpperCase()}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-        {/* gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/90"/>
-        {/* photo dots */}
-        {profile.photos?.length > 1 && (
-          <div className="absolute top-3 left-3 right-3 flex gap-1">
-            {profile.photos.map((_, i) => (
-              <button key={i} onClick={()=>setPhotoIdx(i)} className="flex-1 h-1 rounded-full" style={{ background: i===photoIdx ? "white" : "rgba(255,255,255,0.35)" }}/>
-            ))}
-          </div>
-        )}
-        {/* info */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 space-y-3">
-          <div className="flex items-end gap-2 flex-wrap">
-            <h2 className="font-display text-3xl font-black tracking-tight">{profile.alias}<span className="text-white/60 font-medium">, {profile.age}</span></h2>
-            {profile.sober_time_badge && (
-              <span className="ps-chip" style={{ background: "rgba(74,222,128,0.15)", borderColor: "rgba(74,222,128,0.4)", color: "#4ADE80" }}>
-                🌱 {soberLabel(profile.sober_time_badge)}
-              </span>
             )}
           </div>
-          <p className="text-sm text-white/80 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}</p>
-          {profile.prompts?.slice(0,1).map((p, i) => (
-            <div key={i} className="ps-card p-3">
-              <p className="text-xs text-white/50">{p.q}</p>
-              <p className="mt-1 text-sm">{p.a}</p>
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/90 pointer-events-none"/>
+
+          {/* Photo dots (still tappable) */}
+          {profile.photos?.length > 1 && (
+            <div className="absolute top-3 left-3 right-3 flex gap-1 z-10">
+              {profile.photos.map((_, i) => (
+                <button key={i} onClick={(e)=>{ e.stopPropagation(); setPhotoIdx(i); }} className="flex-1 h-1 rounded-full" style={{ background: i===photoIdx ? "white" : "rgba(255,255,255,0.35)" }}/>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* Stamps */}
+          <motion.div
+            data-testid="stamp-like"
+            style={{ opacity: likeOpacity }}
+            className="absolute top-10 left-6 z-20 pointer-events-none"
+          >
+            <div className="px-4 py-2 rounded-2xl border-4 text-2xl font-black tracking-tight -rotate-[14deg] ps-gradient shadow-2xl">
+              ME TINCA ✨
+            </div>
+          </motion.div>
+          <motion.div
+            data-testid="stamp-pass"
+            style={{ opacity: passOpacity }}
+            className="absolute top-10 right-6 z-20 pointer-events-none"
+          >
+            <div className="px-4 py-2 rounded-2xl border-4 border-white/40 text-2xl font-black tracking-tight rotate-[14deg] bg-white/10 backdrop-blur-sm">
+              PASO 👋
+            </div>
+          </motion.div>
+
+          {/* Info overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-5 space-y-3 pointer-events-none">
+            <div className="flex items-end gap-2 flex-wrap">
+              <h2 className="font-display text-3xl font-black tracking-tight">{profile.alias}<span className="text-white/60 font-medium">, {profile.age}</span></h2>
+              {profile.sober_time_badge && (
+                <span className="ps-chip" style={{ background: "rgba(74,222,128,0.15)", borderColor: "rgba(74,222,128,0.4)", color: "#4ADE80" }}>
+                  🌱 {soberLabel(profile.sober_time_badge)}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-white/80 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}</p>
+            {profile.prompts?.slice(0,1).map((p, i) => (
+              <div key={i} className="ps-card p-3">
+                <p className="text-xs text-white/50">{p.q}</p>
+                <p className="mt-1 text-sm">{p.a}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Prompts extra (scroll below card) */}
       <div className="mt-4 space-y-3">
@@ -298,7 +424,7 @@ function ProfileCard({ profile, mode, onPass, onLike }) {
         ))}
       </div>
 
-      {/* actions */}
+      {/* Actions */}
       <div className="flex gap-3 mt-5">
         <button data-testid="pass-btn" onClick={onPass} className="flex-1 py-4 rounded-full bg-white/5 border border-white/10 font-semibold text-white/80 hover:bg-white/10 transition">
           Pasar
@@ -308,5 +434,23 @@ function ProfileCard({ profile, mode, onPass, onLike }) {
         </button>
       </div>
     </motion.div>
+  );
+}
+
+// Static preview of the next card (behind the top one) to give a "deck" feel.
+function StaticProfilePreview({ profile }) {
+  const photo = profile.photos?.[0];
+  return (
+    <div className="rounded-[32px] overflow-hidden bg-[#1A1C22] border border-white/5" style={{ height: "70vh", maxHeight: 720 }}>
+      {photo ? (
+        <img src={fileUrl(photo)} alt="" className="w-full h-full object-cover" draggable={false}/>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FF6B5E33, #8B5CF633)" }}>
+          <div className="w-40 h-40 rounded-full ps-gradient flex items-center justify-center text-6xl font-black font-display">
+            {profile.alias?.slice(0,1).toUpperCase()}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
