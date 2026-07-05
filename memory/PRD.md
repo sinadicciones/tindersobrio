@@ -28,7 +28,7 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
-## Implementado (v1.3 - Feb 2026 - GEOSWIPE Bloques 1 y 2)
+## Implementado (v1.3 - Feb 2026 - GEOSWIPE Bloques 1, 2 y 3)
 - ✅ **GEOSWIPE Bloque 1** (swipe gesture): tarjetas de descubrimiento arrastrables con `framer-motion`, umbrales configurables, swipe→right abre modal de plan; cancelar el modal NO consume el "me tinca" y retorna la tarjeta al centro.
 - ✅ **GEOSWIPE Bloque 2** (multi-país + geo estructural):
   - Nuevas colecciones `countries` y `helplines`, sembradas idempotentemente al arranque.
@@ -36,9 +36,19 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
   - Migración de `users` y `groups`: campo `location` GeoJSON Point + `country` (código ISO). Índice `2dsphere` en `location.coords`.
   - `build_location_doc()` deriva coords desde GPS/IP → comuna/city → centroide país (fallback en cascada).
   - Backfill idempotente: demos + admin + grupos existentes obtienen `location` desde `RM_CENTROIDS` según `comuna`.
-  - Onboarding y `PATCH /api/profile/me` aceptan `location` opcional y re-derivan automáticamente si cambia `comuna`.
+  - Onboarding y `PATCH /api/profile/me` aceptan `location` opcional y re-derivan automáticamente si cambia `comuna` (defaulteando a CL cuando no hay país explícito).
   - **Privacidad**: `clear_public()` NUNCA expone `coords`; solo `country`, `city`, `comuna`.
   - `NecesitoApoyo` UI lee helplines desde la API con fallback a constantes.
+- ✅ **GEOSWIPE Bloque 3** (GPS + discover por distancia + waitlist):
+  - `/api/discover` usa `$geoNear` cuando el usuario tiene `location.coords`, con parámetro `radius_km` (1–500).
+  - `distance_km` (redondeado a 1 decimal) se expone en cada tarjeta pública; coords siguen ocultas.
+  - `/app/frontend/src/lib/geo.js`: `detectLocation()` combina GPS (5s timeout) + fallback IP `bigdatacloud.net/data/reverse-geocode-client`, con cache de 24h.
+  - `Discover` auto-PATCHea la ubicación SOLO si `source === 'gps'` (evita mover usuarios por proxies/VPN/IP compartida).
+  - Filtro de "Distancia máxima" en modal de Filtros (chips: Sin límite / 5 / 10 / 25 / 50 / 100 km).
+  - Tarjeta muestra "· a X km" junto a la comuna.
+  - Nuevo endpoint público `POST /api/waitlist` con upsert por email.
+  - Nueva página `/waitlist` con detección automática y formulario email/país/ciudad.
+  - Register redirige a `/waitlist` si la IP resuelve fuera de Chile.
 
 ## Implementado (v1.2 - Feb 2026 - BLOQUES 1-4 de CORRECCIONES.md)
 - ✅ **BLOQUE 1** (bugs críticos): quota solo cuenta likes, DELETE /profile/me borra 12 colecciones, demos con modo Amor tienen foto Unsplash, doble confirmación de eliminar cuenta.
