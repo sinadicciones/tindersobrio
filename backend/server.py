@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, EmailStr
 
 from core.storage import init_storage, put_object, get_object
 from core.seed_data import SEED_ACTIVITIES, SEED_GROUPS, DEMO_PROFILES, DEMO_PHOTOS, DEMO_PROMPTS
+from core.geo_seed import RM_CENTROIDS, SANTIAGO_CENTER, COUNTRIES_SEED, HELPLINES_SEED_CL
 
 # ------------------------------------------------------------------
 # Config
@@ -112,12 +113,19 @@ def set_auth_cookie(response: Response, token: str):
     response.set_cookie(key="access_token", value=token, httponly=True, secure=True, samesite="none", max_age=7*24*3600, path="/")
 
 def clear_public(user: dict) -> dict:
-    """Public view of a user - hides email, private fields."""
+    """Public view of a user - hides email, private fields.
+
+    Location: only city + country + comuna (legacy) are exposed. Coordinates are
+    NEVER included; distance is added by callers that need it via _distance_km.
+    """
+    loc = user.get("location") or {}
     return {
         "id": user["id"],
         "alias": user.get("alias"),
         "age": calc_age(user.get("birthdate")) if user.get("birthdate") else None,
         "comuna": user.get("comuna"),
+        "city": loc.get("city") or user.get("comuna"),
+        "country": loc.get("country") or "CL",
         "gender": user.get("gender"),
         "modes": user.get("modes", []),
         "photos": user.get("photos", []),
@@ -125,6 +133,9 @@ def clear_public(user: dict) -> dict:
         "favorite_activities": user.get("favorite_activities", []),
         "sober_time_badge": user.get("sober_time") if user.get("show_sober_time") else None,
     }
+
+def round_coords(lng: float, lat: float) -> list:
+    return [round(float(lng), 2), round(float(lat), 2)]
 
 def calc_age(birthdate_str: str) -> Optional[int]:
     if not birthdate_str:
