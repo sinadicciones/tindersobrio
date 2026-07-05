@@ -1,6 +1,6 @@
 # PlanSobrio - Product Requirements Document
 
-**Última actualización:** 2026-02-06
+**Última actualización:** 2026-02-07
 
 ## Concepto
 App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de conexión en un solo lugar: Apoyo, Amistad, Amor y Grupos. Diferenciador: "match por plan" — el usuario propone una actividad sobria concreta al dar like, y el chat se abre con ese plan como primer mensaje.
@@ -28,7 +28,31 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
-## Implementado (v2.1 - Feb 2026 - ONBOARDINGPERFIL Bloques 1 y 2)
+## Implementado (v2.2 - Feb 2026 - Admin Metrics Dashboard)
+- ✅ **Motor de métricas privacidad-first** (`/app/backend/core/metrics.py`):
+  - Sin SDKs de terceros. Todo calculado sobre nuestra propia base de datos MongoDB.
+  - Snapshot nocturno a las 03:00 America/Santiago (asyncio task) → colección `metrics_daily`.
+  - Contador anónimo `POST /api/support-page/view` (guarda sólo `date` + `count`, jamás `user_id`).
+  - Backfill endpoint `POST /api/admin/metrics/backfill` (rango ≤400 días).
+- ✅ **7 endpoints de admin métricas** (todos protegidos con `require_admin`, 403 para no-admins):
+  - `GET /api/admin/metrics/summary` — north star + KPIs + series diarias + alertas de liquidez
+  - `GET /api/admin/metrics/funnel` — 6 pasos (registrados → onboarding → 1er like → 1er match → confirmado → realizado) + medianas + cohortes semanales
+  - `GET /api/admin/metrics/matching` — ratio like→match, cohortes ≥1 match/7d, unresponded likes, concentración top10%, distribución de pool
+  - `GET /api/admin/metrics/planes` — funnel matches→plan propuesto→confirmado→realizado, actividades top, medianas
+  - `GET /api/admin/metrics/comunidad` — grupos activos, próximos eventos, % activos en grupo
+  - `GET /api/admin/metrics/retencion` — D1/D7/D30 por cohorte, stickiness (DAU/MAU), dormidos, resucitados
+  - `GET /api/admin/metrics/seguridad` — reportes por categoría/día, mediana resolución, graves >4h, reincidentes, bloqueos, visitas apoyo (anónimo), bans/susps
+- ✅ **Frontend Métricas** (`/app/frontend/src/pages/admin/Metrics.jsx`):
+  - Nueva primera tab en `/admin` con 7 sub-tabs (Resumen · Embudo · Matching · Planes · Comunidad · Retención · Seguridad).
+  - Selector de rango 7/30/90 días compartido.
+  - Charts con `recharts 3.6.0` (líneas y barras), paleta Blanco Editorial (coral #FF6B5E, violeta #8B5CF6, menta #4ADE80).
+  - Delta badges vs semana previa, alertas visuales inline (ratio género, tinca sin respuesta, pool Amor).
+  - Exportación CSV por pestaña (`downloadCsv` client-side Blob).
+  - Nota de privacidad visible: "Nunca se muestran mensajes, datos de consumo individuales ni identidad de quienes visitan Necesito apoyo".
+- ✅ **Instrumentación anónima**: `NecesitoApoyo.jsx` dispara `POST /api/support-page/view` en su `useEffect`.
+- ✅ **Testing**: `testing_agent_v3_fork` — 0 issues encontrados (backend 403 gate, anonymous counter sin user_id, 7 endpoints con estructura correcta, validación de rango 7/30/90, backfill validado, todas las 7 tabs UI renderizando KPIs/charts/tablas/CSV correctamente + regresión completa app).
+
+
 - ✅ **Bloque 1 backend** (sesión previa):
   - Onboarding acepta 1–6 frases (antes fijo en 3). Validación server-side en `POST /profile/onboarding` y `PATCH /profile/me`.
   - Nuevos campos opcionales de perfil: `height_cm` (140–210), `has_children` (si/no/prefiero_no_decir), `zodiac` (derivado de la fecha de nacimiento).
