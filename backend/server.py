@@ -28,6 +28,9 @@ from core.geo_seed import (
     RM_CENTROIDS, SANTIAGO_CENTER, COUNTRIES_SEED, HELPLINES_SEED_CL,
     city_coords_for, default_country_coords,
 )
+from core import metrics as metrics_mod
+from datetime import date as date_cls
+import asyncio
 
 # ------------------------------------------------------------------
 # Config
@@ -1911,6 +1914,84 @@ async def admin_delete_event(eid: str, _: dict = Depends(require_admin)):
     return {"ok": True}
 
 # ------------------------------------------------------------------
+# Admin - Metrics (aggregate-only, privacy-first)
+# ------------------------------------------------------------------
+@api.post("/support-page/view")
+async def support_page_view():
+    """Anonymous counter for 'Necesito apoyo' opens. NO user_id is stored,
+    only date + counter."""
+    today = metrics_mod.today_local().isoformat()
+    await db.support_page_views.update_one(
+        {"date": today},
+        {"$inc": {"count": 1}, "$setOnInsert": {"date": today}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+def _valid_days(days: int) -> int:
+    if days not in (7, 30, 90):
+        raise HTTPException(status_code=400, detail="El rango debe ser 7, 30 o 90 días")
+    return days
+
+
+@api.get("/admin/metrics/summary")
+async def admin_metrics_summary(days: int = 7, _: dict = Depends(require_admin)):
+    return await metrics_mod.build_summary(db, _valid_days(days))
+
+
+@api.get("/admin/metrics/funnel")
+async def admin_metrics_funnel(days: int = 30, _: dict = Depends(require_admin)):
+    return await metrics_mod.build_funnel(db, _valid_days(days))
+
+
+class MetricsBackfillIn(BaseModel):
+    start: str  # YYYY-MM-DD
+    end: str
+
+
+@api.post("/admin/metrics/backfill")
+async def admin_metrics_backfill(body: MetricsBackfillIn, _: dict = Depends(require_admin)):
+    try:
+        s = date_cls.fromisoformat(body.start)
+        e = date_cls.fromisoformat(body.end)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Fechas inválidas (usar YYYY-MM-DD)")
+    if s > e:
+        raise HTTPException(status_code=400, detail="'start' debe ser <= 'end'")
+    max_span = 400
+    if (e - s).days > max_span:
+        raise HTTPException(status_code=400, detail=f"Rango máximo {max_span} días")
+    n = await metrics_mod.backfill_range(db, s, e)
+    return {"ok": True, "days_computed": n}
+
+
+@api.get("/admin/metrics/matching")
+async def admin_metrics_matching(days: int = 30, _: dict = Depends(require_admin)):
+    return await metrics_mod.build_matching(db, _valid_days(days))
+
+
+@api.get("/admin/metrics/planes")
+async def admin_metrics_planes(days: int = 30, _: dict = Depends(require_admin)):
+    return await metrics_mod.build_planes(db, _valid_days(days))
+
+
+@api.get("/admin/metrics/comunidad")
+async def admin_metrics_comunidad(days: int = 30, _: dict = Depends(require_admin)):
+    return await metrics_mod.build_comunidad(db, _valid_days(days))
+
+
+@api.get("/admin/metrics/retencion")
+async def admin_metrics_retencion(days: int = 30, _: dict = Depends(require_admin)):
+    return await metrics_mod.build_retencion(db, _valid_days(days))
+
+
+@api.get("/admin/metrics/seguridad")
+async def admin_metrics_seguridad(days: int = 30, _: dict = Depends(require_admin)):
+    return await metrics_mod.build_seguridad(db, _valid_days(days))
+
+
+# ------------------------------------------------------------------
 # Seed
 # ------------------------------------------------------------------
 async def seed_admin_and_data():
@@ -1940,6 +2021,8 @@ async def seed_admin_and_data():
     await db.files.create_index("user_id")
     await db.activities.create_index("active")
     await db.groups.create_index("active")
+    await db.metrics_daily.create_index("date", unique=True)
+    await db.support_page_views.create_index("date", unique=True)
     # Geo indexes (idempotent)
     await db.users.create_index([("location.coords", "2dsphere")])
     await db.users.create_index("country")
@@ -2125,6 +2208,8 @@ async def seed_admin_and_data():
 async def on_startup():
     init_storage()
     await seed_admin_and_data()
+    # Kick off the nightly metrics snapshot loop (03:00 America/Santiago)
+    asyncio.create_task(metrics_mod.daily_snapshot_loop(db))
 
 # ------------------------------------------------------------------
 app.include_router(api)

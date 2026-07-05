@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { LogOut, Users, Flag, Activity, Home, MapPin } from "lucide-react";
+import { LogOut, Users, Flag, Activity, Home, MapPin, BarChart3 } from "lucide-react";
+import Metrics from "@/pages/admin/Metrics";
 
 const TABS = [
+  { v: "metricas", l: "Métricas", icon: BarChart3 },
   { v: "dashboard", l: "Dashboard", icon: Home },
   { v: "reportes", l: "Reportes", icon: Flag },
   { v: "usuarios", l: "Usuarios", icon: Users },
@@ -16,7 +18,7 @@ const TABS = [
 export default function Admin() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState("metricas");
 
   if (!user || user.role !== "admin") return <div className="p-6">Solo administradores.</div>;
 
@@ -43,6 +45,7 @@ export default function Admin() {
           ))}
         </div>
 
+        {tab === "metricas" && <Metrics/>}
         {tab === "dashboard" && <Dashboard/>}
         {tab === "reportes" && <Reports/>}
         {tab === "usuarios" && <Users2/>}

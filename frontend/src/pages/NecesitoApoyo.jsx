@@ -17,6 +17,8 @@ export default function NecesitoApoyo() {
     api.get("/geo/helplines", { params: { country: "CL" } })
       .then((r) => setHelplines(r.data || []))
       .catch(() => setHelplines([]));
+    // Anonymous counter — never sends user_id. Backend only stores date+count.
+    api.post("/support-page/view").catch(() => {});
   }, []);
 
   const add = async () => {
