@@ -2490,17 +2490,17 @@ async def seed_admin_and_data():
     await db.email_log.create_index([("user_id", 1), ("type", 1), ("sent_at", -1)])
     await db.email_preferences.create_index("user_id", unique=True)
     await db.admin_notification_recipients.create_index("email", unique=True)
-    # Seed default admin recipients (idempotent)
-    for e in ("esteban.scl@gmail.com", "nelson@sinadicciones.org"):
-        await db.admin_notification_recipients.update_one(
-            {"email": e},
-            {"$setOnInsert": {
-                "email": e,
-                "active_for": {"admin_new_user": True, "admin_daily_summary": True, "admin_grave_report": True},
-                "created_at": now_iso(),
-            }},
-            upsert=True,
-        )
+    # Seed default admin recipient (idempotent). If deleted from /admin panel,
+    # it stays deleted — $setOnInsert only fills on the initial insert.
+    await db.admin_notification_recipients.update_one(
+        {"email": "nelson@sinadicciones.org"},
+        {"$setOnInsert": {
+            "email": "nelson@sinadicciones.org",
+            "active_for": {"admin_new_user": True, "admin_daily_summary": True, "admin_grave_report": True},
+            "created_at": now_iso(),
+        }},
+        upsert=True,
+    )
     # Geo indexes (idempotent)
     await db.users.create_index([("location.coords", "2dsphere")])
     await db.users.create_index("country")
