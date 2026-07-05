@@ -6,8 +6,11 @@ import { GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Camera, X, Check, ShieldAlert } from "lucide-react";
+import { Camera, X, Check, ShieldAlert, HeartHandshake, Smile, Heart, Users as UsersIcon } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
+import { Icon, iconForActivity } from "@/lib/icons";
+
+const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: UsersIcon };
 
 const STEPS = ["Sobre ti", "¿Qué buscas?", "¿Dónde estás?", "Tu proceso", "Tus panoramas", "Fotos", "Tus frases", "Reglas"];
 
@@ -151,14 +154,14 @@ export default function Onboarding() {
               <div className="grid grid-cols-2 gap-2">
                 {MODES.map((m) => {
                   const on = form.modes.includes(m.v);
+                  const I = MODE_ICON[m.v];
                   return (
                     <button type="button" key={m.v} data-testid={`ob-mode-${m.v}`}
                       onClick={()=>set("modes", toggle(form.modes, m.v))}
-                      className={`p-4 rounded-2xl border text-left transition ${on ? "border-transparent" : "border-white/10 bg-white/5"}`}
-                      style={on ? { background: `${m.color}22`, borderColor: `${m.color}66` } : {}}>
-                      <div className="text-2xl">{m.emoji}</div>
-                      <div className="mt-2 font-bold">{m.l}</div>
-                      <div className="text-xs text-white/50 mt-1">{m.desc}</div>
+                      className={`p-4 rounded-2xl border text-left transition ${on ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}>
+                      {I && <I size={22} strokeWidth={1.9}/>}
+                      <div className="mt-2 font-bold text-white">{m.l}</div>
+                      <div className="text-xs mt-1 text-[#C7CBD6]">{m.desc}</div>
                     </button>
                   );
                 })}
@@ -250,9 +253,9 @@ export default function Onboarding() {
                   return (
                     <button type="button" key={a.id} data-testid={`ob-act-${a.id}`}
                       onClick={()=>set("favorite_activities", toggle(form.favorite_activities, a.id))}
-                      className={`p-3 rounded-2xl border text-left text-sm transition ${on ? "ps-gradient border-transparent" : "bg-white/5 border-white/10"}`}>
-                      <div className="text-xl mb-1">{a.emoji}</div>
-                      <div className="font-semibold leading-tight">{a.name}</div>
+                      className={`p-3 rounded-2xl border text-left text-sm transition ${on ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}>
+                      <Icon name={iconForActivity(a)} size={20} strokeWidth={1.9}/>
+                      <div className="font-semibold leading-tight mt-1 text-white">{a.name}</div>
                     </button>
                   );
                 })}

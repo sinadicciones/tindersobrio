@@ -44,7 +44,7 @@ export default function Waitlist() {
           </div>
           <h1 className="font-display text-3xl font-black">Aún no llegamos a tu ciudad</h1>
           <p className="mt-3 text-white/70 text-sm leading-relaxed">
-            PlanSobrio nació en Chile 🇨🇱 y por ahora la comunidad está creciendo acá.
+            PlanSobrio nació en Chile y por ahora la comunidad está creciendo acá.
             Déjanos tu correo y te avisamos apenas abramos en tu país.
           </p>
 

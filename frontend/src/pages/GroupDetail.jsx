@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Users, Calendar, MapPin, LogOut, Globe } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { Icon, emojiToIconName } from "@/lib/icons";
 
 export default function GroupDetail() {
   const { id } = useParams();
@@ -76,7 +77,9 @@ export default function GroupDetail() {
       <button onClick={()=>nav(-1)} data-testid="back-btn" className="flex items-center gap-1 text-white/70 mb-4"><ArrowLeft size={18}/> Volver</button>
       <div className="ps-card p-5">
         <div className="flex items-start gap-3">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "rgba(139,92,246,0.15)" }}>{group.emoji}</div>
+          <div className="w-14 h-14 rounded-2xl grid place-items-center bg-white/[.09] border border-white/[.16] shrink-0">
+            <Icon name={emojiToIconName[group.emoji] || "Users"} size={26} strokeWidth={1.9}/>
+          </div>
           <div className="flex-1">
             <h1 className="font-display text-2xl font-black">{group.name}</h1>
             <p className="text-sm text-[#C7CBD6] mt-1 inline-flex items-center gap-2">

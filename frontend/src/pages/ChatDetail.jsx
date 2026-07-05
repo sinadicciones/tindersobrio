@@ -266,7 +266,7 @@ function PlanModal({ activities, onClose, onSubmit }) {
         <div className="mt-4 space-y-3">
           <select data-testid="propose-activity" className="ps-input" value={act} onChange={(e)=>setAct(e.target.value)}>
             <option value="">Elige actividad…</option>
-            {activities.map((a) => <option key={a.id} value={a.id}>{a.emoji} {a.name}</option>)}
+            {activities.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           <input data-testid="propose-when" type="datetime-local" className="ps-input" value={when} onChange={(e)=>setWhen(e.target.value)} min={new Date().toISOString().slice(0,16)}/>
         </div>

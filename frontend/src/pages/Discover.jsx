@@ -447,7 +447,7 @@ function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef 
             <p data-testid="profile-comuna" className="text-xs text-[#C7CBD6] flex items-center gap-1">
               <MapPin size={12} strokeWidth={1.9} className="text-white"/> {profile.comuna}
               {profile.distance_km != null && (
-                <span data-testid="profile-distance" className="text-[#FF6B5E] font-semibold"> · a {profile.distance_km >= 50 ? "50+" : `~${profile.distance_km}`} km</span>
+                <span data-testid="profile-distance" className="text-[#FF6B5E] font-semibold"> · ~{profile.distance_km >= 50 ? "50+" : profile.distance_km} km</span>
               )}
             </p>
             {profile.prompts?.slice(0,1).map((p, i) => (

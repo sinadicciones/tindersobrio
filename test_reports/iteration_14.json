@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 14 - Re-verification of the 8 emoji-in-UI-chrome fixes from iteration 13. ALL 8 FIXES CONFIRMED APPLIED AND WORKING. Executed emoji-scans across Descubrir, EditProfile (/app/perfil/editar), PublicProfile (/app/usuario/:id), GroupDetail (/app/grupos/:id), ChatDetail propose-plan modal, Waitlist, and Onboarding step 1 (modes). No emoji characters detected in UI chrome (regex /[\\u{1F300}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{1F1E6}-\\u{1F1FF}]/u) on any tested page. Distance format on Discover now reads ' · ~5 km' (dropped the leading 'a '). ChatDetail propose-plan native <select> options now show activity name only (e.g. 'Café y conversación', 'Caminata o trekking') with 0/17 emoji options. LocationPicker no longer emits '🇨🇱'; when country=CL only the comuna/city renders, else ' · <CC>' suffix (source-verified). Waitlist body copy no longer contains '🇨🇱'. GroupDetail header renders lucide Icon via emojiToIconName[group.emoji] || 'Users' (source-verified + DOM emoji-scan clean). EditProfile mode buttons (edit-mode-apoyo/amistad/amor/grupos) render lucide SVG (HeartHandshake/Smile/Heart/Users) with plain label text - no emoji. EditProfile activity chips use Icon via iconForActivity() which prefers a.icon then falls back to emojiToIconName[a.emoji]. Onboarding step 1 mode buttons (ob-mode-*) verified rendered with svg + text 'Apoyo/Amistad/Amor/Grupos' and no emoji. Onboarding activity chips (ob-act-*) verified via source (Onboarding.jsx:257 renders <Icon name={iconForActivity(a)}/>) - could not reach step 4 via UI because location step 2 requires geolocation permission or manual comuna picker (button label 'Prefiero elegirla a mano'), but the DOM scan across the reachable onboarding steps found zero emoji. REGRESSION: Login, Onboarding step navigation (step 0 alias/gender -> step 1 modes -> next), Chats list, Chat open, propose-plan modal opening, Discover render, EditProfile render, PublicProfile render, GroupDetail render, Waitlist render — all still working. System-generated chat previews on Chats still contain ☕/🎉 embedded in sys_text (backend server.py L941/L1101/L1352) — reviewer explicitly allows emojis in message content, so this is by design.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration13_visual_regression.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MODE_ICON constant is duplicated in EditProfile.jsx L13, Onboarding.jsx L13, PublicProfile.jsx L9, BottomNav, Profile.jsx. Consider hoisting into constants/comunas.js (or lib/icons.jsx) as a single source of truth (DRY).",
+    "Onboarding.jsx step 2 (location) uses geolocation which fails in the automated preview environment; the manual fallback link text 'Prefiero elegirla a mano' could be given a data-testid (e.g. loc-manual-toggle) to make onboarding-flow tests less brittle."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend only run)", "frontend": "100% - all 8 flagged emoji-in-chrome violations resolved; distance format fixed"},
+  "test_credentials": "demo1@plansobrio.cl / Demo1234! ; testob_new1@ex.cl / Passw0rd!123 (created for onboarding regression)",
+  "seed_data_creation": "Registered testob_new1@ex.cl via POST /api/auth/register to exercise onboarding-mode UI (icon rendering verified).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Emoji-in-UI-chrome regression suite: (1) log in as demo1, (2) DOM-scan /app/descubrir, /app/perfil/editar, /app/usuario/<id>, /app/grupos/<id>, /waitlist, /app/chats/<id> propose-plan modal — expect zero matches of /[\\u{1F300}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{1F1E6}-\\u{1F1FF}]/u outside data-testid ∈ {profile-bio, msg-system, profile-page-bio, pp-bio}. (3) profile-distance text must match /·\\s*~\\d+.*km/ (no leading 'a '). (4) ChatDetail propose-plan <select> options must not contain any emoji character. Onboarding step 4 (ob-act-*) needs the location step passed — either grant geolocation or click 'Prefiero elegirla a mano' text link and pick a comuna. Source of truth for icons: /app/frontend/src/lib/icons.jsx (Icon component + emojiToIconName + iconForActivity).",
+  "rca of the issue": "N/A - re-verification run confirming previous action items are all resolved."
+}

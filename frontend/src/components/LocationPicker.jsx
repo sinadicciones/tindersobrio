@@ -70,7 +70,7 @@ export default function LocationPicker({ value, onChange, onOutsideChile }) {
         <p className="flex items-center gap-2 font-display text-lg">
           <MapPin size={18} className="text-[#FF6B5E]"/>
           {value.comuna}{value.city && value.city !== value.comuna ? `, ${value.city}` : ""}
-          {value.country === "CL" && " 🇨🇱"}
+          {value.country && value.country !== "CL" && ` · ${value.country}`}
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" data-testid="location-refresh" onClick={detect}
@@ -94,7 +94,7 @@ export default function LocationPicker({ value, onChange, onOutsideChile }) {
         <p className="flex items-center gap-2 font-display text-2xl font-black">
           <MapPin size={22} className="text-[#FF6B5E]"/>
           {pending.comuna || pending.city || "Ubicación"}
-          {pending.country && pending.country !== "CL" ? ` · ${pending.country}` : " 🇨🇱"}
+          {pending.country && pending.country !== "CL" && ` · ${pending.country}`}
         </p>
         <p className="text-sm text-white/60">¿Es correcto?</p>
         <div className="flex gap-2">

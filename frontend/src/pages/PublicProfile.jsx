@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine } from "lucide-react";
+import { ArrowLeft, MapPin, Sparkles, ShieldAlert, Flag, PencilLine, HeartHandshake, Smile, Heart, Users as UsersIcon } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { MODES, REPORT_CATEGORIES } from "@/constants/comunas";
+
+const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: UsersIcon };
 
 // Public profile viewer, opened from anywhere a user's alias/photo is clickable
 // (group chat, matches, admin, etc). Reuses GET /api/profile/:id which already
@@ -56,7 +58,12 @@ export default function PublicProfile() {
           <div className="mt-4 flex flex-wrap gap-2">
             {profile.modes?.map((v) => {
               const m = MODES.find((x) => x.v === v);
-              return m ? <span key={v} className="ps-chip" style={{ background: `${m.color}22`, borderColor: `${m.color}55`, color: m.color }}>{m.emoji} {m.l}</span> : null;
+              const I = MODE_ICON[v];
+              return m ? (
+                <span key={v} className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-white/5 border border-white/[.16] text-white">
+                  {I && <I size={12} strokeWidth={1.9}/>} {m.l}
+                </span>
+              ) : null;
             })}
           </div>
 

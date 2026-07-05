@@ -7,6 +7,10 @@ import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
 import { ArrowLeft, X, Camera } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
+import { Icon, iconForActivity } from "@/lib/icons";
+import { HeartHandshake, Smile, Heart, Users as UsersIcon } from "lucide-react";
+
+const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: UsersIcon };
 
 export default function EditProfile() {
   const { user, refresh } = useAuth();
@@ -106,11 +110,11 @@ export default function EditProfile() {
           <div className="grid grid-cols-2 gap-2">
             {MODES.map((m) => {
               const on = f.modes.includes(m.v);
+              const I = MODE_ICON[m.v];
               return (
                 <button key={m.v} data-testid={`edit-mode-${m.v}`} onClick={()=>set("modes", toggle(f.modes, m.v))}
-                  className={`p-3 rounded-2xl border text-left transition ${on ? "border-transparent" : "border-white/10 bg-white/5"}`}
-                  style={on ? { background: `${m.color}22`, borderColor: `${m.color}66` } : {}}>
-                  <div className="text-xl">{m.emoji}</div>
+                  className={`p-3 rounded-2xl border text-left transition ${on ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}>
+                  {I && <I size={18} strokeWidth={1.9}/>}
                   <div className="mt-1 font-bold text-sm">{m.l}</div>
                 </button>
               );
@@ -141,8 +145,8 @@ export default function EditProfile() {
               const on = f.favorite_activities.includes(a.id);
               return (
                 <button key={a.id} onClick={()=>set("favorite_activities", toggle(f.favorite_activities, a.id))}
-                  className={`p-2.5 rounded-2xl border text-left text-sm ${on ? "ps-gradient border-transparent" : "bg-white/5 border-white/10"}`}>
-                  <div className="text-lg">{a.emoji}</div>
+                  className={`p-2.5 rounded-2xl border text-left text-sm ${on ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}>
+                  <Icon name={iconForActivity(a)} size={18} strokeWidth={1.9}/>
                   <div className="font-semibold text-xs mt-1 leading-tight">{a.name}</div>
                 </button>
               );
