@@ -18,6 +18,7 @@ export default function ChatDetail() {
   const [menu, setMenu] = useState(false);
   const [activities, setActivities] = useState([]);
   const [planModal, setPlanModal] = useState(false);
+  const [planDefaultActId, setPlanDefaultActId] = useState("");
   const [reportModal, setReportModal] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -170,10 +171,12 @@ export default function ChatDetail() {
           const one = myAct || otherAct;
           chips.push({ ...one, label: one.name });
         }
+        // If both agreed on same activity → preselect it in the modal.
+        const agreedActId = (myAct && otherAct && myAct.id === otherAct.id) ? myAct.id : (myAct?.id || otherAct?.id || "");
         return (
           <button
             data-testid="plan-status-bar"
-            onClick={()=>setPlanModal(true)}
+            onClick={()=>{ setPlanDefaultActId(agreedActId); setPlanModal(true); }}
             className="mt-2 w-full px-3 py-2.5 rounded-2xl flex items-center gap-2 text-xs text-left hover:brightness-110 transition"
             style={{ background: "rgba(139,92,246,.12)", border: "1px solid rgba(139,92,246,.4)" }}
           >
@@ -250,15 +253,67 @@ export default function ChatDetail() {
         </div>
       </form>
 
-      {planModal && <PlanModal activities={activities} onClose={()=>setPlanModal(false)} onSubmit={proposePlan}/>}
+      {planModal && <PlanModal activities={activities} defaultActivityId={planDefaultActId} onClose={()=>setPlanModal(false)} onSubmit={proposePlan}/>}
       {reportModal && <ReportModal targetId={match.other.id} onClose={()=>setReportModal(false)}/>}
     </div>
   );
 }
 
-function PlanModal({ activities, onClose, onSubmit }) {
-  const [act, setAct] = useState("");
+function PlanModal({ activities, defaultActivityId = "", onClose, onSubmit }) {
+  // `datetime-local` expects LOCAL time (no timezone). Using `toISOString()` (UTC)
+  // as the min shifts it hours into the future for users in AR/CL, blocking any
+  // near-term date selection. Compute a proper local "YYYY-MM-DDTHH:MM" instead.
+  const localNowStr = () => {
+    const d = new Date();
+    const off = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - off).toISOString().slice(0, 16);
+  };
+  const [act, setAct] = useState(defaultActivityId);
   const [when, setWhen] = useState("");
+  const [minWhen, setMinWhen] = useState(localNowStr());
+
+  // Refresh min every 60s so it doesn't drift while the modal is open.
+  useEffect(() => {
+    const t = setInterval(() => setMinWhen(localNowStr()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Quick preset dates in local timezone — huge UX win over the raw datetime picker.
+  const presets = (() => {
+    const now = new Date();
+    const mkAt = (daysAhead, hour, minute = 0) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() + daysAhead);
+      d.setHours(hour, minute, 0, 0);
+      return d;
+    };
+    const fmtLocal = (d) => {
+      const off = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - off).toISOString().slice(0, 16);
+    };
+    const fmtLabel = (d) => {
+      const days = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+      const isToday = d.toDateString() === now.toDateString();
+      const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+      const isTomorrow = d.toDateString() === tomorrow.toDateString();
+      const label = isToday ? "Hoy" : isTomorrow ? "Mañana" : `${days[d.getDay()]} ${d.getDate()}`;
+      return `${label} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    };
+    const items = [];
+    // Only offer "today X" presets whose time is still in the future
+    for (const hour of [10, 15, 19]) {
+      const d = mkAt(0, hour);
+      if (d > new Date(now.getTime() + 30 * 60000)) items.push({ label: fmtLabel(d), value: fmtLocal(d) });
+    }
+    // Always offer tomorrow 10/19 and Saturday 15
+    items.push({ label: fmtLabel(mkAt(1, 10)), value: fmtLocal(mkAt(1, 10)) });
+    items.push({ label: fmtLabel(mkAt(1, 19)), value: fmtLocal(mkAt(1, 19)) });
+    // Next Saturday at 15:00
+    const daysUntilSat = (6 - now.getDay() + 7) % 7 || 7;
+    items.push({ label: fmtLabel(mkAt(daysUntilSat, 15)), value: fmtLocal(mkAt(daysUntilSat, 15)) });
+    return items;
+  })();
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
       <div className="ps-card w-full max-w-md p-6">
@@ -268,7 +323,30 @@ function PlanModal({ activities, onClose, onSubmit }) {
             <option value="">Elige actividad…</option>
             {activities.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <input data-testid="propose-when" type="datetime-local" className="ps-input" value={when} onChange={(e)=>setWhen(e.target.value)} min={new Date().toISOString().slice(0,16)}/>
+          <div>
+            <p className="text-xs text-white/60 mb-2">¿Cuándo?</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {presets.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  data-testid={`preset-${p.value}`}
+                  onClick={()=>setWhen(p.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${when === p.value ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6] hover:bg-white/10"}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <input
+              data-testid="propose-when"
+              type="datetime-local"
+              className="ps-input"
+              value={when}
+              onChange={(e)=>setWhen(e.target.value)}
+              min={minWhen}
+            />
+          </div>
         </div>
         <div className="mt-5 flex gap-2">
           <button onClick={onClose} className="ps-btn-secondary flex-1">Cancelar</button>

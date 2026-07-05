@@ -1,0 +1,43 @@
+{
+  "summary": "Validated ChatDetail plan modal bugfix + regression. Datetime-local `min` is now computed in local time (YYYY-MM-DDTHH:MM, no 'Z') — fix is correct for UTC-negative timezones (Chile/AR). Activity preselection from plan-status-bar works. Presets render (Mañana 10:00, Mañana 19:00, sáb 15:00) and populate input + enable submit. Full backend regression (test_iteration12_flujomatch.py) 12/12 PASS. Backend propose-plan + accept-plan endpoints return 200 with correct payloads. Found 2 bugs: (1) '+' button (propose-plan-btn) does NOT reset planDefaultActId, so modal opens with previously-selected activity instead of empty; (2) Pre-existing: `plan_status` is never persisted as 'confirmed' on the match doc anywhere in server.py — the green plan-status-confirmed bar never appears after accepting a plan.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/plans/{id}/accept", "issue": "plan_status is never set to 'confirmed' on the match doc. server.py only READS m.get('plan_status') in GET /matches (line 1563) and in _maybe_send_plan_nudges (line 1584), but there is NO write of plan_status/confirmed_activity anywhere in the codebase. Consequence: after accept-plan the frontend never renders the green plan-status-confirmed bar; the sticky bar keeps showing '· falta la fecha'. Repro: propose → accept (both 200), then GET /matches → plan_status=null, confirmed_activity=null.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ChatDetail PlanModal open via '+' button", "issue": "propose-plan-btn onClick only calls setPlanModal(true) but does not reset planDefaultActId. If the user first opened the modal via plan-status-bar (which sets planDefaultActId to the agreed activity), then closed it, then clicks '+' to propose a different plan, the modal reopens with the previous activity preselected instead of empty. Fix: `onClick={()=>{ setPlanDefaultActId(''); setPlanModal(true); }}` at line 249 of /app/frontend/src/pages/ChatDetail.jsx.", "selector": "[data-testid='propose-plan-btn']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12_flujomatch.py",
+    "/app/test_reports/pytest/iter20_flujomatch.xml"
+  ],
+  "action_items": [
+    "Fix propose-plan-btn '+' handler: reset planDefaultActId to '' before opening modal (ChatDetail.jsx line 249)",
+    "Fix accept_plan endpoint (server.py ~line 1849): also update the match doc with {plan_status: 'confirmed', confirmed_activity: plan['activity'], confirmed_at: now_iso()} so the sticky plan-status-confirmed bar renders after acceptance"
+  ],
+  "critical_code_review_comments": [
+    "ChatDetail.jsx line 249: onClick handler for propose-plan-btn is inconsistent with plan-status-bar (line 179) — one resets planDefaultActId, the other doesn't.",
+    "server.py: plan_status field is read in 2 places but written in 0 places. Dead conditional in _maybe_send_plan_nudges (line 1584).",
+    "PlanModal.presets useMemo — currently recomputed on every render (not memoized in useMemo). Minor perf; acceptable for a modal.",
+    "PlanModal uses `defaultActivityId` as initial state only. If parent updates planDefaultActId while modal is mounted, act won't update — but since modal is unmounted between opens, this is fine."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (12/12 regression tests pass, propose/accept endpoints 200 OK)", "frontend": "90% (preselection + min-local-time + presets + submission all work; '+' button reset bug found)"},
+  "test_credentials": "admin: contacto@sinadicciones.org / Jodorowsky100; demo1..demo12@plansobrio.cl / Demo1234!",
+  "seed_data_creation": "DB was reset. Re-enabled demo_seed_enabled=true in app_settings and restarted backend to trigger the on-startup seeder — created 10 demo users + activities. Then created a match between demo1 and demo2 with 'Café y conversación' activity (match_id=78befe4b-674e-44ac-aefc-8c6e379be1f6) for UI reproduction.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_iteration12 requires demo users seeded (demo_seed_enabled=true in app_settings, then restart backend). Frontend testing browser reported TZ offset 0 (UTC), so the exact `min < toISOString` inequality couldn't be visually observed; however the localNowStr() logic in PlanModal (lines 266-270) is mathematically correct — it subtracts getTimezoneOffset()*60000 before slicing, so in UTC-negative zones (Chile UTC-3/4) the min will be earlier than toISOString by that offset. The datetime-local input correctly has no 'Z' suffix and accepts near-term dates. Presets format: 'preset-YYYY-MM-DDTHH:MM'. Only 'Mañana 10:00', 'Mañana 19:00' and next Saturday 15:00 rendered because current time was 21:35 UTC (all 'Hoy X:00' presets already in past).",
+  "rca_of_the_issue": {
+    "original_bug": "datetime-local input `min` computed from toISOString() (UTC) shifts min hours into the future for UTC-negative users, blocking near-term date picking (especially iOS Safari mobile).",
+    "fix_verified": "PlanModal.localNowStr() subtracts new Date().getTimezoneOffset()*60000 from Date.now() before slicing, producing a proper local-time YYYY-MM-DDTHH:MM string with no 'Z' suffix. Additionally the modal was refactored to accept a defaultActivityId prop and preselect the agreed activity when opened from plan-status-bar. Presets provide a UX shortcut around the raw picker.",
+    "reproduction": "Login demo1, open /app/chats/{match_id}, click [data-testid='plan-status-bar'] → modal opens with 'Café y conversación' preselected and 3 preset chips; input.min='2026-07-05T21:35' (local, no Z).",
+    "mitigation_open_items": "See action_items — fix '+' button state reset and persist plan_status='confirmed' in accept_plan."
+  }
+}
