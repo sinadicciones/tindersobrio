@@ -246,7 +246,7 @@ export default function ChatDetail() {
       <form onSubmit={send} className="fixed bottom-24 left-0 right-0 z-30 pointer-events-none">
         <div className="mx-auto max-w-md px-4 pointer-events-auto">
           <div className="flex items-center gap-2 bg-[#12141A]/95 backdrop-blur-xl rounded-full p-1 border border-white/10 shadow-2xl">
-            <button type="button" data-testid="propose-plan-btn" onClick={()=>setPlanModal(true)} className="p-3 rounded-full bg-white/5 hover:bg-white/10"><Calendar size={18}/></button>
+            <button type="button" data-testid="propose-plan-btn" onClick={()=>{ setPlanDefaultActId(""); setPlanModal(true); }} className="p-3 rounded-full bg-white/5 hover:bg-white/10"><Calendar size={18}/></button>
             <input data-testid="chat-input" value={text} onChange={(e)=>setText(e.target.value)} placeholder="Mensaje…" className="flex-1 bg-transparent outline-none px-2 py-2 text-sm"/>
             <button data-testid="chat-send" disabled={!text.trim()} className="p-3 rounded-full ps-gradient disabled:opacity-40"><Send size={16}/></button>
           </div>

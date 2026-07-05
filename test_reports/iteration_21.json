@@ -1,0 +1,40 @@
+{
+  "summary": "Retest of iteration_20 fixes complete. BOTH FIXES VERIFIED. FIX 1 (propose-plan-btn resets planDefaultActId): plan-status-bar preselects activity (value='9c311a2c...'), close via Cancelar, then '+' opens modal with select.value='' (empty). FIX 2 (accept_plan persists plan_status on match doc): confirmed via new pytest + direct DB check — match doc now has plan_status='confirmed', confirmed_activity, confirmed_when, confirmed_plan_id, confirmed_at all persisted. GET /matches exposes plan_status + confirmed_activity + confirmed_at (enough for the green plan-status-confirmed bar). Regressions: datetime-local min has no 'Z' (local time), 3 presets render. Backend regression: test_iteration12_flujomatch.py 12/12 PASS; test_iteration19_bio_regex.py 17/17 PASS; full backend suite 194 passed / 3 pre-existing failures / 1 skipped.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/matches", "issue": "confirmed_when and confirmed_plan_id are persisted in the match doc but not exposed in the GET /matches response. Not blocking (frontend only needs plan_status + confirmed_activity for the green bar), but review request expected all 4 in the response. Consider adding them for completeness / debugging."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration21_accept_plan_confirms.py",
+    "/app/test_reports/pytest/iter21_fix2.xml",
+    "/app/test_reports/pytest/iter21_full.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: expose confirmed_when + confirmed_plan_id in GET /api/matches response (already persisted in DB)."
+  ],
+  "critical_code_review_comments": [
+    "server.py accept_plan (lines 1849-1860): fix is clean and idempotent. Also updates messages + sends emails as before. No side-effect regressions.",
+    "ChatDetail.jsx line 249: propose-plan-btn onClick now consistently resets planDefaultActId to '' before opening modal — matches plan-status-bar pattern.",
+    "GET /matches (server.py line 1557-1569) exposes plan_status + confirmed_activity + confirmed_at but not confirmed_when/confirmed_plan_id — cosmetic gap; frontend doesn't need them."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration21_accept_plan_confirms.py (NEW — 2 tests: persistence + proposer-cannot-accept)"
+  ],
+  "success_rate": {"backend": "100% for FIX 2 (2/2 new tests + 29/29 regression on iter12+iter19). Full suite: 194 passed / 3 pre-existing failures (test_iteration7_geo lat rounding, test_iteration17_emails seeded recipients, test_iteration4 unread flow — all unrelated to current fixes).", "frontend": "100% (FIX 1 verified, datetime-local regression OK, presets OK)"},
+  "test_credentials": "admin: contacto@sinadicciones.org / Jodorowsky100; demo11+demo12@plansobrio.cl / Demo1234!",
+  "seed_data_creation": "Reused existing seeded demo11 & demo12 accounts. Created a match between them via mutual likes; the new pytest confirmed plan flow (propose→accept). For the FIX 1 UI test I temporarily reset the match's plan_status to null (kept proposals) so the plan-status-bar (purple, not green) rendered.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Match between demo11+demo12 (id=6df17474-751c-4988-ad1b-fec60ea301d3) currently has proposals={demo11:cafe, demo12:cafe} and plan_status=null (I reset it for the FIX 1 UI test). If a future test needs a confirmed match, run POST /matches/{id}/propose-plan then POST /plans/{plan_id}/accept from the counterparty. 3 pre-existing full-suite failures are documented in success_rate; not caused by current fixes.",
+  "rca_of_the_issue": {
+    "fix_1": "ChatDetail.jsx line 249 propose-plan-btn onClick now does setPlanDefaultActId('') before setPlanModal(true). Modal's defaultActivityId prop drives PlanModal's useState(defaultActivityId) initial value, so unmount+remount with '' produces an empty select. VERIFIED.",
+    "fix_2": "server.py accept_plan now issues db.matches.update_one with $set {plan_status:'confirmed', confirmed_activity, confirmed_when, confirmed_plan_id, confirmed_at}. Verified via direct MongoDB read (all 5 fields persisted) and via GET /matches (plan_status + confirmed_activity + confirmed_at exposed). VERIFIED."
+  }
+}

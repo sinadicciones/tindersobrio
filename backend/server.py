@@ -1847,6 +1847,17 @@ async def accept_plan(plan_id: str, user: dict = Depends(current_user)):
     if plan["proposed_by"] == user["id"]:
         raise HTTPException(status_code=400, detail="No puedes aceptar tu propio plan")
     await db.plans.update_one({"id": plan_id}, {"$set": {"status": "accepted", "accepted_at": now_iso()}})
+    # Persist on the match so the confirmed plan bar renders (green) in the chat header
+    await db.matches.update_one(
+        {"id": plan["match_id"]},
+        {"$set": {
+            "plan_status": "confirmed",
+            "confirmed_activity": plan.get("activity"),
+            "confirmed_when": plan.get("when"),
+            "confirmed_plan_id": plan_id,
+            "confirmed_at": now_iso(),
+        }},
+    )
     await db.messages.insert_one({
         "id": str(uuid.uuid4()),
         "match_id": plan["match_id"],
