@@ -1,0 +1,121 @@
+{
+  "theme": "dark",
+  "archetype": "5 (Luxury/Premium) & 3 (Soft/Optimistic Hybrid)",
+  "colors": {
+    "background": "#0E0F13",
+    "surface": "#1A1C22",
+    "surface_elevated": "#252830",
+    "primary": "#FF6B5E",
+    "secondary": "#8B5CF6",
+    "gradient_primary": "linear-gradient(135deg, #FF6B5E 0%, #8B5CF6 100%)",
+    "success": "#4ADE80",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "rgba(255, 255, 255, 0.7)",
+    "text_tertiary": "rgba(255, 255, 255, 0.4)",
+    "border": "rgba(255, 255, 255, 0.05)",
+    "categories": {
+      "amor": "#FF6B5E",
+      "amistad": "#FBBF24",
+      "apoyo": "#38BDF8",
+      "grupos": "#8B5CF6"
+    }
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Manrope",
+    "scales": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-semibold",
+      "body": "text-base font-medium",
+      "small": "text-sm font-medium",
+      "tiny_label": "text-xs font-bold uppercase tracking-[0.2em]"
+    }
+  },
+  "spacing_and_layout": {
+    "mobile_first": true,
+    "container_padding": "p-4 sm:p-6",
+    "border_radius": {
+      "card": "rounded-[32px]",
+      "button": "rounded-full",
+      "badge": "rounded-full",
+      "input": "rounded-2xl"
+    },
+    "bottom_nav_height": "h-20"
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-gradient-to-r from-[#FF6B5E] to-[#8B5CF6] text-white rounded-full font-bold shadow-[0_4px_14px_rgba(255,107,94,0.39)] hover:shadow-[0_6px_20px_rgba(255,107,94,0.23)] transition-all",
+      "secondary": "bg-[#1A1C22] text-white border border-white/10 rounded-full hover:bg-[#252830] transition-all",
+      "me_tinca": "bg-gradient-to-r from-[#FF6B5E] to-[#8B5CF6] text-white rounded-full font-bold text-lg py-4 px-8 shadow-lg shadow-[#8B5CF6]/30 hover:scale-105 transition-transform"
+    },
+    "cards": {
+      "base": "bg-[#1A1C22] rounded-[32px] overflow-hidden border border-white/5",
+      "discover_profile": "relative h-[70vh] max-h-[700px] w-full rounded-[32px] overflow-hidden bg-black shadow-2xl",
+      "group_card": "bg-[#1A1C22] p-5 rounded-[24px] border border-white/5 flex flex-col gap-3 transition-colors hover:bg-[#252830]"
+    },
+    "inputs": {
+      "base": "w-full bg-[#0E0F13] border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/50 focus:border-[#8B5CF6] transition-all placeholder-white/30"
+    }
+  },
+  "microcopy_chilean": {
+    "like_button": "Me tinca ✨",
+    "match_title": "¡Hay plan! 🎉",
+    "event_rsvp": "Voy",
+    "friends_category": "Amistad",
+    "support_category": "Apoyo",
+    "love_category": "Amor",
+    "plan_prompt": "¿Qué panorama armamos?",
+    "group_gathering": "Junta",
+    "forbidden_words": ["adicto", "rehabilitación"]
+  },
+  "motion": {
+    "page_transition": "framer-motion fade and slight slide up",
+    "breathing_animation": "framer-motion pulsing concentric circles, scaling from 1 to 1.5 with opacity fading, 4-second cycle. Colors soft #38BDF8 and #8B5CF6 gradients.",
+    "card_swipe": "framer-motion drag='x' with rotation based on drag offset",
+    "match_modal_reveal": "framer-motion scale-up with glowing backdrop blur"
+  },
+  "image_urls": {
+    "onboarding_bg": {
+      "url": "https://images.unsplash.com/photo-1779314665278-9096aa1dd387?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwxfHxmcmllbmRzJTIwZHJpbmtpbmclMjBjb2ZmZWUlMjBvdXRkb29yc3xlbnwwfHx8fDE3ODMyMTkxMTR8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Friends hanging out, representing connection and safe spaces"
+    },
+    "discover_profiles": [
+      {
+        "url": "https://images.unsplash.com/flagged/photo-1596479042555-9265a7fa7983?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwyfHx5b3VuZyUyMGFkdWx0JTIwcG9ydHJhaXQlMjBzbWlsaW5nJTIwY2FzdWFsfGVufDB8fHx8MTc4MzIxOTExNHww&ixlib=rb-4.1.0&q=85",
+        "description": "Profile 1 - young adult smiling casual"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHx5b3VuZyUyMGFkdWx0JTIwcG9ydHJhaXQlMjBzbWlsaW5nJTIwY2FzdWFsfGVufDB8fHx8MTc4MzIxOTExNHww&ixlib=rb-4.1.0&q=85",
+        "description": "Profile 2 - young adult smiling casual"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1564564244660-5d73c057f2d2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHw0fHx5b3VuZyUyMGFkdWx0JTIwcG9ydHJhaXQlMjBzbWlsaW5nJTIwY2FzdWFsfGVufDB8fHx8MTc4MzIxOTExNHww&ixlib=rb-4.1.0&q=85",
+        "description": "Profile 3 - young adult smiling casual"
+      }
+    ],
+    "groups": [
+      {
+        "url": "https://images.unsplash.com/photo-1629185752152-fe65698ddee4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxoaWtpbmclMjBncm91cCUyMGZyaWVuZHMlMjBuYXR1cmV8ZW58MHx8fHwxNzgzMjE5MTE0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Hiking group"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1774802442730-da32263d7574?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwyfHxmcmllbmRzJTIwZHJpbmtpbmclMjBjb2ZmZWUlMjBvdXRkb29yc3xlbnwwfHx8fDE3ODMyMTkxMTR8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Coffee meetup"
+      }
+    ]
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "Heart, Users, Shield, MessageCircle, MapPin, Search, Calendar, User, Sparkles (for 'Me tinca ✨')"
+  },
+  "instructions_to_main_agent": [
+    "Build the application as a mobile-first responsive web app (if on desktop, contain within max-w-md mx-auto like a mobile frame, or provide a clean grid extension).",
+    "Apply dark theme strictly: background #0E0F13, cards #1A1C22.",
+    "Implement the 'Match por plan' modal: when a user clicks 'Me tinca ✨', trigger a modal '¿Qué plan harías con [Nombre]?' before sending.",
+    "Ensure 'Necesito apoyo' page features an interactive/animated breathing circle (use framer-motion scaling + opacity).",
+    "NEVER use the words 'adicto' or 'rehabilitación' in UI text. Keep copy warm and Chilean (e.g., 'me tinca', 'panorama', 'junta').",
+    "Use color categorization across UI: Amor (Coral), Amistad (Yellow), Apoyo (Blue), Grupos (Violet).",
+    "Ensure every interactive element has a data-testid attribute in kebab-case (e.g., data-testid='me-tinca-button')."
+  ]
+}
