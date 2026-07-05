@@ -429,11 +429,30 @@ async def get_public_profile(user_id: str, user: dict = Depends(current_user)):
 @api.delete("/profile/me")
 async def delete_account(response: Response, user: dict = Depends(current_user)):
     uid = user["id"]
+    # Get all matches user is part of (to also clean plans/messages related to those matches)
+    my_matches = await db.matches.find({"users": uid}, {"id": 1, "_id": 0}).to_list(500)
+    match_ids = [m["id"] for m in my_matches]
+
+    # Delete/soft-delete everything
     await db.users.delete_one({"id": uid})
     await db.likes.delete_many({"$or": [{"from_user": uid}, {"to_user": uid}]})
     await db.matches.delete_many({"users": uid})
-    await db.messages.delete_many({"$or": [{"from_user": uid}, {"to_user": uid}]})
+    if match_ids:
+        await db.messages.delete_many({"match_id": {"$in": match_ids}})
+        await db.plans.delete_many({"match_id": {"$in": match_ids}})
+        await db.reads.delete_many({"match_id": {"$in": match_ids}})
+    # Also user's own messages in any other chats (safety net)
+    await db.messages.delete_many({"from_user": uid})
     await db.reasons.delete_many({"user_id": uid})
+    await db.blocks.delete_many({"$or": [{"from_user": uid}, {"to_user": uid}]})
+    await db.reports.delete_many({"from_user": uid})
+    await db.group_members.delete_many({"user_id": uid})
+    await db.group_messages.delete_many({"from_user": uid})
+    await db.event_rsvps.delete_many({"user_id": uid})
+    await db.reads.delete_many({"user_id": uid})
+    # Soft-delete file records (Emergent storage has no delete API)
+    await db.files.update_many({"user_id": uid}, {"$set": {"is_deleted": True, "deleted_at": now_iso()}})
+
     response.delete_cookie("access_token", path="/")
     return {"ok": True}
 
@@ -544,7 +563,7 @@ async def discover(
 @api.get("/discover/quota")
 async def discover_quota(user: dict = Depends(current_user)):
     today = datetime.now(timezone.utc).date().isoformat()
-    count = await db.likes.count_documents({"from_user": user["id"], "date": today})
+    count = await db.likes.count_documents({"from_user": user["id"], "kind": "like", "date": today})
     return {"used": count, "limit": 20, "remaining": max(0, 20 - count)}
 
 # ------------------------------------------------------------------
@@ -620,6 +639,10 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
             })
             other = await db.users.find_one({"id": body.target_user_id}, {"password_hash": 0})
             return {"match": True, "match_id": match_id, "other": clear_public(other) if other else None, "proposed_activity": proposed_activity}
+        else:
+            # Match already existed — still signal match to the client so it can navigate to the chat
+            other = await db.users.find_one({"id": body.target_user_id}, {"password_hash": 0})
+            return {"match": True, "match_id": match["id"], "other": clear_public(other) if other else None, "proposed_activity": match.get("proposed_activity")}
     return {"match": False}
 
 @api.get("/matches")
@@ -1093,6 +1116,16 @@ DEMO_PROFILES = [
     ("Cami_Runner", "F", "femenino", 30, "Las Condes", ["amistad", "grupos"], [], ["Entrenar juntos", "Yoga o meditación", "Paseo por un parque"], ">1a"),
 ]
 
+# Unsplash placeholder portraits so demos in modo Amor tienen fotos (regla del sistema).
+DEMO_PHOTOS = {
+    "Cata_23": ["https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&q=80&auto=format&fit=crop"],
+    "Nico_Cerro": ["https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=800&q=80&auto=format&fit=crop"],
+    "Fer_Cafe": ["https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80&auto=format&fit=crop"],
+    "Rodri_Libros": ["https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&q=80&auto=format&fit=crop"],
+    "Anto_Museo": ["https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&q=80&auto=format&fit=crop"],
+    "Mati_Cine": ["https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&q=80&auto=format&fit=crop"],
+}
+
 DEMO_PROMPTS = [
     ("Mi plan ideal sin alcohol es…", "Un café largo con conversa profunda, después caminar sin apuro."),
     ("Lo que estoy construyendo en esta etapa…", "Volver a habitarme con calma y sin pilotaje automático."),
@@ -1191,7 +1224,7 @@ async def seed_admin_and_data():
                 "sober_time": sober,
                 "show_sober_time": True,
                 "favorite_activities": favs,
-                "photos": [],
+                "photos": DEMO_PHOTOS.get(alias, []),
                 "prompts": [{"q": q, "a": a} for q, a in prompts],
                 "role": "user",
                 "status": "active",
@@ -1201,6 +1234,13 @@ async def seed_admin_and_data():
                 "is_demo": True,
             })
         logger.info("12 perfiles demo sembrados")
+
+    # Backfill photos for existing demo profiles (idempotent - only if photos empty)
+    for alias, urls in DEMO_PHOTOS.items():
+        await db.users.update_one(
+            {"alias": alias, "is_demo": True, "$or": [{"photos": []}, {"photos": {"$exists": False}}]},
+            {"$set": {"photos": urls}},
+        )
 
 @app.on_event("startup")
 async def on_startup():

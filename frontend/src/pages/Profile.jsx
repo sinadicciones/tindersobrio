@@ -12,9 +12,22 @@ export default function Profile() {
   const nav = useNavigate();
 
   const delAccount = async () => {
-    if (!confirm("¿Eliminar tu cuenta? Se borrarán tus datos.")) return;
-    if (!confirm("Confirmación final: esto NO se puede deshacer.")) return;
-    try { await api.delete("/profile/me"); toast.success("Cuenta eliminada"); localStorage.removeItem("ps_token"); nav("/"); } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
+    const first = window.confirm(
+      "⚠️ Eliminar tu cuenta es IRREVERSIBLE.\n\n" +
+      "Se borrarán para siempre: tu perfil, tus fotos, todos tus matches, chats, planes, membresías de grupos, eventos y razones guardadas.\n\n" +
+      "¿Quieres continuar?"
+    );
+    if (!first) return;
+    const typed = window.prompt(
+      "Confirmación final. Escribe la palabra ELIMINAR (en mayúsculas) para borrar tu cuenta:"
+    );
+    if (typed !== "ELIMINAR") { toast("Cancelado. Tu cuenta sigue activa."); return; }
+    try {
+      await api.delete("/profile/me");
+      toast.success("Cuenta eliminada. Cuídate mucho 💛");
+      localStorage.removeItem("ps_token");
+      nav("/");
+    } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
   };
 
   if (!user) return null;
