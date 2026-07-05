@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 23 — Admin Groups+Events CRUD and Mis Planes group_event integration verified end-to-end. Backend: 10/10 tests pass in /app/backend/tests/test_iteration23_groups_events_plans.py covering (a) admin POST/PATCH /admin/groups persist fields including emoji, name, comuna; (b) admin POST/PATCH/DELETE /admin/events persist emoji/title/description/when/address/map_link/capacity; (c) demo1 joins group + RSVPs to event; (d) GET /api/plans returns unified list with kind:'match' and kind:'group_event', includes event {emoji,title,address,map_link,capacity,attendee_count} and group {id,name,emoji}, sorted by when asc; (e) capacity enforcement — after patching capacity to 1, demo2's RSVP returns 400 'Cupos agotados'; (f) DELETE /events/{eid}/rsvp frees the slot (demo2 then RSVPs successfully) and removes the event from demo1's /plans. Frontend: verified via Playwright — admin /admin -> Grupos tab present (`admin-tab-grupos`), new-group-btn present, 4 groups listed with edit-group-{gid} and toggle-events-{gid}, events panel exposes new-event / event-when / save-event / event-cap-10/20/50/9999 as spec'd, existing events show edit-event / delete-event. Demo1 navigates via bottom-nav (`nav-planes`) to Mis Planes: EventPlanCard renders with correct emoji (🎉), title (TEST_UI_iter23), group link `event-plan-group-link-{eid}` pointing to `/app/grupos/{gid}` with group emoji+name, formatted date, address, `event-plan-map-{eid}` link, attendee count '1 de 10 van' via `event-plan-attendees-{eid}`, and `event-plan-cancel-{eid}` button labeled 'Ya no voy'. Clicking 'Ya no voy' triggers confirm dialog, calls DELETE /events/{eid}/rsvp, and the card disappears on next render. Past 1-to-1 matches show in Pasados section without cancel button.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mis Planes", "issues": ["Route is /app/mis-planes (not /app/planes as originally in spec). Bottom-nav testid nav-planes routes correctly. No fix required — spec vs implementation nomenclature only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration23_groups_events_plans.py",
+    "/app/test_reports/pytest/iter23.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:1897 GET /plans — clean unified merge of matches + rsvps, sorted by when asc. attendee_count loop uses N+1 count_documents (one per event); fine at current scale but could be aggregated with $group if event volume grows.",
+    "server.py:2149 POST /events/{eid}/rsvp — capacity check uses count_documents then insert (not atomic). Under high concurrency two users could pass the count check and both insert, exceeding capacity. Consider a unique compound index + optimistic write, or a Mongo transaction. Not blocking for beta scale.",
+    "server.py:2165 DELETE /events/{eid}/rsvp — no auth check that user actually had an RSVP; idempotent delete returns ok even if there was nothing. Fine but a small 'was_registered' flag in the response would help the UI toast copy.",
+    "server.py:2305 PATCH /admin/groups uses raw dict body — no Pydantic validation. Would allow injection of arbitrary fields (though pops id/_id). Consider a GroupUpdateIn model for defense-in-depth. Same for admin_update_event.",
+    "MisPlanes.jsx:20 filter uses new Date(p.when) >= now — timezone/DST safe because when is ISO 8601 UTC. Good.",
+    "MisPlanes.jsx:104 cap = capacity && capacity < 999 ? capacity : null — matches spec (Sin límite treated as unlimited). But hard-coded 999 threshold couples to EventsPanel preset 9999; a shared const would be cleaner."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration23_groups_events_plans.py (NEW — 10 tests)"],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (all data-testids and RSVP-cancel flow verified)"},
+  "test_credentials": "admin: contacto@sinadicciones.org / Jodorowsky100; demo1/demo2@plansobrio.cl / Demo1234!",
+  "seed_data_creation": "Test suite creates and cleans up a TEST_iter23_* group and event. Left the DB in its pre-test state (verified via admin cleanup of the throwaway UI event 42706bf3-...).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The Mis Planes route is /app/mis-planes (bottom-nav testid nav-planes). EventPlanCard testids follow pattern event-plan-{eid}, event-plan-group-link-{eid}, event-plan-map-{eid}, event-plan-attendees-{eid}, event-plan-cancel-{eid}. Attendee text: 'N de CAP van' when capacity<999 else 'N persona(s) va(n)'. Capacity 9999 means unlimited (Sin límite preset). RSVP capacity check in server.py:2158 is non-atomic (documented as minor race-condition risk, not currently blocking)."
+}
