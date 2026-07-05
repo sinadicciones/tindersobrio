@@ -1,0 +1,340 @@
+<title>PlanSobrio — 3 variantes del diseño actual</title>
+<style>
+:root{
+  --ground:#0B0C10; --ink:#F4F2F8; --muted:#9A96A8; --hair:rgba(255,255,255,.08);
+  --coral:#FF6B5E; --violet:#8B5CF6; --mint:#4ADE80; --amber:#FBBF24; --sky:#38BDF8;
+  --grad:linear-gradient(135deg,#FF6B5E 0%,#8B5CF6 100%);
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{
+  background:
+    radial-gradient(120% 90% at 12% -10%, rgba(139,92,246,.14), transparent 55%),
+    radial-gradient(120% 90% at 100% 0%, rgba(255,107,94,.10), transparent 50%),
+    var(--ground);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; padding:44px 18px 80px; line-height:1.5;
+}
+.wrap{max-width:1180px;margin:0 auto}
+.lede{max-width:66ch;margin-bottom:8px}
+.kick{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--coral);font-weight:700}
+h1{font-size:clamp(24px,4vw,34px);font-weight:900;letter-spacing:-.02em;margin:10px 0 10px;line-height:1.1;text-wrap:balance}
+.lede p{margin:0;color:var(--muted);font-size:15px;max-width:60ch}
+
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;margin-top:34px;align-items:start}
+@media(max-width:1020px){.grid{grid-template-columns:1fr;justify-items:center}}
+.col{display:grid;gap:16px;justify-items:center}
+.vhead{text-align:center;max-width:340px}
+.vtag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;padding:6px 13px;border-radius:999px;background:var(--grad);color:#fff}
+.vhead h2{font-size:19px;font-weight:900;margin:10px 0 6px}
+.vhead p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55}
+
+/* ---------- phone ---------- */
+.phone{width:330px;max-width:100%;background:#000;border-radius:42px;padding:10px;
+  box-shadow:0 24px 60px -20px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.06) inset}
+.screen{border-radius:34px;overflow:hidden;position:relative;display:flex;flex-direction:column;height:690px;background:var(--sbg)}
+.top{display:flex;justify-content:space-between;align-items:baseline;padding:16px 18px 6px;position:relative;z-index:5}
+.top h3{margin:0;font-size:19px;font-weight:900;color:var(--stx)}
+.quota{font-size:10.5px;color:var(--smut);background:var(--chipbg);border:1px solid var(--sline);padding:4px 9px;border-radius:999px;font-variant-numeric:tabular-nums}
+.pills{display:flex;gap:7px;padding:4px 18px 12px;position:relative;z-index:5}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--sline);color:var(--smut);background:var(--chipbg)}
+.pill.on{color:#fff;border-color:transparent;background:var(--grad)}
+.pill svg{width:13px;height:13px}
+.feed{flex:1;overflow:hidden;padding:0 14px 120px}
+.hero{position:relative;border-radius:26px;overflow:hidden;height:300px;
+  background:
+    radial-gradient(85% 60% at 62% 22%, rgba(255,224,196,.34), transparent 60%),
+    radial-gradient(120% 100% at 78% 8%, #2b6f86, transparent 55%),
+    linear-gradient(160deg,#3a7d93 0%,#2a5c74 42%,#1f3a52 100%);
+  box-shadow:0 16px 34px -18px rgba(0,0,0,.8)}
+.hero .scrim{position:absolute;inset:0;background:linear-gradient(180deg,transparent 30%,rgba(9,10,15,.55) 62%,rgba(9,10,15,.96) 100%)}
+.hero .info{position:absolute;left:0;right:0;bottom:0;padding:14px 15px 15px}
+.nm{font-size:24px;font-weight:900;letter-spacing:-.02em;color:#fff}
+.nm i{font-style:normal;color:rgba(255,255,255,.65);font-weight:600;font-size:17px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:var(--mint);
+  background:rgba(74,222,128,.14);border:1px solid rgba(74,222,128,.42);padding:4px 9px;border-radius:999px;vertical-align:3px;margin-left:7px}
+.loc{display:flex;align-items:center;gap:5px;color:rgba(255,255,255,.85);font-size:12px;margin:5px 0 10px}
+.loc .d{color:var(--coral);font-weight:700}
+.loc svg{width:12px;height:12px}
+.glass{background:rgba(14,16,22,.55);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:11px 12px}
+.lab{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.txt{font-size:13.5px;line-height:1.4;color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);color:#fff}
+.chip svg{width:12px;height:12px}
+
+.card{margin-top:11px;border-radius:18px;padding:13px 14px;display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:start;
+  background:var(--cardbg);border:1px solid var(--cardline);box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
+.card.solo{grid-template-columns:1fr}
+.icn{width:40px;height:40px;border-radius:13px;display:grid;place-items:center}
+.icn svg{width:20px;height:20px}
+.card .lab{margin-bottom:5px}
+.card .txt{font-size:14px;color:var(--cardtx);line-height:1.45}
+.bio{position:relative;overflow:hidden}
+.bio::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--grad);border-radius:0 3px 3px 0}
+.actions{position:absolute;left:0;right:0;bottom:58px;display:flex;gap:10px;padding:12px 14px 12px;
+  background:linear-gradient(180deg,transparent,var(--sbg) 55%)}
+.bpass{flex:1;text-align:center;padding:13px;border-radius:999px;background:var(--chipbg);border:1px solid var(--sline);color:var(--stx);font-weight:700;font-size:13.5px}
+.blike{flex:1.5;text-align:center;padding:13px;border-radius:999px;background:var(--grad);color:#fff;font-weight:800;font-size:14px;
+  box-shadow:0 12px 26px -10px rgba(255,107,94,.65)}
+.nav{position:absolute;left:0;right:0;bottom:0;height:58px;background:var(--navbg);backdrop-filter:blur(12px);
+  border-top:1px solid var(--sline);display:flex;align-items:center;justify-content:space-around;padding:0 6px}
+.nav a{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-weight:600;color:var(--smut);text-decoration:none}
+.nav svg{width:20px;height:20px}
+.nav a.on{color:var(--coral)}
+
+/* ---------- V1: Alto contraste blanco ---------- */
+.v1{--sbg:#0B0C10;--stx:#FFFFFF;--smut:#C7CBD6;--sline:rgba(255,255,255,.16);--chipbg:rgba(255,255,255,.07);
+  --cardbg:#1D212B;--cardline:rgba(255,255,255,.16);--cardtx:#FFFFFF;--navbg:rgba(10,11,15,.95)}
+.v1 .lab{color:#FFFFFF}
+.v1 .glass .lab{color:#fff}
+.v1 .icn{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2)}
+.v1 svg{stroke:#fff;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.v1 .nav a.on{color:#fff}
+.v1 .nav a.on svg{stroke:url(#gradStroke)}
+.v1 .card .lab::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.15);margin-left:4px}
+
+/* ---------- V2: Acentos de color (línea actual refinada) ---------- */
+.v2{--sbg:#0E0F13;--stx:#F4F2F8;--smut:#9A96A8;--sline:rgba(255,255,255,.09);--chipbg:rgba(255,255,255,.04);
+  --cardbg:linear-gradient(180deg,#1B1F2A,#161922);--cardline:rgba(255,255,255,.09);--cardtx:#F4F2F8;--navbg:rgba(10,11,15,.94)}
+.v2 svg{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.v2 .glass .lab{color:var(--coral)}
+.v2 .c-coral .lab{color:var(--coral)} .v2 .c-coral .icn{background:rgba(255,107,94,.14);border:1px solid rgba(255,107,94,.35)} .v2 .c-coral svg{stroke:var(--coral)}
+.v2 .c-mint .lab{color:var(--mint)} .v2 .c-mint .icn{background:rgba(74,222,128,.13);border:1px solid rgba(74,222,128,.32)} .v2 .c-mint svg{stroke:var(--mint)}
+.v2 .c-violet .lab{color:#B79BFF} .v2 .c-violet .icn{background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.36)} .v2 .c-violet svg{stroke:#B79BFF}
+.v2 .nav svg{stroke:currentColor}
+.v2 .pill svg,.v2 .chip svg,.v2 .loc svg{stroke:currentColor}
+
+/* ---------- V3: Tarjetas blancas invertidas ---------- */
+.v3{--sbg:#0B0C10;--stx:#F4F2F8;--smut:#9A96A8;--sline:rgba(255,255,255,.1);--chipbg:rgba(255,255,255,.05);
+  --cardbg:#F5F4F8;--cardline:#F5F4F8;--cardtx:#17181D;--navbg:rgba(10,11,15,.95)}
+.v3 .card{box-shadow:0 14px 30px -18px rgba(0,0,0,.9)}
+.v3 .card .lab{color:#7A45E8}
+.v3 .card.bio .lab{color:#E8504A}
+.v3 .icn{background:#17181D}
+.v3 svg{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke:#fff}
+.v3 .card svg{stroke:#fff}
+.v3 .nav svg,.v3 .pill svg,.v3 .chip svg,.v3 .loc svg{stroke:currentColor}
+.v3 .bio::before{background:var(--grad)}
+
+/* notes under each phone */
+.notes{max-width:340px;display:grid;gap:8px}
+.note{background:rgba(255,255,255,.04);border:1px solid var(--hair);border-radius:14px;padding:11px 14px;font-size:12.5px;color:var(--muted);line-height:1.55}
+.note b{color:var(--ink)}
+.brief{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.4);border-radius:14px;padding:11px 14px;font-size:12.5px;line-height:1.55;color:var(--ink)}
+
+.cmp{margin-top:46px;max-width:72ch}
+.cmp h2{font-size:22px;font-weight:900;margin:0 0 10px}
+.cmp p{color:var(--muted);font-size:14.5px;margin:8px 0}
+.cmp b{color:var(--ink)}
+@media (prefers-reduced-motion: no-preference){
+  .col{animation:up .5s ease both}
+  .col:nth-child(2){animation-delay:.08s}.col:nth-child(3){animation-delay:.16s}
+  @keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="gradStroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF6B5E"/><stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <!-- icon symbols -->
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-2 5-4 1 2-5z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5S13.9 16 14.5 19"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.7c2.6.2 4.3 1.6 4.9 4.3"/></symbol>
+    <symbol id="i-calheart" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4"/><path d="M12 16.6s-3-2-3-4a1.7 1.7 0 0 1 3-1.1 1.7 1.7 0 0 1 3 1.1c0 2-3 4-3 4z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 0-3.1 6.3L20 19.5l-.9-3A7.9 7.9 0 0 0 20 12z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.4" r="3.6"/><path d="M5.5 20c.8-3.6 3.4-5.4 6.5-5.4S17.7 16.4 18.5 20"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5-6.5-10.2a6.5 6.5 0 0 1 13 0C18.5 16 12 21 12 21z"/><circle cx="12" cy="10.6" r="2.2"/></symbol>
+    <symbol id="i-cup" viewBox="0 0 24 24"><path d="M4.5 8.5h11.5v6.2a4.3 4.3 0 0 1-4.3 4.3H8.8a4.3 4.3 0 0 1-4.3-4.3z"/><path d="M16 9.7h1.8a2.4 2.4 0 0 1 0 4.8H16"/><path d="M7.5 4.5c0 1 .9 1 .9 2M11.3 4.5c0 1 .9 1 .9 2"/></symbol>
+    <symbol id="i-mountain" viewBox="0 0 24 24"><path d="M3 18.5l6-9.5 4 6 3-4 5 7.5z"/><circle cx="17.3" cy="6.5" r="1.9"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M14.5 5.5l4 4L8 20l-4.6.6L4 16z"/><path d="M12.8 7.2l4 4"/></symbol>
+    <symbol id="i-croissant" viewBox="0 0 24 24"><path d="M12 6c4.5 0 8 3.5 8 8l-3.4-.8-1.4 3.2-3.2-1.9-3.2 1.9-1.4-3.2L4 14c0-4.5 3.5-8 8-8z"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.3-4.7-7.3-10.2A4.1 4.1 0 0 1 12 7.2a4.1 4.1 0 0 1 7.3 2.6C19.3 15.3 12 20 12 20z"/></symbol>
+    <symbol id="i-hands" viewBox="0 0 24 24"><path d="M7 12V6.8A1.8 1.8 0 0 1 10.6 6.6V11M10.6 8h2.8v3"/><path d="M4.5 13.5c0 3.5 2.6 6 6.4 6s6.6-2.6 6.6-6.3V9.8a1.7 1.7 0 0 0-3.4 0"/></symbol>
+    <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M8.6 14c.9 1.3 2 2 3.4 2s2.5-.7 3.4-2"/><path d="M9.3 9.6h0M14.7 9.6h0"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="lede">
+    <span class="kick">PlanSobrio · Variantes sobre el diseño actual</span>
+    <h1>Misma línea, tres calibraciones de contraste e iconos</h1>
+    <p>Se mantiene la identidad aprobada (fondo oscuro + gradiente coral‑violeta + tarjeta "Sobre mí"). Lo que cambia entre variantes: cuánto blanco entra en juego y el estilo de la iconografía — que reemplaza a los emojis del sistema por íconos propios de línea, dándole factura de app profesional.</p>
+  </header>
+
+  <div class="grid">
+
+    <!-- ================= V1 ================= -->
+    <div class="col v1">
+      <div class="vhead">
+        <span class="vtag">Variante 1</span>
+        <h2>Blanco editorial</h2>
+        <p>Máxima legibilidad: etiquetas y textos en blanco puro, bordes más marcados, iconografía de línea blanca uniforme. Sobria y limpia.</p>
+      </div>
+      <div class="phone"><div class="screen">
+        <div class="top"><h3>Descubrir</h3><span class="quota">17/20 me tinca</span></div>
+        <div class="pills">
+          <span class="pill on"><svg><use href="#i-hands"/></svg>Apoyo</span>
+          <span class="pill"><svg><use href="#i-smile"/></svg>Amistad</span>
+          <span class="pill"><svg><use href="#i-heart"/></svg>Amor</span>
+        </div>
+        <div class="feed">
+          <div class="hero"><div class="scrim"></div>
+            <div class="info">
+              <div class="nm">Javi_Sur <i>, 31</i><span class="badge">🌱 +1 año</span></div>
+              <div class="loc"><svg><use href="#i-pin"/></svg> Ñuñoa · <span class="d">a ~10 km</span></div>
+              <div class="glass">
+                <div class="lab"><svg style="width:12px;height:12px"><use href="#i-cup"/></svg> MI PLAN IDEAL SIN ALCOHOL</div>
+                <div class="txt">Un café largo con conversa profunda, después caminar sin apuro.</div>
+              </div>
+              <div class="chips">
+                <span class="chip"><svg><use href="#i-cup"/></svg>Café</span>
+                <span class="chip"><svg><use href="#i-mountain"/></svg>Trekking</span>
+              </div>
+            </div>
+          </div>
+          <div class="card bio solo">
+            <div><div class="lab"><svg style="width:12px;height:12px"><use href="#i-pencil"/></svg> SOBRE MÍ</div>
+            <div class="txt">“Reconstruyendo mi vida social a punta de cafés y caminatas. Busco gente que quiera planes de día.”</div></div>
+          </div>
+          <div class="card">
+            <span class="icn"><svg><use href="#i-mountain"/></svg></span>
+            <div><div class="lab">ME HACE BIEN CUANDO…</div>
+            <div class="txt">Salgo a la cordillera y me acuerdo de lo grande que es todo.</div></div>
+          </div>
+        </div>
+        <div class="actions"><span class="bpass">Pasar</span><span class="blike">Me tinca ✨</span></div>
+        <nav class="nav">
+          <a class="on"><svg><use href="#i-compass"/></svg>Descubrir</a>
+          <a><svg><use href="#i-users"/></svg>Grupos</a>
+          <a><svg><use href="#i-calheart"/></svg>Mis planes</a>
+          <a><svg><use href="#i-chat"/></svg>Chats</a>
+          <a><svg><use href="#i-user"/></svg>Perfil</a>
+        </nav>
+      </div></div>
+      <div class="notes">
+        <div class="note"><b>Qué cambia:</b> texto blanco 100%, bordes al 16% de blanco (el doble del actual), tarjetas más claras (#1D212B) y una regla fina tras cada etiqueta. Los emojis desaparecen de la interfaz (quedan solo en contenido de usuarios).</div>
+        <div class="note"><b>Iconos:</b> línea blanca 1.9px pareja en toda la app; el ítem activo del menú toma el gradiente.</div>
+        <div class="brief"><b>Para Emergent:</b> «Sube el contraste: textos y etiquetas en blanco puro, bordes rgba(255,255,255,.16), tarjetas #1D212B. Reemplaza todos los emojis de interfaz por íconos de línea blanca (lucide-react, 1.9px): brújula, usuarios, calendario-corazón, chat, persona en el menú; taza, montaña, lápiz, pin en tarjetas y chips. Ítem activo del menú con el gradiente de marca.»</div>
+      </div>
+    </div>
+
+    <!-- ================= V2 ================= -->
+    <div class="col v2">
+      <div class="vhead">
+        <span class="vtag">Variante 2</span>
+        <h2>Acentos de color</h2>
+        <p>La evolución directa del mockup aprobado: los íconos de línea toman el color de cada acento (coral, menta, violeta) en chips tenues. Cálida y con ritmo.</p>
+      </div>
+      <div class="phone"><div class="screen">
+        <div class="top"><h3>Descubrir</h3><span class="quota">17/20 me tinca</span></div>
+        <div class="pills">
+          <span class="pill on"><svg><use href="#i-hands"/></svg>Apoyo</span>
+          <span class="pill"><svg><use href="#i-smile"/></svg>Amistad</span>
+          <span class="pill"><svg><use href="#i-heart"/></svg>Amor</span>
+        </div>
+        <div class="feed">
+          <div class="hero"><div class="scrim"></div>
+            <div class="info">
+              <div class="nm">Javi_Sur <i>, 31</i><span class="badge">🌱 +1 año</span></div>
+              <div class="loc"><svg><use href="#i-pin"/></svg> Ñuñoa · <span class="d">a ~10 km</span></div>
+              <div class="glass">
+                <div class="lab"><svg style="width:12px;height:12px;stroke:var(--coral)"><use href="#i-cup"/></svg> MI PLAN IDEAL SIN ALCOHOL</div>
+                <div class="txt">Un café largo con conversa profunda, después caminar sin apuro.</div>
+              </div>
+              <div class="chips">
+                <span class="chip"><svg><use href="#i-cup"/></svg>Café</span>
+                <span class="chip"><svg><use href="#i-mountain"/></svg>Trekking</span>
+              </div>
+            </div>
+          </div>
+          <div class="card bio solo c-coral">
+            <div><div class="lab"><svg style="width:12px;height:12px"><use href="#i-pencil"/></svg> SOBRE MÍ</div>
+            <div class="txt">“Reconstruyendo mi vida social a punta de cafés y caminatas. Busco gente que quiera planes de día.”</div></div>
+          </div>
+          <div class="card c-mint">
+            <span class="icn"><svg><use href="#i-mountain"/></svg></span>
+            <div><div class="lab">ME HACE BIEN CUANDO…</div>
+            <div class="txt">Salgo a la cordillera y me acuerdo de lo grande que es todo.</div></div>
+          </div>
+        </div>
+        <div class="actions"><span class="bpass">Pasar</span><span class="blike">Me tinca ✨</span></div>
+        <nav class="nav">
+          <a class="on"><svg><use href="#i-compass"/></svg>Descubrir</a>
+          <a><svg><use href="#i-users"/></svg>Grupos</a>
+          <a><svg><use href="#i-calheart"/></svg>Mis planes</a>
+          <a><svg><use href="#i-chat"/></svg>Chats</a>
+          <a><svg><use href="#i-user"/></svg>Perfil</a>
+        </nav>
+      </div></div>
+      <div class="notes">
+        <div class="note"><b>Qué cambia:</b> es el mockup que ya aprobaste, pulido: cada tarjeta con su acento (coral / menta / violeta) en el ícono y la etiqueta; el resto se mantiene tal cual. El menú usa los mismos íconos de línea en gris, coral al activarse.</div>
+        <div class="note"><b>Iconos:</b> línea 2px en el color del acento de cada tarjeta, dentro de chips cuadrados tenues del mismo tono.</div>
+        <div class="brief"><b>Para Emergent:</b> «Aplica el rediseño de mockups/README.md y reemplaza los emojis de interfaz por íconos de línea (lucide-react): en cada tarjeta el ícono va en chip del color del acento (1ª coral, 2ª menta #4ADE80, 3ª violeta #8B5CF6); menú inferior con brújula, usuarios, calendario-corazón, chat y persona en gris #9A96A8, coral la activa.»</div>
+      </div>
+    </div>
+
+    <!-- ================= V3 ================= -->
+    <div class="col v3">
+      <div class="vhead">
+        <span class="vtag">Variante 3</span>
+        <h2>Tarjetas blancas</h2>
+        <p>El máximo contraste posible: las palabras de la persona van sobre tarjetas casi blancas con tinta oscura — flotan sobre el fondo negro como polaroids. El resto de la interfaz no cambia.</p>
+      </div>
+      <div class="phone"><div class="screen">
+        <div class="top"><h3>Descubrir</h3><span class="quota">17/20 me tinca</span></div>
+        <div class="pills">
+          <span class="pill on"><svg><use href="#i-hands"/></svg>Apoyo</span>
+          <span class="pill"><svg><use href="#i-smile"/></svg>Amistad</span>
+          <span class="pill"><svg><use href="#i-heart"/></svg>Amor</span>
+        </div>
+        <div class="feed">
+          <div class="hero"><div class="scrim"></div>
+            <div class="info">
+              <div class="nm">Javi_Sur <i>, 31</i><span class="badge">🌱 +1 año</span></div>
+              <div class="loc"><svg><use href="#i-pin"/></svg> Ñuñoa · <span class="d">a ~10 km</span></div>
+              <div class="glass">
+                <div class="lab" style="color:#FF9A90"><svg style="width:12px;height:12px;stroke:#FF9A90"><use href="#i-cup"/></svg> MI PLAN IDEAL SIN ALCOHOL</div>
+                <div class="txt">Un café largo con conversa profunda, después caminar sin apuro.</div>
+              </div>
+              <div class="chips">
+                <span class="chip"><svg><use href="#i-cup"/></svg>Café</span>
+                <span class="chip"><svg><use href="#i-mountain"/></svg>Trekking</span>
+              </div>
+            </div>
+          </div>
+          <div class="card bio solo">
+            <div><div class="lab"><svg style="width:12px;height:12px;stroke:#E8504A"><use href="#i-pencil"/></svg> SOBRE MÍ</div>
+            <div class="txt">“Reconstruyendo mi vida social a punta de cafés y caminatas. Busco gente que quiera planes de día.”</div></div>
+          </div>
+          <div class="card">
+            <span class="icn"><svg><use href="#i-mountain"/></svg></span>
+            <div><div class="lab">ME HACE BIEN CUANDO…</div>
+            <div class="txt">Salgo a la cordillera y me acuerdo de lo grande que es todo.</div></div>
+          </div>
+        </div>
+        <div class="actions"><span class="bpass">Pasar</span><span class="blike">Me tinca ✨</span></div>
+        <nav class="nav">
+          <a class="on"><svg><use href="#i-compass"/></svg>Descubrir</a>
+          <a><svg><use href="#i-users"/></svg>Grupos</a>
+          <a><svg><use href="#i-calheart"/></svg>Mis planes</a>
+          <a><svg><use href="#i-chat"/></svg>Chats</a>
+          <a><svg><use href="#i-user"/></svg>Perfil</a>
+        </nav>
+      </div></div>
+      <div class="notes">
+        <div class="note"><b>Qué cambia:</b> las tarjetas de texto pasan a blanco hueso (#F5F4F8) con tinta oscura y sombra profunda — contraste máximo y sensación premium tipo Hinge. Etiquetas en violeta y coral saturados (legibles sobre blanco); ícono en chip negro con línea blanca.</div>
+        <div class="note"><b>Iconos:</b> misma familia de línea; sobre las tarjetas van en negativo (chip tinta, trazo blanco) para anclar el contraste.</div>
+        <div class="brief"><b>Para Emergent:</b> «Invierte las tarjetas de texto del perfil: fondo #F5F4F8, texto #17181D, sombra profunda, etiquetas en violeta #7A45E8 (y coral #E8504A para Sobre mí), ícono en chip negro #17181D con trazo blanco. El resto de la interfaz (fondo, foto, botones, menú) queda idéntico. Reemplaza los emojis de interfaz por íconos de línea lucide-react.»</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cmp">
+    <h2>Cómo elegir</h2>
+    <p>Las tres comparten el sello de la marca (oscuro + gradiente coral‑violeta + "Sobre mí" con riel de gradiente) y las tres reemplazan los emojis del sistema por una familia de íconos de línea — ese solo cambio es el que más aleja la app del look "hecho con IA", porque los emojis se ven distintos en cada teléfono y delatan interfaz genérica.</p>
+    <p><b>V1</b> si priorizas legibilidad y sobriedad (público 30+). <b>V2</b> si te gusta exactamente lo aprobado, con el color como guía de lectura — es la más equilibrada y la que recomiendo. <b>V3</b> si quieres el golpe visual más fuerte y diferenciador; su riesgo es que el blanco puede "encandilar" en uso nocturno prolongado.</p>
+    <p>También son combinables: por ejemplo V2 como base + la tarjeta "Sobre mí" blanca de V3 solo para la bio, que la haría destacar como la pieza más personal del perfil.</p>
+  </div>
+</div>
