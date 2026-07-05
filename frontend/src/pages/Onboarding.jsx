@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { COMUNAS_RM, GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
+import { detectLocation } from "@/lib/geo";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Camera, X, Check } from "lucide-react";
@@ -55,7 +56,21 @@ export default function Onboarding() {
   const submit = async () => {
     setSaving(true);
     try {
-      await api.post("/profile/onboarding", form);
+      // Best-effort location. Only send explicit coords when source === 'gps' (real device).
+      // If IP-only or denied, we omit coords and the server derives them from `comuna`.
+      let location = undefined;
+      try {
+        const loc = await detectLocation();
+        if (loc && loc.source === "gps") {
+          location = {
+            country: (loc.country || "CL").toUpperCase(),
+            city: loc.city || form.comuna,
+            comuna: form.comuna,
+            coords: [loc.lng, loc.lat],
+          };
+        }
+      } catch { /* ignore */ }
+      await api.post("/profile/onboarding", { ...form, location });
       await refresh();
       toast.success("¡Listo! Bienvenide a PlanSobrio 💛");
       nav("/app/descubrir");

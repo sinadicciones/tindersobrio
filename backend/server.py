@@ -122,7 +122,7 @@ def clear_public(user: dict) -> dict:
     NEVER included; distance is added by callers that need it via _distance_km.
     """
     loc = user.get("location") or {}
-    return {
+    out = {
         "id": user["id"],
         "alias": user.get("alias"),
         "age": calc_age(user.get("birthdate")) if user.get("birthdate") else None,
@@ -136,6 +136,9 @@ def clear_public(user: dict) -> dict:
         "favorite_activities": user.get("favorite_activities", []),
         "sober_time_badge": user.get("sober_time") if user.get("show_sober_time") else None,
     }
+    if user.get("_distance_km") is not None:
+        out["distance_km"] = user["_distance_km"]
+    return out
 
 def round_coords(lng: float, lat: float) -> list:
     return [round(float(lng), 2), round(float(lat), 2)]
@@ -252,6 +255,11 @@ class ReportIn(BaseModel):
 class BlockIn(BaseModel):
     target_user_id: str
 
+class WaitlistIn(BaseModel):
+    email: EmailStr
+    country: str = "OTHER"
+    city: Optional[str] = None
+
 class ReasonIn(BaseModel):
     text: str
 
@@ -354,6 +362,23 @@ async def list_helplines(country: str = Query("CL")):
     country = country.upper()
     docs = await db.helplines.find({"country": country}, {"_id": 0}).sort("order", 1).to_list(50)
     return docs
+
+@api.post("/waitlist")
+async def join_waitlist(body: WaitlistIn):
+    """Public: records interest from users outside enabled countries."""
+    email = body.email.lower()
+    country = (body.country or "OTHER").upper()
+    await db.waitlist.update_one(
+        {"email": email},
+        {"$set": {
+            "email": email,
+            "country": country,
+            "city": body.city,
+            "updated_at": now_iso(),
+        }, "$setOnInsert": {"created_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
 
 # ------------------------------------------------------------------
 # Uploads
@@ -479,7 +504,11 @@ async def update_profile(body: ProfileUpdateIn, user: dict = Depends(current_use
     if body.location is not None or body.comuna is not None:
         loc_in = payload.get("location") or {}
         current_loc = user.get("location") or {}
-        country = loc_in.get("country") or current_loc.get("country") or "CL"
+        # Prefer explicit country from the request, else current country, else CL.
+        # If the user is updating comuna alone, treat it as a CL comuna change (our catalog is CL-only).
+        country = loc_in.get("country")
+        if not country:
+            country = "CL" if payload.get("comuna") and not body.location else (current_loc.get("country") or "CL")
         comuna = payload.get("comuna") or loc_in.get("comuna") or user.get("comuna")
         city = loc_in.get("city") or comuna
         coords = loc_in.get("coords")
@@ -563,6 +592,7 @@ async def discover(
     age_min: Optional[int] = Query(None),
     age_max: Optional[int] = Query(None),
     comuna: Optional[str] = Query(None),
+    radius_km: Optional[int] = Query(None, ge=1, le=500),
     user: dict = Depends(current_user),
 ):
     if mode not in ("apoyo", "amistad", "amor"):
@@ -599,7 +629,28 @@ async def discover(
         query["gender"] = {"$in": my_interested} if my_interested else {"$exists": True}
         query["interested_genders"] = my_gender
 
-    candidates = await db.users.find(query, {"password_hash": 0}).to_list(500)
+    # Prefer $geoNear when the actor has coords: this drives distance-first ordering
+    # and returns `distance_km` for each candidate. If the actor lacks coords we fall
+    # back to the legacy comuna-based flow to keep the app functional during rollout.
+    my_loc = (user.get("location") or {}).get("coords")
+    if my_loc and isinstance(my_loc, dict) and my_loc.get("coordinates"):
+        max_m = (radius_km or 500) * 1000  # default 500km covers most of central Chile
+        pipeline = [
+            {"$geoNear": {
+                "near": {"type": "Point", "coordinates": my_loc["coordinates"]},
+                "distanceField": "_distance_m",
+                "spherical": True,
+                "maxDistance": max_m,
+                "query": query,
+            }},
+            {"$limit": 500},
+            {"$project": {"password_hash": 0}},
+        ]
+        candidates = [d async for d in db.users.aggregate(pipeline)]
+        for c in candidates:
+            c["_distance_km"] = round((c.pop("_distance_m", 0) / 1000.0), 1)
+    else:
+        candidates = await db.users.find(query, {"password_hash": 0}).to_list(500)
 
     my_comuna = user.get("comuna")
     my_favs = set(user.get("favorite_activities", []))
@@ -619,13 +670,16 @@ async def discover(
             if my_age is None or my_age < c.get("age_min", 18) or my_age > c.get("age_max", 99):
                 continue
         overlap = len(my_favs & set(c.get("favorite_activities", [])))
-        if c.get("comuna") == my_comuna:
-            zone = 0
+        # Primary sort: distance if we have it, else zone-based legacy.
+        if c.get("_distance_km") is not None:
+            primary = c["_distance_km"]
+        elif c.get("comuna") == my_comuna:
+            primary = 0
         elif c.get("comuna") == "Otra región" or my_comuna == "Otra región":
-            zone = 2
+            primary = 200
         else:
-            zone = 1
-        c["_score"] = (zone, -overlap, random.random())
+            primary = 100
+        c["_score"] = (primary, -overlap, random.random())
         c.pop("_id", None)
         scored.append(c)
     scored.sort(key=lambda x: x["_score"])
@@ -1367,6 +1421,7 @@ async def seed_admin_and_data():
     await db.groups.create_index([("location.coords", "2dsphere")])
     await db.countries.create_index("code", unique=True)
     await db.helplines.create_index([("country", 1), ("order", 1)])
+    await db.waitlist.create_index("email", unique=True)
 
     # Admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()

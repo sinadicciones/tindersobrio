@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatApiError } from "@/lib/api";
+import { detectLocation } from "@/lib/geo";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 
@@ -20,7 +21,14 @@ export default function Register() {
     try {
       await register(email.trim(), password, birthdate);
       toast.success("¡Bienvenide a PlanSobrio!");
-      nav("/onboarding");
+      // Country gate: if we can detect the user is outside Chile, send them to the waitlist.
+      const loc = await detectLocation().catch(() => null);
+      const country = (loc?.country || "").toUpperCase();
+      if (country && country !== "CL") {
+        nav("/waitlist");
+      } else {
+        nav("/onboarding");
+      }
     } catch (ex) {
       const msg = formatApiError(ex.response?.data?.detail) || ex.message;
       setErr(msg);

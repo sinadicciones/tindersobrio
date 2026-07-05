@@ -7,6 +7,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate as fmAni
 import { toast } from "sonner";
 import { Sparkles, X, MapPin, Heart, SlidersHorizontal } from "lucide-react";
 import Avatar from "@/components/Avatar";
+import { detectLocation } from "@/lib/geo";
 
 export default function Discover() {
   const { user } = useAuth();
@@ -22,9 +23,30 @@ export default function Discover() {
   const [matchModal, setMatchModal] = useState(null); // {other, activity}
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState({ age_min: "", age_max: "", comuna: "" });
+  const [filters, setFilters] = useState({ age_min: "", age_max: "", comuna: "", radius_km: "" });
 
   useEffect(() => { api.get("/activities").then((r)=>setActivities(r.data)); }, []);
+
+  // Silent location refresh once per session: get GPS/IP → PATCH profile → cached for 24h.
+  // We only patch when source === 'gps' to avoid moving users based on a shared IP
+  // (proxies, VPN, or a container's egress). IP is still used for the waitlist gate on register.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const loc = await detectLocation().catch(() => null);
+      if (cancelled || !loc || loc.source !== "gps") return;
+      try {
+        await api.patch("/profile/me", {
+          location: {
+            country: (loc.country || "CL").toUpperCase(),
+            city: loc.city || undefined,
+            coords: [loc.lng, loc.lat],
+          },
+        });
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Ref used by ProfileCard to receive the "return card" command when modal closes without submitting
   const cardResetRef = useRef(null);
@@ -37,6 +59,7 @@ export default function Discover() {
       if (filters.age_min) params.age_min = Number(filters.age_min);
       if (filters.age_max) params.age_max = Number(filters.age_max);
       if (filters.comuna) params.comuna = filters.comuna;
+      if (filters.radius_km) params.radius_km = Number(filters.radius_km);
       const [{ data: cands }, { data: q }] = await Promise.all([
         api.get(`/discover`, { params }),
         api.get(`/discover/quota`),
@@ -51,8 +74,8 @@ export default function Discover() {
   useEffect(() => { if (mode) load(mode); /* eslint-disable-next-line */ }, [mode]);
 
   const applyFilters = () => { setFiltersOpen(false); load(mode); };
-  const clearFilters = () => { setFilters({ age_min: "", age_max: "", comuna: "" }); setFiltersOpen(false); setTimeout(() => load(mode), 50); };
-  const activeFilterCount = (filters.age_min ? 1 : 0) + (filters.age_max ? 1 : 0) + (filters.comuna ? 1 : 0);
+  const clearFilters = () => { setFilters({ age_min: "", age_max: "", comuna: "", radius_km: "" }); setFiltersOpen(false); setTimeout(() => load(mode), 50); };
+  const activeFilterCount = (filters.age_min ? 1 : 0) + (filters.age_max ? 1 : 0) + (filters.comuna ? 1 : 0) + (filters.radius_km ? 1 : 0);
 
   const current = candidates[idx];
   const nextProfile = candidates[idx + 1];
@@ -171,6 +194,25 @@ export default function Discover() {
                     <option value="">Cualquiera</option>
                     {COMUNAS_RM.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="text-sm text-white/60 mb-2 block">Distancia máxima</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { v: "", l: "Sin límite" },
+                      { v: "5", l: "5 km" },
+                      { v: "10", l: "10 km" },
+                      { v: "25", l: "25 km" },
+                      { v: "50", l: "50 km" },
+                      { v: "100", l: "100 km" },
+                    ].map((r) => (
+                      <button key={r.l} type="button" data-testid={`filter-radius-${r.v || 'any'}`}
+                        onClick={()=>setFilters({...filters, radius_km: r.v})}
+                        className={`px-3 py-2 rounded-full text-xs font-semibold border transition ${filters.radius_km === r.v ? "border-transparent ps-gradient text-white" : "bg-white/5 border-white/10 text-white/70"}`}>
+                        {r.l}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="mt-6 flex gap-2">
@@ -403,7 +445,7 @@ function ProfileCard({ profile, mode, onPass, onLike, resetRef }) {
                 </span>
               )}
             </div>
-            <p className="text-sm text-white/80 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}</p>
+            <p data-testid="profile-comuna" className="text-sm text-white/80 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}{profile.distance_km != null && (<span data-testid="profile-distance" className="text-white/60"> · a {profile.distance_km} km</span>)}</p>
             {profile.prompts?.slice(0,1).map((p, i) => (
               <div key={i} className="ps-card p-3">
                 <p className="text-xs text-white/50">{p.q}</p>

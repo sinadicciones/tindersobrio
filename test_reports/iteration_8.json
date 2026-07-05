@@ -1,0 +1,40 @@
+{
+  "summary": "GEOSWIPE Bloque 3 — GPS/IP-based discover ordered by distance + radius filter + waitlist for out-of-country users. 12/12 backend tests pass. Frontend waitlist + Discover distance + radius filter all verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results_detail": {
+    "GET /api/discover distance sorted": "PASS - candidates include numeric distance_km sorted ascending",
+    "GET /api/discover radius_km=5": "PASS - narrows results, all distance_km <= 5",
+    "GET /api/discover radius_km=1000": "PASS - returns 422 (Pydantic Query validator le=500)",
+    "GET /api/discover privacy": "PASS - no leaks of _id/email/password_hash/coords/_score/_distance_m/_distance_km; distance_km rounded to 1dp",
+    "PATCH /profile/me coords persist + re-sort": "PASS - Las Condes coords persisted, discover re-sorted relative to new location",
+    "PATCH /profile/me comuna-only re-derives country to CL": "PASS - after setting country=IN, sending {comuna:'Ñuñoa'} re-derives to CL/Ñuñoa centroid",
+    "POST /api/waitlist create + upsert": "PASS - same email twice returns {ok:true}",
+    "POST /api/waitlist invalid email": "PASS - 422",
+    "GET /api/geo/countries + helplines": "PASS - regressions intact",
+    "POST /api/like regression": "PASS - endpoint reachable, quota logic intact",
+    "New user onboarding without GPS backfills CL": "PASS - country='CL' derived from comuna=Vitacura",
+    "Frontend /waitlist (unauth)": "PASS - all 4 data-testids (waitlist-email/country/city/submit) render; submit shows success card ('¡Gracias! Te avisaremos')",
+    "Frontend /app/descubrir distance": "PASS - profile-distance testid renders '· a 3.5 km' next to comuna",
+    "Frontend Discover Filters radius chips": "PASS - all 6 chips (any/5/10/25/50/100) render; selecting 5 + Apply triggers GET /api/discover?mode=amistad&radius_km=5"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8_geoswipe.py",
+    "/app/test_reports/pytest/iter8_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py still ~1578 lines — split into routers (auth, geo, discover, waitlist, profile) recommended.",
+    "Waitlist endpoint is public and unrate-limited — consider adding IP-based rate-limit (e.g. 5/min) to prevent abuse.",
+    "Discover $geoNear uses maxDistance = (radius_km or 500)*1000. Good. Consider capping the aggregate $limit to a smaller value when radius is very small (currently always 500 candidates) for perf.",
+    "clear_public correctly hides coords/_score/_distance_m — verified. Consider a snapshot unit test to lock the public contract.",
+    "PATCH /profile/me: when body.comuna is sent alone, `country` defaults to 'CL' (comuna catalog is CL-only). This overrides an existing non-CL country, which matches the spec but is a subtle side-effect — worth documenting in the endpoint docstring."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration8_geoswipe.py (new)"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100%"},
+  "test_credentials": "demo1@plansobrio.cl / Demo1234! used; admin not required",
+  "seed_data_creation": "Created + deleted one onboarding test user (test_geo3_<ts>@example.com); two waitlist entries left in db.waitlist (test_wl_<ts>@example.com upsert, test_ui_<ts>@example.com from frontend). Non-invasive.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bloque 3 fully green. demo1 restored to Providencia [-70.61,-33.43] at end of tests (fixture teardown). $geoNear pipeline works; the discover endpoint always returns rounded distance_km (1dp) when actor has coords. Frontend Discover auto-PATCH is GPS-only (source==='gps') so IP-based India geolocation in container does NOT move demo users out of CL. Waitlist unique index on email; upsert is idempotent."
+}

@@ -21,6 +21,7 @@ import Admin from "@/pages/Admin";
 import Terminos from "@/pages/Terminos";
 import Privacidad from "@/pages/Privacidad";
 import CuentaSuspendida from "@/pages/CuentaSuspendida";
+import Waitlist from "@/pages/Waitlist";
 
 function Loader() {
   return (
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/terminos" element={<Terminos />} />
           <Route path="/privacidad" element={<Privacidad />} />
           <Route path="/cuenta-suspendida" element={<CuentaSuspendida />} />
+          <Route path="/waitlist" element={<Waitlist />} />
           <Route path="/onboarding" element={<RequireAuth requireOnboarding={false}><Onboarding /></RequireAuth>} />
 
           <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
