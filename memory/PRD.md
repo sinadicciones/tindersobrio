@@ -28,6 +28,12 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
+## Implementado (v1.2 - Feb 2026 - BLOQUES 1-4 de CORRECCIONES.md)
+- ✅ **BLOQUE 1** (bugs críticos): quota solo cuenta likes, DELETE /profile/me borra 12 colecciones, demos con modo Amor tienen foto Unsplash, doble confirmación de eliminar cuenta.
+- ✅ **BLOQUE 2** (seguridad): validación server-side de likes (compatibilidad completa Amor bidireccional), bloqueos respetados en pass/mensajes/propose-plan, CORS restringido con FRONTEND_URL, /api/files con auth (Bearer o ?auth=), rate-limit 60 msgs/min combinado, categorías de reporte enum + prioridad alta para ofrece_sustancias.
+- ✅ **BLOQUE 3** (rendimiento): N+1 eliminadas en 8 endpoints con aggregations, 16 índices Mongo, paginación de mensajes (`?before=&limit=`), polling con visibility API + backoff 12s inactivo, compresión de imágenes cliente (max 1080px JPEG q0.82), split core/{storage,seed_data}.py.
+- ✅ **BLOQUE 4** (compliance): videos ocultos en toda la UI (backend guarda campo por si se reactiva), pantalla amable /cuenta-suspendida con formatted Spanish date, mensajes de error unificados en chileno, páginas /terminos + /privacidad enlazadas desde Landing/Register/Perfil, botón Admin "Limpiar datos de prueba" para usuarios test_*.
+
 ## Implementado (v1.1 - Feb 2026 - iteración 2)
 - ✅ **Notificaciones in-app**: endpoint `/api/notifications/counts` polling cada 15s en BottomNav, badge en Chats con conteo, toast cuando llega match/mensaje nuevo, marcado como visto al abrir /chats o un chat específico
 - ✅ **Videos cortos**: subida vía Emergent object storage (mp4/mov/webm, máx 40MB), integrado en Onboarding paso 5, EditProfile y visible en Discover card + Profile page (máx 3 videos por usuario)

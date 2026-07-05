@@ -29,7 +29,8 @@ export default function Login() {
         return;
       }
       if (typeof detail === "string" && detail.startsWith("account_suspended")) {
-        const until = detail.includes(":") ? detail.split(":", 2)[1] : "";
+        const prefix = "account_suspended:";
+        const until = detail.startsWith(prefix) ? detail.slice(prefix.length) : "";
         nav(`/cuenta-suspendida?kind=suspended&until=${encodeURIComponent(until)}`);
         return;
       }

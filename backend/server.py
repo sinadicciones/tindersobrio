@@ -1174,7 +1174,7 @@ async def admin_get_user(uid: str, _: dict = Depends(require_admin)):
 async def admin_cleanup_tests(_: dict = Depends(require_admin)):
     """Delete test users (email starts with 'test' or 'TEST_') and their artifacts."""
     victims = await db.users.find(
-        {"email": {"$regex": r"^(test_|TEST_)", "$options": "i"}, "role": {"$ne": "admin"}},
+        {"email": {"$regex": r"^test_", "$options": "i"}, "role": {"$ne": "admin"}},
         {"id": 1, "email": 1, "_id": 0},
     ).to_list(500)
     if not victims:
