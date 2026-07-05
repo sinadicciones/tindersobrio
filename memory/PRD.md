@@ -28,6 +28,18 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
+## Implementado (v1.3 - Feb 2026 - GEOSWIPE Bloques 1 y 2)
+- ✅ **GEOSWIPE Bloque 1** (swipe gesture): tarjetas de descubrimiento arrastrables con `framer-motion`, umbrales configurables, swipe→right abre modal de plan; cancelar el modal NO consume el "me tinca" y retorna la tarjeta al centro.
+- ✅ **GEOSWIPE Bloque 2** (multi-país + geo estructural):
+  - Nuevas colecciones `countries` y `helplines`, sembradas idempotentemente al arranque.
+  - Nuevos endpoints públicos: `GET /api/geo/countries`, `GET /api/geo/helplines?country=CL`.
+  - Migración de `users` y `groups`: campo `location` GeoJSON Point + `country` (código ISO). Índice `2dsphere` en `location.coords`.
+  - `build_location_doc()` deriva coords desde GPS/IP → comuna/city → centroide país (fallback en cascada).
+  - Backfill idempotente: demos + admin + grupos existentes obtienen `location` desde `RM_CENTROIDS` según `comuna`.
+  - Onboarding y `PATCH /api/profile/me` aceptan `location` opcional y re-derivan automáticamente si cambia `comuna`.
+  - **Privacidad**: `clear_public()` NUNCA expone `coords`; solo `country`, `city`, `comuna`.
+  - `NecesitoApoyo` UI lee helplines desde la API con fallback a constantes.
+
 ## Implementado (v1.2 - Feb 2026 - BLOQUES 1-4 de CORRECCIONES.md)
 - ✅ **BLOQUE 1** (bugs críticos): quota solo cuenta likes, DELETE /profile/me borra 12 colecciones, demos con modo Amor tienen foto Unsplash, doble confirmación de eliminar cuenta.
 - ✅ **BLOQUE 2** (seguridad): validación server-side de likes (compatibilidad completa Amor bidireccional), bloqueos respetados en pass/mensajes/propose-plan, CORS restringido con FRONTEND_URL, /api/files con auth (Bearer o ?auth=), rate-limit 60 msgs/min combinado, categorías de reporte enum + prioridad alta para ofrece_sustancias.
