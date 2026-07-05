@@ -20,11 +20,12 @@ export default function BottomNav() {
 
   useEffect(() => {
     let cancelled = false;
+    let interval = null;
     const load = async () => {
+      if (document.hidden) return;
       try {
         const { data } = await api.get("/notifications/counts");
         if (cancelled) return;
-        // Toast when new item arrives (but not on first load, and not when user is in chats screen)
         const inChats = location.pathname.startsWith("/app/chats");
         if (!prev.current.first && !inChats) {
           if (data.new_matches > prev.current.new_matches) {
@@ -44,10 +45,11 @@ export default function BottomNav() {
       } catch { /* ignore */ }
     };
     load();
-    const t = setInterval(load, 15000);
-    const onFocus = () => load();
-    window.addEventListener("focus", onFocus);
-    return () => { cancelled = true; clearInterval(t); window.removeEventListener("focus", onFocus); };
+    interval = setInterval(load, 15000);
+    const onVis = () => { if (!document.hidden) load(); };
+    window.addEventListener("focus", onVis);
+    document.addEventListener("visibilitychange", onVis);
+    return () => { cancelled = true; if (interval) clearInterval(interval); window.removeEventListener("focus", onVis); document.removeEventListener("visibilitychange", onVis); };
   }, [location.pathname, nav]);
 
   const chatBadge = counts.new_matches + counts.unread_messages;

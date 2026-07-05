@@ -18,27 +18,60 @@ export default function ChatDetail() {
   const [activities, setActivities] = useState([]);
   const [planModal, setPlanModal] = useState(false);
   const [reportModal, setReportModal] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const scrollRef = useRef(null);
   const showedTip = useRef(false);
+  const lastActivityRef = useRef(Date.now());
 
   const load = async () => {
     try {
       const m = await api.get("/matches");
       const cur = m.data.find((x) => x.id === matchId);
       setMatch(cur);
-      const msgs = await api.get(`/matches/${matchId}/messages`);
+      const msgs = await api.get(`/matches/${matchId}/messages`, { params: { limit: 50 } });
       setMessages(msgs.data);
-      // mark as read
+      setHasMore(msgs.data.length >= 50);
       api.post(`/matches/${matchId}/read`).catch(() => { /* ignore */ });
     } catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
   };
-  useEffect(() => { load(); api.get("/activities").then((r)=>setActivities(r.data)); }, [matchId]);
 
+  const loadOlder = async () => {
+    if (loadingOlder || !hasMore || messages.length === 0) return;
+    setLoadingOlder(true);
+    try {
+      const oldest = messages[0]?.created_at;
+      const r = await api.get(`/matches/${matchId}/messages`, { params: { before: oldest, limit: 50 } });
+      if (r.data.length === 0) setHasMore(false);
+      else setMessages((prev) => [...r.data, ...prev]);
+    } catch { /* ignore */ } finally { setLoadingOlder(false); }
+  };
+
+  useEffect(() => { load(); api.get("/activities").then((r)=>setActivities(r.data)); /* eslint-disable-next-line */ }, [matchId]);
+
+  // Polling with visibility + idle backoff
   useEffect(() => {
-    const t = setInterval(async () => {
-      try { const msgs = await api.get(`/matches/${matchId}/messages`); setMessages(msgs.data); } catch { /* polling ignore */ }
-    }, 4000);
-    return () => clearInterval(t);
+    let timer = null;
+    const tick = async () => {
+      if (document.hidden) { timer = setTimeout(tick, 4000); return; }
+      const idle = Date.now() - lastActivityRef.current > 60000;
+      const wait = idle ? 12000 : 4000;
+      try {
+        const oldest = null; // full refresh keeps latest N
+        const params = { limit: 50 };
+        if (oldest) params.before = oldest;
+        const msgs = await api.get(`/matches/${matchId}/messages`, { params });
+        setMessages(msgs.data);
+      } catch { /* polling ignore */ }
+      timer = setTimeout(tick, wait);
+    };
+    timer = setTimeout(tick, 4000);
+    const onVis = () => { if (!document.hidden) { lastActivityRef.current = Date.now(); } };
+    document.addEventListener("visibilitychange", onVis);
+    const onActivity = () => { lastActivityRef.current = Date.now(); };
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("pointerdown", onActivity);
+    return () => { if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("keydown", onActivity); window.removeEventListener("pointerdown", onActivity); };
   }, [matchId]);
 
   useEffect(() => { scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }); }, [messages]);
@@ -105,6 +138,13 @@ export default function ChatDetail() {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-4 space-y-2 pb-nav">
+        {hasMore && messages.length >= 50 && (
+          <div className="flex justify-center pb-2">
+            <button data-testid="load-older" disabled={loadingOlder} onClick={loadOlder} className="ps-btn-secondary text-xs px-3 py-1.5">
+              {loadingOlder ? "Cargando…" : "Cargar mensajes anteriores"}
+            </button>
+          </div>
+        )}
         {messages.map((m) => {
           if (m.kind === "system") return (
             <div key={m.id} className="text-center text-xs text-white/50 py-1">{m.text}</div>

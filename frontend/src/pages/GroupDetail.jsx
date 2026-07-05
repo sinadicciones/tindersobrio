@@ -29,10 +29,14 @@ export default function GroupDetail() {
 
   useEffect(() => {
     if (!group?.is_member || tab !== "chat") return;
-    const t = setInterval(async () => {
+    let timer = null;
+    const tick = async () => {
+      if (document.hidden) { timer = setTimeout(tick, 6000); return; }
       try { const m = await api.get(`/groups/${id}/messages`); setMessages(m.data); } catch { /* polling ignore */ }
-    }, 4000);
-    return () => clearInterval(t);
+      timer = setTimeout(tick, 6000);
+    };
+    timer = setTimeout(tick, 4000);
+    return () => { if (timer) clearTimeout(timer); };
   }, [group?.is_member, tab, id]);
 
   const join = async () => { await api.post(`/groups/${id}/join`); await load(); toast.success("¡Te uniste!"); };

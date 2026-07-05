@@ -1,0 +1,41 @@
+{
+  "summary": "BLOQUE 3 (performance + pagination) validated. Backend: 9/9 new BLOQUE 3 tests pass; total regression 49/51 (2 failures are quota-exhaustion side-effects, NOT code regressions). Verified: (1) GET /api/matches returns per-match 'unread' via aggregation - increments after peer message, resets to 0 after POST /matches/{id}/read; (2) GET /api/groups returns member_count+is_member for all seeded groups without N+1; POST /groups/{id}/join reflects is_member=true on next GET; (3) GET /api/groups/{gid}/events returns attendees[] & attendee_count; (4) GET /api/matches/{id}/messages defaults to <=50 in ASCENDING order; ?limit=2 returns <=2; ?limit=201 -> 422; ?before=<created_at> returns strictly older docs; (5) POST message then GET returns the new one in latest set; (6) /api/notifications/counts returns {new_matches:0, unread_messages:0, total:0} after seen+read on all matches. Frontend: login demo1 OK; /app/chats renders chat list with 2 chats; opening a chat shows data-testid='chat-input' present; load-older button NOT shown (chat has <50 msgs — expected: code path exists at ChatDetail.jsx:141 `hasMore && messages.length>=50`). Visibility polling verified: 3 polls in 10s while visible → 0 polls in 12s while document.hidden=true → 2 polls in 10s after visibility restored. compressImage helper wired in EditProfile.jsx:39 and Onboarding.jsx (verified via grep).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/like", "issue": "Daily me-tinca quota is 20/day per user; running full regression back-to-back exhausts demo1's quota causing test_like_then_reciprocal_match and test_like_amistad_ok_both_have_amistad to 429. Not a BLOQUE 3 regression - fixed by resetting/seeding or spacing runs; also could refactor tests to use fresh accounts."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/test_reports/pytest/iter4_results.xml",
+    "/app/test_reports/pytest/iter4_full.xml"
+  ],
+  "action_items": [
+    "Optional: refactor backend_test.py::test_like_then_reciprocal_match and test_iteration3.py::test_like_amistad_ok_both_have_amistad to use fresh registered users instead of demo1↔demo2 to avoid quota bleed-over when running full suite twice per hour.",
+    "Optional (was already flagged in iter3): split server.py (still 1353 lines) into routers module. BLOQUE 3 only did a partial split (core/storage.py, core/seed_data.py)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is still 1353 lines even after BLOQUE 3 partial split — the endpoint handlers themselves still all live in server.py. Recommend a routers/ package (auth, chat, groups, admin, uploads).",
+    "list_matches aggregation pushes ALL messages ({c: created_at}) per match to compute unread; for chats with 10k+ msgs this is memory-hungry. Consider $match created_at > reads_last_read first, then $count.",
+    "notif_counts uses the same push-all pattern (line 749). Same optimization opportunity.",
+    "get_messages returns docs.reverse() (ascending) — correct. Pagination cursor uses ISO string comparison which works because created_at is always UTC ISO with same offset. Good.",
+    "Frontend ChatDetail.jsx uses 12s backoff after 60s idle (verified). BottomNav has visibility gating (line 25).",
+    "compressImage helper caps at 1080px @ q≈0.82; used in both onboarding & edit-profile flows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration4.py (created - 9 tests)"
+  ],
+  "success_rate": {"backend": "100% BLOQUE 3 (9/9), 96% overall regression (49/51 — 2 quota-exhaustion side effects)", "frontend": "100% smoke on chat visibility polling + input testid"},
+  "test_credentials": "Admin: contacto@sinadicciones.org / Jodorowsky100. Demo: demo1..demo12@plansobrio.cl / Demo1234!.",
+  "seed_data_creation": "Created ~15 additional chat messages between demo1↔demo2 during pagination tests. Joined demo3 to a group. No cleanup performed; safe to leave.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 4 test files (backend_test.py, test_iteration2/3/4.py) can run together via `pytest /app/backend/tests/`. Total ~130s. If running back-to-back within a day, demo1's like-quota (20/day) will exhaust — either sleep >24h or move like flows to fresh TEST_ users. Message pagination default is 50 latest (ascending), max 200; ?before=<iso> for older. Frontend chats live at /app/chats/<id>. Chat visibility polling stops when document.hidden=true (verified via CDP override).",
+  "rca of the issue": "N/A — no BLOQUE 3 defects. Two suite failures are pre-existing quota-side-effects, not regressions from this change set."
+}

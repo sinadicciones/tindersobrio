@@ -20,6 +20,9 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
 
+from core.storage import init_storage, put_object, get_object
+from core.seed_data import SEED_ACTIVITIES, SEED_GROUPS, DEMO_PROFILES, DEMO_PHOTOS, DEMO_PROMPTS
+
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
@@ -39,51 +42,8 @@ logger = logging.getLogger("plansobrio")
 logging.basicConfig(level=logging.INFO)
 
 # ------------------------------------------------------------------
-# Storage
+# Storage (see core/storage.py)
 # ------------------------------------------------------------------
-storage_key: Optional[str] = None
-
-def init_storage() -> Optional[str]:
-    global storage_key
-    if storage_key:
-        return storage_key
-    if not EMERGENT_KEY:
-        return None
-    try:
-        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-        resp.raise_for_status()
-        storage_key = resp.json()["storage_key"]
-        return storage_key
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-        return None
-
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    if not key:
-        raise HTTPException(status_code=500, detail="Storage no disponible")
-    resp = requests.put(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
-    if resp.status_code == 403:
-        # reset and retry once
-        globals()["storage_key"] = None
-        key = init_storage()
-        resp = requests.put(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
-    resp.raise_for_status()
-    return resp.json()
-
-def get_object(path: str):
-    key = init_storage()
-    if not key:
-        raise HTTPException(status_code=500, detail="Storage no disponible")
-    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    if resp.status_code == 403:
-        globals()["storage_key"] = None
-        key = init_storage()
-        resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    if resp.status_code == 404:
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 # ------------------------------------------------------------------
 # Auth helpers
@@ -714,27 +674,56 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
 @api.get("/matches")
 async def list_matches(user: dict = Depends(current_user)):
     matches = await db.matches.find({"users": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    if not matches:
+        return []
+    uid = user["id"]
+    other_ids = [next(u for u in m["users"] if u != uid) for m in matches]
+    match_ids = [m["id"] for m in matches]
+
+    # Batch: users + reads + last messages
+    users_cur = db.users.find({"id": {"$in": other_ids}}, {"password_hash": 0, "_id": 0})
+    users_by_id = {u["id"]: u async for u in users_cur}
+
+    reads_cur = db.reads.find({"user_id": uid, "match_id": {"$in": match_ids}}, {"_id": 0})
+    reads = {r["match_id"]: r["last_read_at"] async for r in reads_cur}
+
+    # Last message per match via aggregation
+    pipeline = [
+        {"$match": {"match_id": {"$in": match_ids}}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {"_id": "$match_id", "doc": {"$first": "$$ROOT"}}},
+    ]
+    last_by_match = {}
+    async for row in db.messages.aggregate(pipeline):
+        d = row["doc"]; d.pop("_id", None)
+        last_by_match[row["_id"]] = d
+
+    # Unread count per match: messages after last_read from non-self, non-system
+    unread_pipeline = [
+        {"$match": {
+            "match_id": {"$in": match_ids},
+            "from_user": {"$nin": [uid, "system"]},
+        }},
+        {"$group": {"_id": "$match_id", "msgs": {"$push": {"c": "$created_at"}}}},
+    ]
+    unread_by_match = {}
+    async for row in db.messages.aggregate(unread_pipeline):
+        last_read = reads.get(row["_id"], "1970-01-01T00:00:00+00:00")
+        unread_by_match[row["_id"]] = sum(1 for m in row["msgs"] if m["c"] > last_read)
+
     result = []
-    reads = {r["match_id"]: r["last_read_at"] async for r in db.reads.find({"user_id": user["id"]}, {"_id": 0})}
     for m in matches:
-        other_id = [u for u in m["users"] if u != user["id"]][0]
-        other = await db.users.find_one({"id": other_id}, {"password_hash": 0, "_id": 0})
+        other_id = next(u for u in m["users"] if u != uid)
+        other = users_by_id.get(other_id)
         if not other:
             continue
-        last_msg = await db.messages.find({"match_id": m["id"]}, {"_id": 0}).sort("created_at", -1).limit(1).to_list(1)
-        last_read = reads.get(m["id"], "1970-01-01T00:00:00+00:00")
-        unread = await db.messages.count_documents({
-            "match_id": m["id"],
-            "created_at": {"$gt": last_read},
-            "from_user": {"$nin": [user["id"], "system"]},
-        })
         result.append({
             "id": m["id"],
             "mode": m["mode"],
             "other": clear_public(other),
             "proposed_activity": m.get("proposed_activity"),
-            "last_message": last_msg[0] if last_msg else None,
-            "unread": unread,
+            "last_message": last_by_match.get(m["id"]),
+            "unread": unread_by_match.get(m["id"], 0),
             "created_at": m["created_at"],
         })
     return result
@@ -745,23 +734,24 @@ async def list_matches(user: dict = Depends(current_user)):
 @api.get("/notifications/counts")
 async def notif_counts(user: dict = Depends(current_user)):
     seen_at = user.get("last_seen_matches_at", "1970-01-01T00:00:00+00:00")
-    # New matches: those created after user's last_seen_matches_at
     new_matches = await db.matches.count_documents({
         "users": user["id"],
         "created_at": {"$gt": seen_at},
     })
-    # Unread messages: sum over user's matches of messages after last_read_at from someone else
-    reads = {r["match_id"]: r["last_read_at"] async for r in db.reads.find({"user_id": user["id"]}, {"_id": 0})}
     my_matches = await db.matches.find({"users": user["id"]}, {"id": 1, "_id": 0}).to_list(500)
+    if not my_matches:
+        return {"new_matches": new_matches, "unread_messages": 0, "total": new_matches}
+    match_ids = [m["id"] for m in my_matches]
+    reads = {r["match_id"]: r["last_read_at"] async for r in db.reads.find({"user_id": user["id"], "match_id": {"$in": match_ids}}, {"_id": 0})}
+    # One aggregation pipeline for unread messages count
+    pipe = [
+        {"$match": {"match_id": {"$in": match_ids}, "from_user": {"$nin": [user["id"], "system"]}}},
+        {"$group": {"_id": "$match_id", "msgs": {"$push": "$created_at"}}},
+    ]
     unread_messages = 0
-    for m in my_matches:
-        last_read = reads.get(m["id"], "1970-01-01T00:00:00+00:00")
-        c = await db.messages.count_documents({
-            "match_id": m["id"],
-            "created_at": {"$gt": last_read},
-            "from_user": {"$nin": [user["id"], "system"]},
-        })
-        unread_messages += c
+    async for row in db.messages.aggregate(pipe):
+        last_read = reads.get(row["_id"], "1970-01-01T00:00:00+00:00")
+        unread_messages += sum(1 for c in row["msgs"] if c > last_read)
     return {"new_matches": new_matches, "unread_messages": unread_messages, "total": new_matches + unread_messages}
 
 @api.post("/notifications/seen-matches")
@@ -801,10 +791,20 @@ async def _rate_limit_messages(uid: str, per_minute: int = 60):
         raise HTTPException(status_code=429, detail="Estás enviando muchos mensajes muy rápido. Respira un poco 💛")
 
 @api.get("/matches/{match_id}/messages")
-async def get_messages(match_id: str, user: dict = Depends(current_user)):
+async def get_messages(
+    match_id: str,
+    before: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    user: dict = Depends(current_user),
+):
     await get_match_or_403(match_id, user["id"])
-    msgs = await db.messages.find({"match_id": match_id}, {"_id": 0}).sort("created_at", 1).to_list(1000)
-    return msgs
+    q = {"match_id": match_id}
+    if before:
+        q["created_at"] = {"$lt": before}
+    # Fetch latest 'limit' before cursor, then reverse to ascending
+    docs = await db.messages.find(q, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    docs.reverse()
+    return docs
 
 @api.post("/matches/{match_id}/messages")
 async def send_message(match_id: str, body: MessageIn, user: dict = Depends(current_user)):
@@ -874,16 +874,23 @@ async def accept_plan(plan_id: str, user: dict = Depends(current_user)):
 
 @api.get("/plans")
 async def my_plans(user: dict = Depends(current_user)):
-    my_matches = await db.matches.find({"users": user["id"]}, {"id": 1, "_id": 0}).to_list(500)
+    my_matches = await db.matches.find({"users": user["id"]}, {"id": 1, "users": 1, "_id": 0}).to_list(500)
     ids = [m["id"] for m in my_matches]
+    if not ids:
+        return []
     plans = await db.plans.find({"match_id": {"$in": ids}, "status": "accepted"}, {"_id": 0}).sort("when", 1).to_list(500)
-    # attach other user
+    if not plans:
+        return []
+    # Map match->other user
+    match_to_other = {m["id"]: next((u for u in m["users"] if u != user["id"]), None) for m in my_matches}
+    other_ids = list({v for v in match_to_other.values() if v})
+    others_by_id = {}
+    if other_ids:
+        async for u in db.users.find({"id": {"$in": other_ids}}, {"password_hash": 0, "_id": 0}):
+            others_by_id[u["id"]] = u
     for p in plans:
-        m = await db.matches.find_one({"id": p["match_id"]}, {"_id": 0})
-        if m:
-            other_id = [u for u in m["users"] if u != user["id"]][0]
-            other = await db.users.find_one({"id": other_id}, {"password_hash": 0, "_id": 0})
-            p["with"] = clear_public(other) if other else None
+        o_id = match_to_other.get(p["match_id"])
+        p["with"] = clear_public(others_by_id[o_id]) if o_id and o_id in others_by_id else None
     return plans
 
 @api.delete("/matches/{match_id}")
@@ -951,9 +958,16 @@ async def delete_reason(rid: str, user: dict = Depends(current_user)):
 @api.get("/groups")
 async def list_groups(user: dict = Depends(current_user)):
     groups = await db.groups.find({"active": True}, {"_id": 0}).to_list(500)
+    if not groups:
+        return []
+    gids = [g["id"] for g in groups]
+    # Batch counts + memberships
+    counts_pipe = [{"$match": {"group_id": {"$in": gids}}}, {"$group": {"_id": "$group_id", "n": {"$sum": 1}}}]
+    counts = {r["_id"]: r["n"] async for r in db.group_members.aggregate(counts_pipe)}
+    my_memberships = {m["group_id"] async for m in db.group_members.find({"user_id": user["id"], "group_id": {"$in": gids}}, {"group_id": 1, "_id": 0})}
     for g in groups:
-        g["member_count"] = await db.group_members.count_documents({"group_id": g["id"]})
-        g["is_member"] = bool(await db.group_members.find_one({"group_id": g["id"], "user_id": user["id"]}))
+        g["member_count"] = counts.get(g["id"], 0)
+        g["is_member"] = g["id"] in my_memberships
     return groups
 
 @api.get("/groups/{gid}")
@@ -961,14 +975,12 @@ async def get_group(gid: str, user: dict = Depends(current_user)):
     g = await db.groups.find_one({"id": gid}, {"_id": 0})
     if not g:
         raise HTTPException(status_code=404, detail="Grupo no encontrado")
-    g["member_count"] = await db.group_members.count_documents({"group_id": gid})
-    g["is_member"] = bool(await db.group_members.find_one({"group_id": gid, "user_id": user["id"]}))
-    members = await db.group_members.find({"group_id": gid}, {"_id": 0}).to_list(500)
-    aliases = []
-    for m in members:
-        u = await db.users.find_one({"id": m["user_id"]}, {"alias": 1, "_id": 0})
-        if u:
-            aliases.append(u.get("alias"))
+    members = await db.group_members.find({"group_id": gid}, {"user_id": 1, "_id": 0}).to_list(500)
+    member_ids = [m["user_id"] for m in members]
+    users_cur = db.users.find({"id": {"$in": member_ids}}, {"alias": 1, "id": 1, "_id": 0})
+    aliases = [u.get("alias") async for u in users_cur if u.get("alias")]
+    g["member_count"] = len(members)
+    g["is_member"] = user["id"] in set(member_ids)
     g["member_aliases"] = aliases
     return g
 
@@ -993,11 +1005,15 @@ async def group_messages(gid: str, user: dict = Depends(current_user)):
     if not is_member:
         raise HTTPException(status_code=403, detail="Únete al grupo para ver el chat")
     msgs = await db.group_messages.find({"group_id": gid}, {"_id": 0}).sort("created_at", 1).to_list(500)
-    # attach alias
-    for msg in msgs:
-        if msg.get("from_user") and msg["from_user"] != "system":
-            u = await db.users.find_one({"id": msg["from_user"]}, {"alias": 1, "_id": 0})
-            msg["alias"] = u.get("alias") if u else "Alguien"
+    # Batch fetch aliases (though messages already store alias at write time)
+    missing_uids = list({m["from_user"] for m in msgs if m.get("from_user") and m["from_user"] != "system" and not m.get("alias")})
+    if missing_uids:
+        aliases_map = {}
+        async for u in db.users.find({"id": {"$in": missing_uids}}, {"id": 1, "alias": 1, "_id": 0}):
+            aliases_map[u["id"]] = u.get("alias")
+        for msg in msgs:
+            if msg.get("from_user") and msg["from_user"] != "system" and not msg.get("alias"):
+                msg["alias"] = aliases_map.get(msg["from_user"], "Alguien")
     return msgs
 
 @api.post("/groups/{gid}/messages")
@@ -1021,16 +1037,26 @@ async def send_group_message(gid: str, body: MessageIn, user: dict = Depends(cur
 @api.get("/groups/{gid}/events")
 async def list_events(gid: str, user: dict = Depends(current_user)):
     events = await db.events.find({"group_id": gid}, {"_id": 0}).sort("when", 1).to_list(200)
+    if not events:
+        return []
+    eids = [e["id"] for e in events]
+    rsvps = await db.event_rsvps.find({"event_id": {"$in": eids}}, {"_id": 0}).to_list(2000)
+    # Group rsvps by event
+    from collections import defaultdict
+    by_event = defaultdict(list)
+    for r in rsvps:
+        by_event[r["event_id"]].append(r["user_id"])
+    # Batch fetch aliases
+    all_uids = list({uid for lst in by_event.values() for uid in lst})
+    aliases_map = {}
+    if all_uids:
+        async for u in db.users.find({"id": {"$in": all_uids}}, {"id": 1, "alias": 1, "_id": 0}):
+            aliases_map[u["id"]] = u.get("alias")
     for e in events:
-        attendees = await db.event_rsvps.find({"event_id": e["id"]}, {"_id": 0}).to_list(200)
-        e["attendee_count"] = len(attendees)
-        e["going"] = any(a["user_id"] == user["id"] for a in attendees)
-        aliases = []
-        for a in attendees:
-            u = await db.users.find_one({"id": a["user_id"]}, {"alias": 1, "_id": 0})
-            if u:
-                aliases.append(u.get("alias"))
-        e["attendees"] = aliases
+        uids = by_event.get(e["id"], [])
+        e["attendee_count"] = len(uids)
+        e["going"] = user["id"] in uids
+        e["attendees"] = [aliases_map.get(uid) for uid in uids if aliases_map.get(uid)]
     return events
 
 @api.post("/events/{eid}/rsvp")
@@ -1066,15 +1092,20 @@ async def admin_dashboard(_: dict = Depends(require_admin)):
 
 @api.get("/admin/reports")
 async def admin_list_reports(_: dict = Depends(require_admin)):
-    # Sort: high priority + open first, then by date desc
     reports = await db.reports.find({}, {"_id": 0}).to_list(500)
+    if not reports:
+        return []
+    uids = list({r["from_user"] for r in reports} | {r["target_user"] for r in reports})
+    users_by_id = {}
+    async for u in db.users.find({"id": {"$in": uids}}, {"id": 1, "alias": 1, "email": 1, "_id": 0}):
+        users_by_id[u["id"]] = u
     for r in reports:
         r.setdefault("priority", "high" if r.get("category") == "ofrece_sustancias" else "normal")
-        f = await db.users.find_one({"id": r["from_user"]}, {"alias": 1, "email": 1, "_id": 0})
-        t = await db.users.find_one({"id": r["target_user"]}, {"alias": 1, "email": 1, "_id": 0})
-        r["from_alias"] = f.get("alias") if f else None
-        r["target_alias"] = t.get("alias") if t else None
-        r["target_email"] = t.get("email") if t else None
+        f = users_by_id.get(r["from_user"], {})
+        t = users_by_id.get(r["target_user"], {})
+        r["from_alias"] = f.get("alias")
+        r["target_alias"] = t.get("alias")
+        r["target_email"] = t.get("email")
     reports.sort(key=lambda r: (
         0 if (r.get("priority") == "high" and r.get("status") == "open") else 1,
         0 if r.get("status") == "open" else 1,
@@ -1111,9 +1142,14 @@ async def admin_list_users(q: str = "", _: dict = Depends(require_admin)):
     if q:
         query = {"$or": [{"email": {"$regex": q, "$options": "i"}}, {"alias": {"$regex": q, "$options": "i"}}]}
     users = await db.users.find(query, {"password_hash": 0, "_id": 0}).sort("created_at", -1).to_list(500)
+    if not users:
+        return []
+    uids = [u["id"] for u in users]
+    counts_pipe = [{"$match": {"target_user": {"$in": uids}}}, {"$group": {"_id": "$target_user", "n": {"$sum": 1}}}]
+    report_counts = {r["_id"]: r["n"] async for r in db.reports.aggregate(counts_pipe)}
     for u in users:
         u["strikes"] = u.get("strikes", 0)
-        u["report_count"] = await db.reports.count_documents({"target_user": u["id"]})
+        u["report_count"] = report_counts.get(u["id"], 0)
     return users
 
 @api.get("/admin/user/{uid}")
@@ -1166,72 +1202,33 @@ async def admin_delete_event(eid: str, _: dict = Depends(require_admin)):
 # ------------------------------------------------------------------
 # Seed
 # ------------------------------------------------------------------
-SEED_ACTIVITIES = [
-    ("☕", "Café y conversación", "cafe"),
-    ("🥾", "Caminata o trekking", "aire_libre"),
-    ("🌳", "Paseo por un parque", "aire_libre"),
-    ("🏛️", "Museo o centro cultural", "cultura"),
-    ("🎬", "Cine", "cultura"),
-    ("🍽️", "Almorzar o cenar rico", "comida"),
-    ("🏃", "Entrenar juntos", "deporte"),
-    ("⚽", "Pichanga o deporte grupal", "deporte"),
-    ("🧘", "Yoga o meditación", "bienestar"),
-    ("📚", "Club de lectura o librería", "cultura"),
-    ("🎨", "Taller creativo", "cultura"),
-    ("🎲", "Juegos de mesa", "entretencion"),
-    ("🐶", "Pasear a los perros", "aire_libre"),
-    ("🎵", "Concierto o música en vivo de día", "entretencion"),
-    ("🧗", "Escalada o panorama aventura", "deporte"),
-    ("🍦", "Helado y vuelta a la manzana", "cafe"),
-]
-
-SEED_GROUPS = [
-    {"emoji": "☕", "name": "Café Sobrio Santiago", "description": "Nos juntamos en cafeterías de Santiago a conversar sin apuro. Todes bienvenides.", "rules": "Respeto siempre. Prohibido ofrecer alcohol. Puntualidad.", "is_online": False, "comuna": "Providencia"},
-    {"emoji": "🌱", "name": "Primeros 30 días", "description": "Grupo online de apoyo para quienes están empezando su nueva etapa sin alcohol ni drogas.", "rules": "Confidencialidad. Sin juicios. Escucha activa.", "is_online": True, "comuna": None},
-    {"emoji": "🏃", "name": "Deporte y sobriedad", "description": "Corremos, andamos en bici y hacemos panoramas activos. La endorfina es mejor.", "rules": "Cuidémonos entre todes. Sin presión, cada uno a su ritmo.", "is_online": False, "comuna": "Ñuñoa"},
-    {"emoji": "🎬", "name": "Panoramas de fin de semana", "description": "Cines, exposiciones, teatro y salidas culturales en el centro.", "rules": "Buena onda. Confirmar asistencia con anticipación.", "is_online": False, "comuna": "Santiago"},
-]
-
-DEMO_PROFILES = [
-    ("Cata_23", "F", "femenino", 28, "Providencia", ["amistad", "amor"], ["masculino", "femenino"], ["Café y conversación", "Museo o centro cultural", "Yoga o meditación"], "3-12m"),
-    ("Javi_Sur", "M", "masculino", 31, "Ñuñoa", ["apoyo", "amistad"], [], ["Caminata o trekking", "Entrenar juntos", "Café y conversación"], ">1a"),
-    ("Nico_Cerro", "NB", "no_binario", 26, "Santiago", ["amistad", "amor", "grupos"], ["femenino", "no_binario"], ["Cine", "Club de lectura o librería", "Museo o centro cultural"], "1-3m"),
-    ("Fer_Cafe", "F", "femenino", 34, "Las Condes", ["amor"], ["masculino"], ["Café y conversación", "Almorzar o cenar rico", "Paseo por un parque"], ">5a"),
-    ("Tomas_Trek", "M", "masculino", 29, "La Reina", ["amistad", "grupos"], [], ["Caminata o trekking", "Escalada o panorama aventura", "Yoga o meditación"], ">1a"),
-    ("Vale_Yoga", "F", "femenino", 25, "Providencia", ["apoyo", "amistad"], [], ["Yoga o meditación", "Taller creativo", "Paseo por un parque"], "3-12m"),
-    ("Rodri_Libros", "M", "masculino", 38, "Ñuñoa", ["amistad", "amor"], ["femenino"], ["Club de lectura o librería", "Museo o centro cultural", "Café y conversación"], ">5a"),
-    ("Isi_Perri", "F", "femenino", 22, "Maipú", ["amistad"], [], ["Pasear a los perros", "Juegos de mesa", "Helado y vuelta a la manzana"], "<30d"),
-    ("Beno_Deporte", "M", "masculino", 42, "Vitacura", ["apoyo", "grupos"], [], ["Pichanga o deporte grupal", "Entrenar juntos", "Caminata o trekking"], ">5a"),
-    ("Anto_Museo", "F", "femenino", 27, "Santiago", ["amistad", "amor"], ["femenino", "no_binario"], ["Museo o centro cultural", "Cine", "Taller creativo"], "3-12m"),
-    ("Mati_Cine", "NB", "no_binario", 33, "Providencia", ["amistad", "amor"], ["masculino", "no_binario"], ["Cine", "Concierto o música en vivo de día", "Almorzar o cenar rico"], ">1a"),
-    ("Cami_Runner", "F", "femenino", 30, "Las Condes", ["amistad", "grupos"], [], ["Entrenar juntos", "Yoga o meditación", "Paseo por un parque"], ">1a"),
-]
-
-# Unsplash placeholder portraits so demos in modo Amor tienen fotos (regla del sistema).
-DEMO_PHOTOS = {
-    "Cata_23": ["https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&q=80&auto=format&fit=crop"],
-    "Nico_Cerro": ["https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=800&q=80&auto=format&fit=crop"],
-    "Fer_Cafe": ["https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80&auto=format&fit=crop"],
-    "Rodri_Libros": ["https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&q=80&auto=format&fit=crop"],
-    "Anto_Museo": ["https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&q=80&auto=format&fit=crop"],
-    "Mati_Cine": ["https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&q=80&auto=format&fit=crop"],
-}
-
-DEMO_PROMPTS = [
-    ("Mi plan ideal sin alcohol es…", "Un café largo con conversa profunda, después caminar sin apuro."),
-    ("Lo que estoy construyendo en esta etapa…", "Volver a habitarme con calma y sin pilotaje automático."),
-    ("Un panorama que descubrí…", "Los desayunos con amigues los sábados temprano son un lujo."),
-    ("Me hace bien cuando…", "Salgo a la cordillera y me acuerdo de lo grande que es todo."),
-    ("Mi domingo perfecto…", "Feria, cocinar rico y una peli en la tarde."),
-]
-
 async def seed_admin_and_data():
     # Indexes
-    await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
-    await db.likes.create_index([("from_user", 1), ("to_user", 1), ("mode", 1)])
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("alias")
+    await db.users.create_index([("modes", 1), ("status", 1), ("onboarding_complete", 1)])
+    await db.likes.create_index([("from_user", 1), ("to_user", 1), ("mode", 1), ("kind", 1)])
+    await db.likes.create_index([("from_user", 1), ("kind", 1), ("date", 1)])
     await db.matches.create_index("users")
-    await db.messages.create_index("match_id")
+    await db.matches.create_index([("users", 1), ("created_at", -1)])
+    await db.messages.create_index([("match_id", 1), ("created_at", 1)])
+    await db.messages.create_index([("from_user", 1), ("created_at", -1)])
+    await db.group_messages.create_index([("group_id", 1), ("created_at", 1)])
+    await db.group_messages.create_index([("from_user", 1), ("created_at", -1)])
+    await db.group_members.create_index([("group_id", 1), ("user_id", 1)], unique=False)
+    await db.group_members.create_index("user_id")
+    await db.event_rsvps.create_index([("event_id", 1), ("user_id", 1)])
+    await db.events.create_index([("group_id", 1), ("when", 1)])
+    await db.reads.create_index([("user_id", 1), ("match_id", 1)], unique=True)
+    await db.blocks.create_index([("from_user", 1), ("to_user", 1)])
+    await db.blocks.create_index("to_user")
+    await db.reports.create_index([("status", 1), ("priority", 1), ("created_at", -1)])
+    await db.reports.create_index("target_user")
+    await db.plans.create_index([("match_id", 1), ("status", 1)])
+    await db.files.create_index("user_id")
+    await db.activities.create_index("active")
+    await db.groups.create_index("active")
 
     # Admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()

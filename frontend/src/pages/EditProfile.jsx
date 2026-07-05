@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { COMUNAS_RM, GENDERS, MODES, SOBER_TIMES, PROMPTS } from "@/constants/comunas";
+import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
 import { ArrowLeft, X, Camera, Video } from "lucide-react";
 
@@ -35,7 +36,8 @@ export default function EditProfile() {
 
   const upload = async (file) => {
     if (!file) return;
-    const fd = new FormData(); fd.append("file", file);
+    const compressed = await compressImage(file);
+    const fd = new FormData(); fd.append("file", compressed);
     try { const { data } = await api.post("/uploads/photo", fd, { headers: {"Content-Type": "multipart/form-data"} }); set("photos", [...f.photos, data.path]); }
     catch (ex) { toast.error(formatApiError(ex.response?.data?.detail)); }
   };

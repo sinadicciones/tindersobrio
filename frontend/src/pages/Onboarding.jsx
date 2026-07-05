@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { COMUNAS_RM, GENDERS, SOBER_TIMES, MODES, PROMPTS } from "@/constants/comunas";
+import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Camera, X, Check, Video } from "lucide-react";
@@ -67,7 +68,8 @@ export default function Onboarding() {
 
   const upload = async (file) => {
     if (!file) return;
-    const fd = new FormData(); fd.append("file", file);
+    const compressed = await compressImage(file);
+    const fd = new FormData(); fd.append("file", compressed);
     try {
       const { data } = await api.post("/uploads/photo", fd, { headers: { "Content-Type": "multipart/form-data" } });
       set("photos", [...form.photos, data.path]);
