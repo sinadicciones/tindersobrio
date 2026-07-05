@@ -28,6 +28,23 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
+## Implementado (v1.6 - Feb 2026 - FLUJOMATCH v2)
+- ✅ **Match ahora guarda AMBAS propuestas**: `match.proposals = {user1_id: activity_id|null, user2_id: activity_id|null}`. Migración idempotente al startup convierte matches viejos.
+- ✅ **4 mensajes de sistema inteligentes** al momento del match:
+  - Misma actividad → "¡Están de acuerdo! ☕ Café. Solo falta el cuándo 😊"
+  - Distintas → "A Cata le tinca ☕ Café y a Rodri le tinca 🏃 Correr. ¿Cuál va primero?"
+  - Solo uno → "A Cata le tinca: ☕ Café. ¿Te sumas?"
+  - Ninguno → "¡Se dio el match! Panoramas que les gustan a ambos: cine, ..."
+- ✅ **Nueva pestaña "Les tincas"** en Chats con:
+  - `GET /api/likes-received` (excluye ya-matcheados, pasados, bloqueados, banned/suspended).
+  - Cards con avatar linkeable, propuesta destacada "Le tinca X contigo" y botones **Armar plan** (abre picker inline) + **Pasar**.
+  - `POST /api/likes-received/seen` limpia el badge al abrir la pestaña.
+- ✅ **Contador de notificaciones**: `/api/notifications/counts` ahora expone `unseen_likes` sumado al `total`. BottomNav lo incluye en el badge de Chats.
+- ✅ **Barra de estado del plan** sticky en ChatDetail: chips con emoji+nombre de cada propuesta, CTA "¿Armamos un plan?" si no hay ninguna, banner verde si `plan_status=confirmed`.
+- ✅ **Mensajes de sistema estilizados** con gradiente + borde suave, distinguibles del mensaje normal (data-testid `msg-system`).
+- ✅ **Job de nudge a las 48h** (inline en `/matches`): si un match no tiene plan confirmado y ambos escribieron al menos una vez, se agrega un mensaje de sistema tipo "¿Le ponemos fecha al ☕ café?" con `nudge_sent=True` (idempotente).
+- ✅ **Regresión admin coord leak** confirmada arreglada.
+
 ## Implementado (v1.5 - Feb 2026 - AJUSTESV2 Bloques A/B/C)
 - ✅ **Bloque A (coherencia de ubicación + Google Auth UX)**:
   - **Bug fix crítico**: `PATCH /profile/me` sólo re-deriva `location` cuando el usuario cambia explícitamente (envía `location` object o cambia `comuna` a un valor distinto). Antes cualquier `PATCH` que incluyera `comuna` pisaba las coordenadas GPS.
