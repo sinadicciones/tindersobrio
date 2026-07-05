@@ -2,6 +2,15 @@
 
 **Última actualización:** 2026-02-10
 
+## v2.6 — Sin_problema + Handler global 422 (Feb 2026)
+- ✅ **Bugfix** onboarding paso Reglas: `sober_time=""` ya no rompe la validación Pydantic (defensa dual: frontend strip + backend `field_validator` que convierte `""` → `None`).
+- ✅ **Nueva opción "No tengo problemas con dependencias"** (`sin_problema`) en `relationship_with_substances`. Cuando se elige, el bloque de `sober_time` se oculta (no aplica).
+- ✅ **Toggle opcional `show_relationship`**: sólo aparece cuando el usuario elige `sin_problema`. Si lo activa, se muestra badge público "Sin problemas con dependencias" en Profile propio, Discover cards y PublicProfile.
+- ✅ **Backend `clear_public`** expone `relationship_badge` cuando `show_relationship=true` y el valor no es `prefiero_no_decir`.
+- ✅ **`ProfileUpdateIn`** admite ambos campos → usuario puede cambiar su elección desde EditProfile en cualquier momento.
+- ✅ **Handler global de errores 422 Pydantic** (`_friendly_validation_exception_handler`): mapea errores técnicos a mensajes en español Chilean-friendly usando `_FIELD_LABELS`. Ejemplos: `literal_error` → "Elige una opción válida para {campo}", `missing` → "Falta completar: {campo}". Todos los endpoints ahora devuelven `{"detail":"<mensaje humano>"}`.
+- ✅ Testeado E2E (`iteration_24`): 9/9 backend + Playwright frontend flow completo. Regresión `iteration_23` intacta 10/10.
+
 ## v2.5 — Grupos y Eventos + Mis Planes RSVP (Feb 2026)
 - ✅ **Admin editar grupos**: PATCH `/api/admin/groups/{gid}` + modal en `Admin.jsx` con `EmojiPicker` (5 categorías curadas: sobrio/deporte/arte/naturaleza/otros).
 - ✅ **Admin CRUD eventos** por grupo con `EventsPanel`: `event-when` datetime-local (sin bug UTC), `event-address` dirección exacta, `event-location` comuna, `event-map-link` Google Maps URL, presets de capacidad `event-cap-10/20/50/9999` (Sin límite = 9999).
