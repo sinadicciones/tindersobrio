@@ -1,0 +1,59 @@
+{
+  "summary": "Iteration 17 — Resend email module (transactional + interaction + admin internal). 22/22 backend tests PASS and all 4 frontend flows PASS. Real emails delivered via Resend (resend_id present in email_log). Full backend regression: 12 pre-existing failures unrelated to iteration 17 (chat noise leftovers, geo, notification counts) — no new regressions introduced.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/email/unsubscribe", "issue": "Returns 200 with {ok:false} on invalid token (documented behavior for List-Unsubscribe). Not a bug, just noting."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17_emails.py",
+    "/app/test_reports/pytest/iter17.xml",
+    "/app/test_reports/pytest/iter17_full.xml"
+  ],
+  "action_items": [
+    "Pre-existing regressions (not iteration 17 scope): test_iteration11 chat noise leftover 't0-*' group messages need cleanup; test_iteration4 rate-limit + unread counts; test_iteration8 geo-comuna backfill; test_iteration9 onboarding_birthdate_gate (3 failures). These pre-date iteration 17 and are due to shared demo-data pollution across test runs. Recommend adding per-test cleanup for group_messages and matches."
+  ],
+  "critical_code_review_comments": [
+    "email_service.py line 190: `_sent_today_interaction_count` filters by `sent_at >= today_start` but pending/queued rows without sent_at will be skipped. OK because status filter includes 'queued'.",
+    "server.py line 541: event_ref for password_reset uses timestamp — so two rapid forgot-password requests create two distinct email_log rows. This is acceptable (idempotency_key still unique) but doesn't fully implement 'no new email on duplicate within short window'. Consider bucketing to 5-minute windows.",
+    "email_service.py `send_email` gates order: quiet_hours check happens before daily_cap. On queued item, daily_cap is never checked when eventually drained (drain_queue skips gates). Acceptable trade-off but worth documenting.",
+    "PasswordFlows.jsx line 79: reset submit is disabled when !token but does NOT show a friendly 'link inválido' message — user just sees a disabled button silently."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17_emails.py (new)"
+  ],
+  "success_rate": {"backend": "100% (22/22 iter17 tests)", "frontend": "100% (4/4 flows)"},
+  "test_credentials": "admin: contacto@sinadicciones.org / Jodorowsky100 · demo1..12@plansobrio.cl / Demo1234!",
+  "seed_data_creation": "None. Tests use existing demo1/demo2 users and clean their like/match/email_log state before each flow. Google-only variant creates+deletes a throwaway user.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter17 test file is at /app/backend/tests/test_iteration17_emails.py. It loads /app/backend/.env for JWT_SECRET so forged reset/unsub tokens match server. Real Resend emails are sent — do not spam retries. Pre-existing failures in iterations 4/8/9/11 are due to test-data pollution and are outside iter17 scope.",
+  "verified_flows": {
+    "forgot_password_existing": "email_log row with type=password_reset created, status=sent, resend_id present (real send)",
+    "forgot_password_nonexistent": "returns {ok:true} without creating log — no info leak",
+    "forgot_password_google_only": "email subject includes 'Google' (no-password variant)",
+    "reset_password": "valid token+pw>=6 → 200; invalid → 400; short pw → 400",
+    "waitlist_email": "type=waitlist email_log created with country=AR",
+    "email_preferences_defaults": "GET returns {matches_messages, weekly_summary, plan_reminders} all true; PATCH persists",
+    "unsubscribe_valid_token": "flips matches_messages to false",
+    "unsubscribe_invalid_token": "returns {ok:false, reason:'invalid_token'}",
+    "webhook_bounce": "email_log.status→bounced AND user.email_deliverable→false",
+    "admin_recipients": "seeded esteban.scl@gmail.com + nelson@sinadicciones.org; POST/DELETE work; non-admin → 403",
+    "admin_stats": "returns {days, by_type} with per-type/status counts; non-admin → 403",
+    "admin_send_daily_summary": "returns results array with resend_id per recipient",
+    "like_no_match_flow": "sends 1 like_no_match email to receiver (idempotent w/ 24h anti-noise)",
+    "new_match_flow": "reciprocal likes → 2 new_match email_log rows (one per user)",
+    "idempotency": "no duplicate idempotency_key rows in email_log",
+    "privacy": "no substance/etapa/GPS strings in any email subject",
+    "frontend_forgot_flow": "/login → forgot-link → /olvide-contrasena → forgot-email + forgot-submit → forgot-sent card",
+    "frontend_reset_page": "reset-password + reset-submit inputs render; invalid token stays on page with error toast",
+    "frontend_email_prefs_edit": "edit-email-prefs section visible with all 3 toggles (matches_messages / weekly_summary / plan_reminders)",
+    "frontend_admin_emails_tab": "admin-tab-emails → 2 seed rows + 3 checkboxes/row + add-recipient form + send-daily-now button + 9 stat rows"
+  }
+}

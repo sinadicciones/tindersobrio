@@ -65,6 +65,10 @@ export default function Login() {
           </button>
         </form>
 
+        <p className="mt-4 text-center text-sm text-white/60">
+          <Link data-testid="forgot-link" to="/olvide-contrasena" className="text-white/80 hover:text-white underline">Olvidé mi contraseña</Link>
+        </p>
+
         <p className="mt-8 text-center text-sm text-white/60">
           ¿No tienes cuenta? <Link to="/registro" className="text-white font-semibold underline decoration-[#FF6B5E]">Crea una</Link>
         </p>

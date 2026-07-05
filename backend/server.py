@@ -13,7 +13,8 @@ import jwt
 import httpx
 import requests
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Literal
+from zoneinfo import ZoneInfo
+from typing import List, Optional, Literal, Dict, Any
 
 import re
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Header, Query
@@ -29,6 +30,7 @@ from core.geo_seed import (
     city_coords_for, default_country_coords,
 )
 from core import metrics as metrics_mod
+from core import email_service as email_svc
 from datetime import date as date_cls
 import asyncio
 
@@ -466,6 +468,15 @@ async def register(body: RegisterIn, response: Response):
     await db.users.insert_one(user_doc)
     token = create_access_token(uid, email)
     set_auth_cookie(response, token)
+    # Welcome email (best-effort, transactional so it bypasses caps)
+    try:
+        subj, html_body = email_svc.welcome_body(alias=email.split("@")[0], is_google=False)
+        await email_svc.send_email(
+            db, user_id=uid, to=email, type="welcome",
+            event_ref=f"welcome:{uid}", subject=subj, body_html=html_body,
+        )
+    except Exception:
+        logger.exception("welcome email send failed")
     user_doc.pop("password_hash", None)
     user_doc.pop("_id", None)
     return {"user": user_doc, "token": token}
@@ -495,6 +506,206 @@ async def login(body: LoginIn, response: Response):
 async def logout(response: Response):
     response.delete_cookie("access_token", path="/")
     return {"ok": True}
+
+# ------------------------------------------------------------------
+# Password reset (Resend flow)
+# ------------------------------------------------------------------
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    new_password: str
+
+
+@api.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordIn):
+    """Always returns 200 with the same body so we don't leak account existence.
+    Sends a reset link if the account exists. If the account is Google-only,
+    sends the 'no need for password' variant.
+    """
+    email = body.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if user:
+        try:
+            is_google_only = not user.get("password_hash") and "google" in (user.get("auth_providers") or [])
+            if is_google_only:
+                subj, html_body = email_svc.password_reset_body("", is_google_only=True)
+            else:
+                tok = email_svc.make_reset_token(user["id"])
+                reset_url = f"{email_svc.FRONTEND_URL}/reset-password?token={tok}"
+                subj, html_body = email_svc.password_reset_body(reset_url, is_google_only=False)
+            await email_svc.send_email(
+                db, user_id=user["id"], to=email, type="password_reset",
+                event_ref=f"pwreset:{user['id']}:{int(datetime.now(timezone.utc).timestamp())}",
+                subject=subj, body_html=html_body,
+            )
+        except Exception:
+            logger.exception("forgot-password email failed")
+    return {"ok": True}
+
+
+@api.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordIn):
+    payload = email_svc.read_reset_token(body.token)
+    if not payload or payload.get("kind") != "pwreset":
+        raise HTTPException(status_code=400, detail="Link inválido o expirado")
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+    uid = payload["uid"]
+    await db.users.update_one({"id": uid}, {"$set": {"password_hash": hash_password(body.new_password)}})
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------
+# Email preferences + unsubscribe + webhook
+# ------------------------------------------------------------------
+@api.get("/profile/email-preferences")
+async def get_email_prefs(user: dict = Depends(current_user)):
+    doc = await db.email_preferences.find_one({"user_id": user["id"]}, {"_id": 0}) or {}
+    prefs = dict(email_svc.DEFAULT_PREFERENCES)
+    for k in email_svc.DEFAULT_PREFERENCES:
+        if k in doc:
+            prefs[k] = bool(doc[k])
+    return prefs
+
+
+class EmailPrefsIn(BaseModel):
+    matches_messages: Optional[bool] = None
+    weekly_summary: Optional[bool] = None
+    plan_reminders: Optional[bool] = None
+
+
+@api.patch("/profile/email-preferences")
+async def update_email_prefs(body: EmailPrefsIn, user: dict = Depends(current_user)):
+    upd = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if upd:
+        await db.email_preferences.update_one(
+            {"user_id": user["id"]},
+            {"$set": {**upd, "user_id": user["id"], "updated_at": now_iso()}},
+            upsert=True,
+        )
+    return await get_email_prefs(user)
+
+
+@api.get("/email/unsubscribe")
+async def email_unsubscribe(token: str):
+    """Public one-click unsubscribe (List-Unsubscribe compatible).
+    If the token carries a specific pref, we only turn that off; otherwise
+    we opt the user out of ALL non-transactional email.
+    """
+    payload = email_svc.read_unsub_token(token)
+    if not payload or payload.get("kind") != "unsub":
+        return {"ok": False, "reason": "invalid_token"}
+    uid = payload.get("uid")
+    pref = payload.get("pref")
+    upd: Dict[str, Any] = {"updated_at": now_iso(), "user_id": uid}
+    if pref:
+        upd[pref] = False
+    else:
+        for k in email_svc.DEFAULT_PREFERENCES:
+            upd[k] = False
+    await db.email_preferences.update_one({"user_id": uid}, {"$set": upd}, upsert=True)
+    return {"ok": True, "message": "Listo — dejarás de recibir estos correos"}
+
+
+# Resend uses POST (JSON body). We also accept GET for List-Unsubscribe-Post.
+@api.post("/email/unsubscribe")
+async def email_unsubscribe_post(token: str = ""):
+    return await email_unsubscribe(token)
+
+
+@api.post("/webhooks/resend")
+async def resend_webhook(request: Request):
+    payload = await request.json()
+    try:
+        await email_svc.handle_webhook(db, payload)
+    except Exception:
+        logger.exception("resend webhook handler failed")
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------
+# Admin: notification recipients
+# ------------------------------------------------------------------
+class AdminRecipientIn(BaseModel):
+    email: EmailStr
+    active_for: Optional[Dict[str, bool]] = None
+
+
+@api.get("/admin/email/recipients")
+async def admin_list_recipients(_: dict = Depends(require_admin)):
+    docs = await db.admin_notification_recipients.find({}, {"_id": 0}).sort("email", 1).to_list(50)
+    return docs
+
+
+@api.post("/admin/email/recipients")
+async def admin_add_recipient(body: AdminRecipientIn, _: dict = Depends(require_admin)):
+    email = body.email.lower()
+    active_for = body.active_for or {"admin_new_user": True, "admin_daily_summary": True, "admin_grave_report": True}
+    await db.admin_notification_recipients.update_one(
+        {"email": email},
+        {"$set": {"email": email, "active_for": active_for, "updated_at": now_iso()},
+         "$setOnInsert": {"created_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.delete("/admin/email/recipients/{email}")
+async def admin_remove_recipient(email: str, _: dict = Depends(require_admin)):
+    await db.admin_notification_recipients.delete_one({"email": email.lower()})
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------
+# Admin: email log / stats
+# ------------------------------------------------------------------
+@api.get("/admin/email/stats")
+async def admin_email_stats(days: int = 7, _: dict = Depends(require_admin)):
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    pipeline = [
+        {"$match": {"created_at": {"$gte": since}}},
+        {"$group": {"_id": {"type": "$type", "status": "$status"}, "n": {"$sum": 1}}},
+    ]
+    rows = await db.email_log.aggregate(pipeline).to_list(500)
+    stats: Dict[str, Dict[str, int]] = {}
+    for r in rows:
+        t = r["_id"]["type"]
+        s = r["_id"]["status"]
+        stats.setdefault(t, {})[s] = r["n"]
+    return {"days": days, "by_type": stats}
+
+
+@api.post("/admin/email/send-daily-summary")
+async def admin_force_daily_summary(_: dict = Depends(require_admin)):
+    """Force-send today's admin daily summary now (used for testing)."""
+    yesterday = metrics_mod.today_local() - timedelta(days=1)
+    snap = await metrics_mod.compute_daily_snapshot(db, yesterday)
+    await metrics_mod.upsert_snapshot(db, snap)
+    # 7d prior avg
+    dates = [(yesterday - timedelta(days=i + 1)).isoformat() for i in range(7)]
+    prev_docs = await db.metrics_daily.find({"date": {"$in": dates}}, {"_id": 0}).to_list(7)
+    prev_avg: Dict[str, float] = {}
+    if prev_docs:
+        keys = ["plans_proposed", "plans_confirmed", "plans_realized", "registrations", "onboardings",
+                "users_total", "dau", "likes", "matches", "msgs_1_1", "msgs_group", "rsvps",
+                "reports_created", "blocks", "support_visits"]
+        for k in keys:
+            prev_avg[k] = sum(int(d.get(k) or 0) for d in prev_docs) / len(prev_docs)
+    # Additional derived counters for the email
+    pending_likes = await db.likes.count_documents({"kind": "like"})
+    reports_open = await db.reports.count_documents({"status": "open"})
+    grave_open = await db.reports.count_documents({"status": "open", "category": {"$in": ["ofrece_sustancias", "mala_conducta_cita"]}})
+    snap_for_email = {**snap, "pending_likes": pending_likes, "reports_open": reports_open, "grave_open": grave_open}
+    subj, html_body = email_svc.admin_daily_summary_body(date_str=yesterday.isoformat(), snapshot=snap_for_email, prev_avg=prev_avg)
+    res = await email_svc.send_internal_email(
+        db, notif_type="admin_daily_summary",
+        event_ref=f"daily_summary:{yesterday.isoformat()}",
+        subject=subj, body_html=html_body,
+    )
+    return res
 
 @api.post("/auth/google/session")
 async def google_session(request: Request, response: Response):
@@ -550,6 +761,16 @@ async def google_session(request: Request, response: Response):
             "last_google_login_at": now_iso(),
             "is_demo": False,
         })
+        # Welcome email for brand-new Google sign-ups
+        try:
+            alias = name or email.split("@")[0]
+            subj, html_body = email_svc.welcome_body(alias=alias, is_google=True)
+            await email_svc.send_email(
+                db, user_id=uid, to=email, type="welcome",
+                event_ref=f"welcome:{uid}", subject=subj, body_html=html_body,
+            )
+        except Exception:
+            logger.exception("welcome (google) email send failed")
     token = create_access_token(uid, email)
     set_auth_cookie(response, token)
     user_doc = await db.users.find_one({"id": uid}, {"password_hash": 0, "_id": 0})
@@ -590,6 +811,16 @@ async def join_waitlist(body: WaitlistIn):
         }, "$setOnInsert": {"created_at": now_iso()}},
         upsert=True,
     )
+    # Best-effort waitlist confirmation email
+    try:
+        subj, html_body = email_svc.waitlist_body(country_name=country)
+        await email_svc.send_email(
+            db, user_id=None, to=email, type="waitlist",
+            event_ref=f"waitlist:{email}:{country}", subject=subj, body_html=html_body,
+            force=True,
+        )
+    except Exception:
+        logger.exception("waitlist email send failed")
     return {"ok": True}
 
 # ------------------------------------------------------------------
@@ -735,6 +966,28 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
     if location:
         update["location"] = location
     await db.users.update_one({"id": user["id"]}, {"$set": update})
+    # Fire admin "new user" notification (once per user via idempotency)
+    try:
+        u_after = await db.users.find_one({"id": user["id"]}, {"_id": 0}) or user
+        total_users = await db.users.count_documents({"deleted_at": {"$exists": False}})
+        age = calc_age(u_after.get("birthdate", ""))
+        via = "google" if "google" in (u_after.get("auth_providers") or []) else "email"
+        subj, html_body = email_svc.admin_new_user_body(
+            alias=u_after.get("alias", "sin_alias"),
+            age=age,
+            gender=u_after.get("gender", ""),
+            city=(u_after.get("comuna") or (u_after.get("location") or {}).get("city") or ""),
+            modes=u_after.get("modes", []),
+            via=via,
+            total_users=total_users,
+        )
+        await email_svc.send_internal_email(
+            db, notif_type="admin_new_user",
+            event_ref=f"new_user:{u_after['id']}",
+            subject=subj, body_html=html_body,
+        )
+    except Exception:
+        logger.exception("admin_new_user notification failed")
     return {"ok": True}
 
 @api.patch("/profile/me")
@@ -1095,6 +1348,37 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
 
     # Check reciprocal like
     reciprocal = await db.likes.find_one({"from_user": body.target_user_id, "to_user": user["id"], "mode": body.mode, "kind": "like"})
+    if not reciprocal:
+        # "Te dieron me tinca" email — grouped (24h) and only if activity exists (or plain notice)
+        try:
+            target = await db.users.find_one({"id": body.target_user_id}, {"_id": 0})
+            if target and target.get("email"):
+                cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+                recent = await db.email_log.count_documents({
+                    "user_id": target["id"], "type": "like_no_match", "sent_at": {"$gte": cutoff}, "status": "sent",
+                })
+                # Only send if there hasn't been one in the last 24h
+                if recent == 0:
+                    activity_name = None
+                    if doc.get("activity_id"):
+                        a = await db.activities.find_one({"id": doc["activity_id"]}, {"_id": 0})
+                        activity_name = f"{a.get('emoji','') } {a.get('name','')}".strip() if a else None
+                    # Count OTHER unseen likes (agrupación anti-ruido)
+                    extra = await db.likes.count_documents({
+                        "to_user": target["id"], "kind": "like", "seen": False, "from_user": {"$ne": user["id"]},
+                    })
+                    subj, html_body = email_svc.like_no_match_body(
+                        alias_liker=user.get("alias", "alguien"),
+                        count_extra=extra,
+                        plan_activity=activity_name,
+                    )
+                    await email_svc.send_email(
+                        db, user_id=target["id"], to=target["email"], type="like_no_match",
+                        event_ref=f"like:{doc['id']}",
+                        subject=subj, body_html=html_body, user_doc=target,
+                    )
+        except Exception:
+            logger.exception("like_no_match email send failed")
     if reciprocal:
         match = await db.matches.find_one({"users": {"$all": [user["id"], body.target_user_id]}, "mode": body.mode})
         if not match:
@@ -1157,6 +1441,32 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
                 "kind": "system",
                 "created_at": now_iso(),
             })
+            # Send "new match" emails to both users
+            try:
+                my_act_name = my_act["name"] if my_act else None
+                their_act_name = their_act["name"] if their_act else None
+                # → to current user
+                subj_a, body_a = email_svc.new_match_body(
+                    alias_other=other_alias, my_activity=my_act_name, other_activity=their_act_name, match_id=match_id,
+                )
+                await email_svc.send_email(
+                    db, user_id=user["id"], to=user["email"], type="new_match",
+                    event_ref=f"match:{match_id}:{user['id']}",
+                    subject=subj_a, body_html=body_a,
+                )
+                # → to other user
+                if other_user and other_user.get("email"):
+                    subj_b, body_b = email_svc.new_match_body(
+                        alias_other=my_alias, my_activity=their_act_name, other_activity=my_act_name, match_id=match_id,
+                    )
+                    await email_svc.send_email(
+                        db, user_id=other_user["id"], to=other_user["email"], type="new_match",
+                        event_ref=f"match:{match_id}:{other_user['id']}",
+                        subject=subj_b, body_html=body_b,
+                        user_doc=other_user,
+                    )
+            except Exception:
+                logger.exception("new_match email send failed")
             return {
                 "match": True,
                 "match_id": match_id,
@@ -1534,6 +1844,30 @@ async def accept_plan(plan_id: str, user: dict = Depends(current_user)):
         "kind": "system",
         "created_at": now_iso(),
     })
+    # Send "plan confirmed" emails to both users
+    try:
+        match = await db.matches.find_one({"id": plan["match_id"]}, {"_id": 0}) or {}
+        act_name = f"{plan['activity']['emoji']} {plan['activity']['name']}"
+        when_str = _format_when(plan.get("when"))
+        for uid in match.get("users", []):
+            u = await db.users.find_one({"id": uid}, {"_id": 0})
+            if not u or not u.get("email"):
+                continue
+            other_id = next((x for x in match["users"] if x != uid), None)
+            other = await db.users.find_one({"id": other_id}, {"_id": 0}) if other_id else None
+            subj, html_body = email_svc.plan_confirmed_body(
+                alias_other=(other or {}).get("alias", "alguien"),
+                activity=act_name,
+                when_str=when_str,
+                match_id=plan["match_id"],
+            )
+            await email_svc.send_email(
+                db, user_id=uid, to=u["email"], type="plan_confirmed",
+                event_ref=f"plan_confirmed:{plan_id}:{uid}",
+                subject=subj, body_html=html_body, user_doc=u,
+            )
+    except Exception:
+        logger.exception("plan_confirmed email send failed")
     return {"ok": True}
 
 @api.get("/plans")
@@ -1594,7 +1928,32 @@ async def report_user(body: ReportIn, user: dict = Depends(current_user)):
         "created_at": now_iso(),
     }
     await db.reports.insert_one(doc)
+    # Grave category → immediate admin alert (throttled 1/hour globally via helper)
+    if body.category in ("ofrece_sustancias", "mala_conducta_cita"):
+        try:
+            subj, html_body = email_svc.admin_grave_report_body(
+                category=body.category, when=doc["created_at"],
+            )
+            await email_svc.send_internal_email(
+                db, notif_type="admin_grave_report",
+                event_ref=f"grave:{doc['id']}",
+                subject=subj, body_html=html_body,
+                grave_group_ref="grave:",
+            )
+        except Exception:
+            logger.exception("admin_grave_report email failed")
     return {"ok": True}
+
+
+def _format_when(when_iso: Optional[str]) -> str:
+    """Human-friendly date/time for emails ('hoy 19:00', 'sáb 12 jul 15:30')."""
+    if not when_iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(when_iso).astimezone(ZoneInfo("America/Santiago"))
+        return dt.strftime("%a %d %b · %H:%M").replace("Mon", "lun").replace("Tue", "mar").replace("Wed", "mié").replace("Thu", "jue").replace("Fri", "vie").replace("Sat", "sáb").replace("Sun", "dom")
+    except Exception:
+        return when_iso[:16].replace("T", " ")
 
 # ------------------------------------------------------------------
 # My Reasons (Necesito Apoyo)
@@ -1898,6 +2257,28 @@ async def admin_delete_group(gid: str, _: dict = Depends(require_admin)):
 async def admin_create_event(body: EventIn, _: dict = Depends(require_admin)):
     doc = {"id": str(uuid.uuid4()), "created_at": now_iso(), **body.model_dump()}
     await db.events.insert_one(doc)
+    # Notify group members
+    try:
+        group = await db.groups.find_one({"id": body.group_id}, {"_id": 0}) or {}
+        members = await db.group_members.find({"group_id": body.group_id}, {"_id": 0}).to_list(1000)
+        when_str = _format_when(doc.get("when"))
+        for gm in members:
+            u = await db.users.find_one({"id": gm["user_id"]}, {"_id": 0})
+            if not u or not u.get("email"):
+                continue
+            subj, html_body = email_svc.event_in_group_body(
+                group_name=group.get("name", "tu grupo"),
+                event_title=doc.get("title", "Nuevo evento"),
+                when_str=when_str,
+                group_id=body.group_id,
+            )
+            await email_svc.send_email(
+                db, user_id=u["id"], to=u["email"], type="event_new_in_group",
+                event_ref=f"event:{doc['id']}:{u['id']}",
+                subject=subj, body_html=html_body, user_doc=u,
+            )
+    except Exception:
+        logger.exception("event_new_in_group email failed")
     doc.pop("_id", None)
     return doc
 
@@ -2023,6 +2404,23 @@ async def seed_admin_and_data():
     await db.groups.create_index("active")
     await db.metrics_daily.create_index("date", unique=True)
     await db.support_page_views.create_index("date", unique=True)
+    # Email
+    await db.email_log.create_index("idempotency_key", unique=True)
+    await db.email_log.create_index([("status", 1), ("deliver_after", 1)])
+    await db.email_log.create_index([("user_id", 1), ("type", 1), ("sent_at", -1)])
+    await db.email_preferences.create_index("user_id", unique=True)
+    await db.admin_notification_recipients.create_index("email", unique=True)
+    # Seed default admin recipients (idempotent)
+    for e in ("esteban.scl@gmail.com", "nelson@sinadicciones.org"):
+        await db.admin_notification_recipients.update_one(
+            {"email": e},
+            {"$setOnInsert": {
+                "email": e,
+                "active_for": {"admin_new_user": True, "admin_daily_summary": True, "admin_grave_report": True},
+                "created_at": now_iso(),
+            }},
+            upsert=True,
+        )
     # Geo indexes (idempotent)
     await db.users.create_index([("location.coords", "2dsphere")])
     await db.users.create_index("country")
@@ -2210,6 +2608,10 @@ async def on_startup():
     await seed_admin_and_data()
     # Kick off the nightly metrics snapshot loop (03:00 America/Santiago)
     asyncio.create_task(metrics_mod.daily_snapshot_loop(db))
+    # Email queue drain loop (every 10 min: delivers emails queued during quiet hours)
+    asyncio.create_task(email_svc.queue_drain_loop(db))
+    # Scheduled email jobs (admin daily summary 08:30, plan reminders 09:00, weekly Thu 12:00)
+    asyncio.create_task(email_svc.scheduled_jobs_loop(db, metrics_mod))
 
 # ------------------------------------------------------------------
 app.include_router(api)

@@ -7,6 +7,7 @@ import BottomNav from "@/components/BottomNav";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import { ForgotPassword, ResetPassword } from "@/pages/PasswordFlows";
 import Onboarding from "@/pages/Onboarding";
 import Discover from "@/pages/Discover";
 import Groups from "@/pages/Groups";
@@ -65,6 +66,8 @@ function AppRouter() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Register />} />
+      <Route path="/olvide-contrasena" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/terminos" element={<Terminos />} />
       <Route path="/privacidad" element={<Privacidad />} />
       <Route path="/cuenta-suspendida" element={<CuentaSuspendida />} />

@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { GENDERS, MODES, SOBER_TIMES, PROMPTS } from "@/constants/comunas";
 import { compressImage } from "@/lib/imageCompress";
 import { toast } from "sonner";
-import { ArrowLeft, X, Camera, Plus, PencilLine } from "lucide-react";
+import { ArrowLeft, X, Camera, Plus, PencilLine, Mail } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
 import { Icon, iconForActivity } from "@/lib/icons";
 import { HeartHandshake, Smile, Heart, Users as UsersIcon } from "lucide-react";
@@ -43,6 +43,18 @@ export default function EditProfile() {
     show_modes: user?.show_modes ?? true,
   });
   const [locationDraft, setLocationDraft] = useState(initialLocation);
+  const [emailPrefs, setEmailPrefs] = useState({ matches_messages: true, weekly_summary: true, plan_reminders: true });
+  useEffect(() => {
+    api.get("/profile/email-preferences").then((r) => setEmailPrefs(r.data)).catch(() => {});
+  }, []);
+  const patchEmailPref = async (key, val) => {
+    setEmailPrefs((prev) => ({ ...prev, [key]: val }));
+    try {
+      await api.patch("/profile/email-preferences", { [key]: val });
+    } catch {
+      toast.error("No pudimos guardar tu preferencia");
+    }
+  };
   const [locationChanged, setLocationChanged] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const [acts, setActs] = useState([]);
@@ -323,6 +335,31 @@ export default function EditProfile() {
         </div>
 
         <button data-testid="save-profile" onClick={save} className="ps-btn-primary w-full mt-4">Guardar</button>
+
+        <div data-testid="edit-email-prefs" className="mt-6">
+          <label className="text-sm text-white/60 mb-2 block">Correos que quiero recibir</label>
+          <div className="ps-card p-4 space-y-3">
+            <div className="inline-flex items-center gap-2 text-white/80 text-xs">
+              <Mail size={14} strokeWidth={1.9}/> Puedes activar o desactivar cada tipo cuando quieras.
+            </div>
+            {[
+              { key: "matches_messages", label: "Matches y mensajes" },
+              { key: "plan_reminders", label: "Recordatorios de planes" },
+              { key: "weekly_summary", label: "Resumen semanal" },
+            ].map((p) => (
+              <label key={p.key} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-white/85">{p.label}</span>
+                <input
+                  type="checkbox"
+                  data-testid={`toggle-email-${p.key}`}
+                  className="w-5 h-5 accent-[#8B5CF6]"
+                  checked={!!emailPrefs[p.key]}
+                  onChange={(e)=>patchEmailPref(p.key, e.target.checked)}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

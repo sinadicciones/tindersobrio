@@ -3,8 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { LogOut, Users, Flag, Activity, Home, MapPin, BarChart3 } from "lucide-react";
+import { LogOut, Users, Flag, Activity, Home, MapPin, BarChart3, Mail } from "lucide-react";
 import Metrics from "@/pages/admin/Metrics";
+import EmailsAdmin from "@/pages/admin/EmailsAdmin";
 
 const TABS = [
   { v: "metricas", l: "Métricas", icon: BarChart3 },
@@ -13,6 +14,7 @@ const TABS = [
   { v: "usuarios", l: "Usuarios", icon: Users },
   { v: "actividades", l: "Actividades", icon: Activity },
   { v: "grupos", l: "Grupos", icon: MapPin },
+  { v: "emails", l: "Emails", icon: Mail },
 ];
 
 export default function Admin() {
@@ -51,6 +53,7 @@ export default function Admin() {
         {tab === "usuarios" && <Users2/>}
         {tab === "actividades" && <Activities/>}
         {tab === "grupos" && <GroupsAdmin/>}
+        {tab === "emails" && <EmailsAdmin/>}
       </div>
     </div>
   );
