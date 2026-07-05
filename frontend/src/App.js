@@ -39,7 +39,9 @@ function RequireAuth({ children, requireOnboarding = true, adminOnly = false }) 
 function AppShell() {
   return (
     <>
-      <Outlet />
+      <div className="pb-nav min-h-screen">
+        <Outlet />
+      </div>
       <BottomNav />
     </>
   );
