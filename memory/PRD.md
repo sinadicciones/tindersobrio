@@ -1,6 +1,6 @@
 # PlanSobrio - Product Requirements Document
 
-**Última actualización:** 2026-02-08
+**Última actualización:** 2026-02-09
 
 ## Concepto
 App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de conexión en un solo lugar: Apoyo, Amistad, Amor y Grupos. Diferenciador: "match por plan" — el usuario propone una actividad sobria concreta al dar like, y el chat se abre con ese plan como primer mensaje.
@@ -28,7 +28,21 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
-## Implementado (v2.3 - Feb 2026 - Resend Email System)
+## Implementado (v2.4 - Feb 2026 - Pre-launch AUDITORIAFASE1 + PLANSEO)
+- ✅ **Reset Beta seguro**: `POST /api/admin/reset-beta` con confirmación "RESETEAR". Borra todos los users no-admin + likes/matches/messages/plans/reports/blocks/group_members/group_messages/event_rsvps/email_preferences/email_log de usuarios. Preserva admins, grupos, eventos, actividades, países, helplines, admin_recipients, metrics_daily, support_page_views. Marca `app_settings.demo_seed_enabled=false` para desactivar re-siembra automática al arranque. Audit trail en `admin_actions`.
+- ✅ **`GET /api/admin/settings`** para leer flags persistentes.
+- ✅ **Zona peligrosa en /admin > Dashboard** con doble confirmación (`data-testid` reset-beta-open, -confirm-input, -execute, -cancel). Botón coral, explicación clara de qué se borra vs conserva.
+- ✅ **Badge BETA menta** en Landing (`beta-badge`) y Admin (`admin-beta-badge`).
+- ✅ **Crédito SinAdicciones** en Landing (`sinadicciones-credit`) y /app/perfil (`app-sinadicciones-credit`).
+- ✅ **SEO metadata completa** (`/app/frontend/public/index.html`): `<html lang="es-CL">`, `<title>`, description, canonical, og:{title,description,type,url,site_name,locale,image=/og.png,image:width=1200,image:height=630,image:alt}, twitter:card=summary_large_image, JSON-LD `Organization` con sameAs SinAdicciones.
+- ✅ **Assets de marca** generados en `/app/tools/gen_brand_assets.py` (favicon.ico multi-tamaño 16/32/48, favicon-192.png, favicon-512.png, apple-touch-icon.png 180, og.png 1200x630 con gradientes coral→violeta + sprout + tagline + badge "Beta gratis · Chile", site.webmanifest).
+- ✅ **`robots.txt` + `sitemap.xml`** en `/app/frontend/public/` (Disallow: /app, /admin, /onboarding, /reset-password, /olvide-contrasena, /api).
+- ✅ **Meta robots dinámica por ruta** en `App.js`: `noindex, nofollow` en /app/*, /admin, /onboarding, /reset-password, /olvide-contrasena; `index, follow` en resto (validado con `page.evaluate`).
+- ✅ **Suite de tests**: pytest de 125 rojos → 173/180 verde (96%). Los 7 restantes son flakes de xdist parallel (pasan individualmente).
+- ✅ **Testing**: `testing_agent_v3_fork` iter 18 → **0 issues nuevos**, reset-beta E2E validado + flag persiste después de restart + smoke E2E completo con 2 cuentas reales frescas creadas y borradas.
+- ⚠️ **Estado del preview**: DB reseteada (0 users no-admin, demo_seed_enabled=false). Para re-habilitar los 12 demos en preview: setear `app_settings.demo_seed_enabled=true` y reiniciar backend.
+
+
 - ✅ **Motor de emails privacidad-first** (`/app/backend/core/email_service.py`, ~800 líneas):
   - Resend con dominio `plansobrio.com` verificado, sender `PlanSobrio <hola@plansobrio.com>`.
   - Función central `send_email` con gates: idempotencia (SHA256 de destino+tipo+event_ref), preferencias (`email_preferences`), estado del usuario (banned/deleted/undeliverable), silencio 22:00–08:00 America/Santiago (queued → drain loop 10 min), tope 1 correo interacción/día por usuario.
