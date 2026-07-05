@@ -168,9 +168,15 @@ def main():
     ico_img = make_icon(64)
     ico_img.save(OUT / "favicon.ico", format="ICO", sizes=ico_sizes)
 
-    # OG image
-    og = make_og()
-    og.save(OUT / "og.png", format="PNG", optimize=True)
+    # OG image — user-provided custom design lives at /app/frontend/public/og.png.
+    # Do NOT overwrite if it exists. Pass --force to regenerate.
+    import sys
+    og_path = OUT / "og.png"
+    if og_path.exists() and "--force" not in sys.argv:
+        print(f"! Skipping og.png (already exists — pass --force to regenerate)")
+    else:
+        og = make_og()
+        og.save(og_path, format="PNG", optimize=True)
 
     # Web manifest
     manifest = """{
