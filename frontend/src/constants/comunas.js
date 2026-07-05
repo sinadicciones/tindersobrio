@@ -32,10 +32,10 @@ export const SOBER_TIMES = [
 ];
 
 export const MODES = [
-  { v: "apoyo", l: "Apoyo", emoji: "🤝", color: "#38BDF8", desc: "Compañeros de proceso" },
-  { v: "amistad", l: "Amistad", emoji: "🙂", color: "#FBBF24", desc: "Amigues para panoramas" },
-  { v: "amor", l: "Amor", emoji: "❤️", color: "#FF6B5E", desc: "Citas con intención romántica" },
-  { v: "grupos", l: "Grupos", emoji: "👥", color: "#8B5CF6", desc: "Actividades y comunidades" },
+  { v: "apoyo",   l: "Apoyo",   emoji: "🤝", icon: "HeartHandshake", color: "#38BDF8", desc: "Compañeros de proceso" },
+  { v: "amistad", l: "Amistad", emoji: "🙂", icon: "Smile",          color: "#FBBF24", desc: "Amigues para panoramas" },
+  { v: "amor",    l: "Amor",    emoji: "❤️", icon: "Heart",          color: "#FF6B5E", desc: "Citas con intención romántica" },
+  { v: "grupos",  l: "Grupos",  emoji: "👥", icon: "Users",          color: "#8B5CF6", desc: "Actividades y comunidades" },
 ];
 
 export const REPORT_CATEGORIES = [

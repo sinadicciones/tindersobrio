@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Compass, Users, CalendarHeart, MessageCircle, User } from "lucide-react";
+import { Compass, Users, CalendarHeart, MessageCircle, CircleUserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -9,7 +9,7 @@ const items = [
   { to: "/app/grupos", label: "Grupos", icon: Users, tid: "nav-grupos" },
   { to: "/app/mis-planes", label: "Mis planes", icon: CalendarHeart, tid: "nav-planes" },
   { to: "/app/chats", label: "Chats", icon: MessageCircle, tid: "nav-chats", key: "chats" },
-  { to: "/app/perfil", label: "Perfil", icon: User, tid: "nav-perfil" },
+  { to: "/app/perfil", label: "Perfil", icon: CircleUserRound, tid: "nav-perfil" },
 ];
 
 export default function BottomNav() {
@@ -29,12 +29,12 @@ export default function BottomNav() {
         const inChats = location.pathname.startsWith("/app/chats");
         if (!prev.current.first && !inChats) {
           if (data.new_matches > prev.current.new_matches) {
-            toast.success("¡Hay plan! 🎉 Tienes un nuevo match", {
+            toast.success("¡Hay plan! Tienes un nuevo match", {
               action: { label: "Ver", onClick: () => nav("/app/chats") },
               duration: 6000,
             });
           } else if (data.unread_messages > prev.current.unread_messages) {
-            toast("💬 Nuevo mensaje en tu chat", {
+            toast("Nuevo mensaje en tu chat", {
               action: { label: "Ver", onClick: () => nav("/app/chats") },
               duration: 5000,
             });
@@ -59,7 +59,7 @@ export default function BottomNav() {
       data-testid="bottom-nav"
       className="fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none"
     >
-      <div className="pointer-events-auto w-full max-w-md mx-3 mb-3 rounded-3xl bg-[#12141A]/95 backdrop-blur-xl border border-white/10 shadow-2xl px-2 py-2 flex justify-between">
+      <div className="pointer-events-auto w-full max-w-md mx-3 mb-3 rounded-3xl bg-[#0B0C10]/95 backdrop-blur-xl border border-white/[.16] shadow-2xl px-2 py-2 flex justify-between">
         {items.map((it) => {
           const showBadge = it.key === "chats" && chatBadge > 0;
           return (
@@ -68,21 +68,20 @@ export default function BottomNav() {
               to={it.to}
               data-testid={it.tid}
               className={({ isActive }) =>
-                `relative flex flex-col items-center justify-center flex-1 py-2 px-1 rounded-2xl text-[10px] font-semibold transition-all ${
-                  isActive
-                    ? "text-white bg-gradient-to-br from-[#FF6B5E]/20 to-[#8B5CF6]/20"
-                    : "text-white/50 hover:text-white/80"
+                `relative flex flex-col items-center justify-center flex-1 py-2 px-1 text-[10px] font-bold transition-colors ${
+                  isActive ? "text-white" : "text-[#8E93A3] hover:text-white/80"
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <it.icon size={22} strokeWidth={isActive ? 2.4 : 1.8} className={isActive ? "text-[#FF6B5E]" : ""} />
+                  {isActive && (
+                    <span aria-hidden="true" className="absolute -top-2 w-[22px] h-[3px] rounded-b-[3px] ps-gradient"/>
+                  )}
+                  <it.icon size={20} strokeWidth={1.9} />
                   <span className="mt-1">{it.label}</span>
                   {showBadge && (
-                    <span data-testid="chats-badge" className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full ps-gradient text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-[#12141A]">
-                      {chatBadge > 9 ? "9+" : chatBadge}
-                    </span>
+                    <span data-testid="chats-badge" className="absolute top-0 right-3 w-2 h-2 rounded-full bg-[#FF6B5E] ring-2 ring-[#0B0C10]"/>
                   )}
                 </>
               )}

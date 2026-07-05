@@ -5,8 +5,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { MODES, modeColor, soberLabel, COMUNAS_RM } from "@/constants/comunas";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate as fmAnimate } from "framer-motion";
 import { toast } from "sonner";
-import { Sparkles, X, MapPin, Heart, SlidersHorizontal } from "lucide-react";
+import { Sparkles, X, MapPin, Heart, SlidersHorizontal, HeartHandshake, Smile, Sprout, PencilLine } from "lucide-react";
 import Avatar from "@/components/Avatar";
+import { Icon, iconForActivity } from "@/lib/icons";
+
+// Mode icon renderer to match the design system tokens
+const MODE_ICONS = { apoyo: HeartHandshake, amistad: Smile, amor: Heart };
 
 export default function Discover() {
   const { user } = useAuth();
@@ -133,17 +137,24 @@ export default function Discover() {
         <span data-testid="quota-remaining" className="text-xs text-white/50">{quota.remaining}/20 me tinca</span>
       </div>
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1 items-center">
-        {swipeModes.map((m) => (
-          <button key={m.v} data-testid={`mode-${m.v}`} onClick={()=>setMode(m.v)}
-            className={`px-4 py-2 rounded-full text-sm font-semibold border transition flex-shrink-0 ${mode===m.v ? "border-transparent text-white" : "bg-white/5 border-white/10 text-white/70"}`}
-            style={mode===m.v ? { background: `linear-gradient(135deg, ${m.color}, ${m.color}dd)` } : {}}>
-            {m.emoji} {m.l}
-          </button>
-        ))}
+        {swipeModes.map((m) => {
+          const M = MODE_ICONS[m.v] || Sparkles;
+          const active = mode === m.v;
+          return (
+            <button key={m.v} data-testid={`mode-${m.v}`} onClick={()=>setMode(m.v)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition flex-shrink-0 ${
+                active ? "border-transparent ps-gradient text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"
+              }`}>
+              <M size={13} strokeWidth={1.9}/> {m.l}
+            </button>
+          );
+        })}
         <button data-testid="open-filters" onClick={()=>setFiltersOpen(true)}
-          className={`ml-auto flex-shrink-0 relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold border transition ${activeFilterCount>0 ? "border-transparent ps-gradient text-white" : "bg-white/5 border-white/10 text-white/70"}`}>
-          <SlidersHorizontal size={14}/> Filtros
-          {activeFilterCount > 0 && <span className="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-white/25 text-white text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>}
+          className={`ml-auto flex-shrink-0 relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition ${
+            activeFilterCount>0 ? "border-transparent ps-gradient text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"
+          }`}>
+          <SlidersHorizontal size={13} strokeWidth={1.9}/> Filtros
+          {activeFilterCount > 0 && <span className="ml-1 min-w-[16px] h-[16px] px-1 rounded-full bg-white/25 text-white text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>}
         </button>
       </div>
 
@@ -223,6 +234,7 @@ export default function Discover() {
             key={current.id}
             profile={current}
             mode={mode}
+            activities={activities}
             onPass={pass}
             onLike={openLike}
             resetRef={cardResetRef}
@@ -242,22 +254,22 @@ export default function Discover() {
               <div className="mt-4 space-y-2">
                 {suggestedActivities().map((a) => (
                   <button key={a.id} data-testid={`suggest-${a.id}`} onClick={()=>sendLike(a.id, false)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition">
-                    <span className="text-2xl">{a.emoji}</span>
-                    <span className="font-semibold">{a.name}</span>
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/[.16] hover:bg-white/10 text-left transition">
+                    <span className="ps-icn"><Icon name={iconForActivity(a)} size={20}/></span>
+                    <span className="font-semibold text-white">{a.name}</span>
                   </button>
                 ))}
                 <details className="w-full">
-                  <summary className="cursor-pointer px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-sm font-semibold">Otro plan…</summary>
+                  <summary className="cursor-pointer px-4 py-3 rounded-2xl bg-white/5 border border-white/[.16] text-sm font-semibold text-white">Otro plan…</summary>
                   <div className="mt-2 max-h-56 overflow-y-auto space-y-1">
                     {activities.map((a) => (
                       <button key={a.id} onClick={()=>sendLike(a.id, false)} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-left text-sm">
-                        <span className="text-xl">{a.emoji}</span><span>{a.name}</span>
+                        <Icon name={iconForActivity(a)} size={18}/> <span>{a.name}</span>
                       </button>
                     ))}
                   </div>
                 </details>
-                <button data-testid="like-no-plan" onClick={()=>sendLike(null, true)} className="w-full px-4 py-3 rounded-2xl text-sm text-white/70 border border-dashed border-white/20 hover:bg-white/5">
+                <button data-testid="like-no-plan" onClick={()=>sendLike(null, true)} className="w-full px-4 py-3 rounded-2xl text-sm text-[#C7CBD6] border border-dashed border-white/20 hover:bg-white/5">
                   Solo me interesa, sin plan aún
                 </button>
               </div>
@@ -278,12 +290,15 @@ export default function Discover() {
                   className="mx-auto w-20 h-20 rounded-full ps-gradient flex items-center justify-center mb-4">
                   <Sparkles size={38}/>
                 </motion.div>
-                <h2 className="font-display text-4xl font-black">¡Hay plan! 🎉</h2>
+                <h2 className="font-display text-4xl font-black">¡Hay plan!</h2>
                 <p className="mt-2 text-white/70">A ti y a <span className="font-bold text-white">{matchModal.other?.alias}</span> les tinca juntarse.</p>
                 {matchModal.activity && (
-                  <div className="mt-4 ps-card p-3 border border-[#4ADE80]/30">
-                    <p className="text-xs text-white/50 uppercase tracking-wider">Plan propuesto</p>
-                    <p className="font-display text-xl font-bold mt-1">{matchModal.activity.emoji} {matchModal.activity.name}</p>
+                  <div className="mt-4 ps-card p-3 border border-[#4ADE80]/30 inline-flex items-center gap-2">
+                    <Icon name={iconForActivity(matchModal.activity)} size={22}/>
+                    <div className="text-left">
+                      <p className="text-[10px] text-white/50 uppercase tracking-[.13em] font-bold">Plan propuesto</p>
+                      <p className="font-display text-lg font-bold mt-0.5">{matchModal.activity.name}</p>
+                    </div>
                   </div>
                 )}
                 <div className="mt-6 flex gap-3">
@@ -299,7 +314,11 @@ export default function Discover() {
   );
 }
 
-function ProfileCard({ profile, mode, onPass, onLike, resetRef }) {
+function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef }) {
+  const actById = {};
+  const actByName = {};
+  activities.forEach((a) => { actById[a.id] = a; actByName[a.name] = a; });
+  const resolveAct = (key) => actById[key] || actByName[key] || null;
   const [photoIdx, setPhotoIdx] = useState(0);
   const [gone, setGone] = useState(false); // true after card flies out
   const photo = profile.photos?.[photoIdx];
@@ -409,25 +428,48 @@ function ProfileCard({ profile, mode, onPass, onLike, resetRef }) {
             className="absolute top-10 right-6 z-20 pointer-events-none"
           >
             <div className="px-4 py-2 rounded-2xl border-4 border-white/40 text-2xl font-black tracking-tight rotate-[14deg] bg-white/10 backdrop-blur-sm">
-              PASO 👋
+              PASO
             </div>
           </motion.div>
 
           {/* Info overlay */}
           <div className="absolute bottom-0 left-0 right-0 p-5 space-y-3 pointer-events-none">
             <div className="flex items-end gap-2 flex-wrap">
-              <h2 className="font-display text-3xl font-black tracking-tight">{profile.alias}<span className="text-white/60 font-medium">, {profile.age}</span></h2>
+              <h2 className="font-display text-3xl font-black tracking-tight text-white">
+                {profile.alias}<span className="text-white/60 font-medium text-[17px]">, {profile.age}</span>
+              </h2>
               {profile.sober_time_badge && (
-                <span className="ps-chip" style={{ background: "rgba(74,222,128,0.15)", borderColor: "rgba(74,222,128,0.4)", color: "#4ADE80" }}>
-                  🌱 {soberLabel(profile.sober_time_badge)}
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-bold tracking-tight px-2 py-1 rounded-full" style={{ color: "#4ADE80", background: "rgba(74,222,128,.14)", border: "1px solid rgba(74,222,128,.42)" }}>
+                  <Sprout size={11} strokeWidth={1.9}/> {soberLabel(profile.sober_time_badge)}
                 </span>
               )}
             </div>
-            <p data-testid="profile-comuna" className="text-sm text-white/80 flex items-center gap-1"><MapPin size={14}/> {profile.comuna}{profile.distance_km != null && (<span data-testid="profile-distance" className="text-white/60"> · a {profile.distance_km >= 50 ? "50+" : `~${profile.distance_km}`} km</span>)}</p>
+            <p data-testid="profile-comuna" className="text-xs text-[#C7CBD6] flex items-center gap-1">
+              <MapPin size={12} strokeWidth={1.9} className="text-white"/> {profile.comuna}
+              {profile.distance_km != null && (
+                <span data-testid="profile-distance" className="text-[#FF6B5E] font-semibold"> · a {profile.distance_km >= 50 ? "50+" : `~${profile.distance_km}`} km</span>
+              )}
+            </p>
             {profile.prompts?.slice(0,1).map((p, i) => (
-              <div key={i} className="ps-card p-3">
-                <p className="text-xs text-white/50">{p.q}</p>
-                <p className="mt-1 text-sm">{p.a}</p>
+              <div key={i} className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.16)", backdropFilter: "blur(6px)" }}>
+                <p className="ps-lab" style={{ marginBottom: 4 }}>
+                  <PencilLine size={12} strokeWidth={1.9}/> {p.q?.toUpperCase()}
+                </p>
+                <p className="text-sm text-white leading-snug">{p.a}</p>
+                {profile.favorite_activities?.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {profile.favorite_activities.slice(0, 3).map((favKey) => {
+                      const act = resolveAct(favKey);
+                      const label = act?.name || favKey;
+                      return (
+                        <span key={favKey} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/[.16] text-[#C7CBD6]">
+                          {act && <Icon name={iconForActivity(act)} size={11} strokeWidth={1.9}/>}
+                          {label.split(" ")[0]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -437,27 +479,29 @@ function ProfileCard({ profile, mode, onPass, onLike, resetRef }) {
       {/* Prompts extra (scroll below card) */}
       <div className="mt-4 space-y-3">
         {profile.bio && (
-          <div data-testid="profile-bio" className="relative pl-4 pr-4 py-4 rounded-2xl overflow-hidden" style={{ background: "linear-gradient(180deg, #1B1F2A 0%, #161922 100%)", boxShadow: "0 4px 24px rgba(0,0,0,0.35)" }}>
-            <div className="absolute left-0 top-0 bottom-0 w-1 ps-gradient rounded-l-2xl"/>
-            <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "#FF6B5E" }}>✍️ Sobre mí</p>
-            <p className="mt-2 text-white leading-relaxed" style={{ fontSize: "16px" }}>“{profile.bio}”</p>
+          <div data-testid="profile-bio" className="ps-bio-card">
+            <p className="ps-lab"><PencilLine size={12} strokeWidth={1.9}/> Sobre mí</p>
+            <p className="mt-1 text-white leading-relaxed text-[14px]">“{profile.bio}”</p>
           </div>
         )}
         {profile.prompts?.slice(1).map((p, i) => (
-          <div key={i} className="ps-card p-4">
-            <p className="text-xs text-white/50">{p.q}</p>
-            <p className="mt-1 text-sm">{p.a}</p>
+          <div key={i} className="ps-card p-4 grid grid-cols-[40px_1fr] gap-3 items-start">
+            <span className="ps-icn"><PencilLine size={20} strokeWidth={1.9}/></span>
+            <div>
+              <p className="ps-lab"><PencilLine size={12} strokeWidth={1.9}/> {p.q?.toUpperCase()}</p>
+              <p className="mt-1 text-sm text-white leading-snug">{p.a}</p>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Actions */}
       <div className="flex gap-3 mt-5">
-        <button data-testid="pass-btn" onClick={onPass} className="flex-1 py-4 rounded-full bg-white/5 border border-white/10 font-semibold text-white/80 hover:bg-white/10 transition">
+        <button data-testid="pass-btn" onClick={onPass} className="flex-1 py-3.5 rounded-full bg-white/5 border border-white/[.16] font-bold text-white hover:bg-white/10 transition">
           Pasar
         </button>
-        <button data-testid="me-tinca-btn" onClick={onLike} className="ps-btn-primary flex-[1.4] py-4 flex items-center justify-center gap-2 text-base">
-          <Heart size={18} fill="white"/> Me tinca ✨
+        <button data-testid="me-tinca-btn" onClick={onLike} className="ps-btn-primary flex-[1.4] py-3.5 flex items-center justify-center gap-2 text-base">
+          <Heart size={18} strokeWidth={1.9} fill="white"/> Me tinca
         </button>
       </div>
     </motion.div>

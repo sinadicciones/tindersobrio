@@ -1802,9 +1802,19 @@ async def seed_admin_and_data():
 
     # Activities
     if await db.activities.count_documents({}) == 0:
-        for emoji, name, cat in SEED_ACTIVITIES:
-            await db.activities.insert_one({"id": str(uuid.uuid4()), "emoji": emoji, "name": name, "category": cat, "active": True, "created_at": now_iso()})
+        for emoji, name, cat, icon in SEED_ACTIVITIES:
+            await db.activities.insert_one({
+                "id": str(uuid.uuid4()), "emoji": emoji, "icon": icon, "name": name,
+                "category": cat, "active": True, "created_at": now_iso(),
+            })
         logger.info("Actividades sembradas")
+    else:
+        # Backfill icon on existing activities (idempotent by name).
+        icon_by_name = {name: icon for _, name, _, icon in SEED_ACTIVITIES}
+        async for a in db.activities.find({"icon": {"$exists": False}}, {"id": 1, "name": 1, "_id": 0}):
+            new_icon = icon_by_name.get(a.get("name"))
+            if new_icon:
+                await db.activities.update_one({"id": a["id"]}, {"$set": {"icon": new_icon}})
 
     # Groups
     if await db.groups.count_documents({}) == 0:

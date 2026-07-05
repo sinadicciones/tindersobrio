@@ -1,22 +1,25 @@
 """Seed data catalogs for PlanSobrio."""
 
+# (emoji, name, category, lucide_icon)
+# `emoji` is kept in the DB for backward compatibility with older clients and
+# feature-parity of the "content" layer, but the visual UI now renders `icon`.
 SEED_ACTIVITIES = [
-    ("☕", "Café y conversación", "cafe"),
-    ("🥾", "Caminata o trekking", "aire_libre"),
-    ("🌳", "Paseo por un parque", "aire_libre"),
-    ("🏛️", "Museo o centro cultural", "cultura"),
-    ("🎬", "Cine", "cultura"),
-    ("🍽️", "Almorzar o cenar rico", "comida"),
-    ("🏃", "Entrenar juntos", "deporte"),
-    ("⚽", "Pichanga o deporte grupal", "deporte"),
-    ("🧘", "Yoga o meditación", "bienestar"),
-    ("📚", "Club de lectura o librería", "cultura"),
-    ("🎨", "Taller creativo", "cultura"),
-    ("🎲", "Juegos de mesa", "entretencion"),
-    ("🐶", "Pasear a los perros", "aire_libre"),
-    ("🎵", "Concierto o música en vivo de día", "entretencion"),
-    ("🧗", "Escalada o panorama aventura", "deporte"),
-    ("🍦", "Helado y vuelta a la manzana", "cafe"),
+    ("☕", "Café y conversación", "cafe", "Coffee"),
+    ("🥾", "Caminata o trekking", "aire_libre", "Mountain"),
+    ("🌳", "Paseo por un parque", "aire_libre", "Trees"),
+    ("🏛️", "Museo o centro cultural", "cultura", "Landmark"),
+    ("🎬", "Cine", "cultura", "Clapperboard"),
+    ("🍽️", "Almorzar o cenar rico", "comida", "UtensilsCrossed"),
+    ("🏃", "Entrenar juntos", "deporte", "Dumbbell"),
+    ("⚽", "Pichanga o deporte grupal", "deporte", "Volleyball"),
+    ("🧘", "Yoga o meditación", "bienestar", "Flower2"),
+    ("📚", "Club de lectura o librería", "cultura", "BookOpen"),
+    ("🎨", "Taller creativo", "cultura", "Palette"),
+    ("🎲", "Juegos de mesa", "entretencion", "Dice5"),
+    ("🐶", "Pasear a los perros", "aire_libre", "Dog"),
+    ("🎵", "Concierto o música en vivo de día", "entretencion", "Music"),
+    ("🧗", "Escalada o panorama aventura", "deporte", "MountainSnow"),
+    ("🍦", "Helado y vuelta a la manzana", "cafe", "IceCreamCone"),
 ]
 
 SEED_GROUPS = [
