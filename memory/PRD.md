@@ -28,6 +28,16 @@ App chilena para conocer personas que viven sin alcohol ni drogas. 4 modos de co
 9. Bloquear = bilateral. Reportar con 5 categorías.
 10. Admin: contacto@sinadicciones.org (rol admin).
 
+## Implementado (v1.4 - Feb 2026 - Google Auth)
+- ✅ **Emergent-managed Google Auth** coexistiendo con email/password:
+  - `POST /api/auth/google/session` (backend) intercambia el `session_id` de Emergent Auth por el mismo JWT que usa el resto del app (Bearer + cookie).
+  - Vinculación por email: si ya existe cuenta email/password con el mismo correo, se enlaza (agrega `"google"` a `auth_providers`), sin duplicar usuarios.
+  - Nuevos usuarios de Google quedan con `password_hash: null`, `onboarding_complete: false`, `auth_providers: ["google"]`.
+  - `<AuthCallback/>` detecta `#session_id=` en el hash SINCRÓNICAMENTE durante el render (evita race con `/auth/me`), limpia el fragmento y navega según rol/onboarding.
+  - `AuthContext.refresh()` salta `/auth/me` cuando el hash trae `session_id=`.
+  - Botón "Continuar con Google" en `/login` y `/registro` con `redirect_url` derivado de `window.location.origin` (sin hardcoding ni fallbacks — funciona igual en preview y en `plansobrio.com`).
+  - Onboarding paso 0 muestra input `ob-birthdate` sólo cuando el usuario no tiene `birthdate` (usuarios Google). Server valida +18.
+
 ## Implementado (v1.3 - Feb 2026 - GEOSWIPE Bloques 1, 2 y 3)
 - ✅ **GEOSWIPE Bloque 1** (swipe gesture): tarjetas de descubrimiento arrastrables con `framer-motion`, umbrales configurables, swipe→right abre modal de plan; cancelar el modal NO consume el "me tinca" y retorna la tarjeta al centro.
 - ✅ **GEOSWIPE Bloque 2** (multi-país + geo estructural):
