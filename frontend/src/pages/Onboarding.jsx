@@ -298,7 +298,7 @@ export default function Onboarding() {
             <div className="mt-6">
               <p className="text-white/60 mb-4">Elige mínimo 3 panoramas que te gustan.</p>
               <div className="grid grid-cols-2 gap-2">
-                {activities.map((a) => {
+                {activities.filter((a) => !a.is_virtual).map((a) => {
                   const on = form.favorite_activities.includes(a.id);
                   return (
                     <button type="button" key={a.id} data-testid={`ob-act-${a.id}`}

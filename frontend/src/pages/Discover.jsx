@@ -93,15 +93,19 @@ export default function Discover() {
     }
   };
 
-  // Suggested activities: user's favs intersected with candidate's favs
+  // Suggested activities: user's favs intersected with candidate's favs.
+  // "Chatear online" (is_virtual) is ALWAYS surfaced first as a low-friction option.
   const suggestedActivities = () => {
-    if (!current || !user) return activities.slice(0, 3);
+    const virtual = activities.filter((a) => a.is_virtual);
+    const real = activities.filter((a) => !a.is_virtual);
+    if (!current || !user) return [...virtual, ...real.slice(0, 2)];
     const mine = new Set(user.favorite_activities || []);
     const theirs = new Set(current.favorite_activities || []);
-    const common = activities.filter((a) => mine.has(a.id) && theirs.has(a.id));
-    if (common.length >= 3) return common.slice(0, 3);
-    const rest = activities.filter((a) => !common.find((c) => c.id === a.id));
-    return [...common, ...rest].slice(0, 3);
+    const common = real.filter((a) => mine.has(a.id) && theirs.has(a.id));
+    const picks = common.length >= 2
+      ? common.slice(0, 2)
+      : [...common, ...real.filter((a) => !common.find((c) => c.id === a.id))].slice(0, 2);
+    return [...virtual, ...picks];
   };
 
   // Keyboard shortcuts for desktop (← pass, → like)
@@ -254,15 +258,20 @@ export default function Discover() {
               <div className="mt-4 space-y-2">
                 {suggestedActivities().map((a) => (
                   <button key={a.id} data-testid={`suggest-${a.id}`} onClick={()=>sendLike(a.id, false)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/[.16] hover:bg-white/10 text-left transition">
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition ${a.is_virtual ? "bg-[#4ADE80]/10 border-[#4ADE80]/40 hover:bg-[#4ADE80]/15" : "bg-white/5 border-white/[.16] hover:bg-white/10"}`}>
                     <span className="ps-icn"><Icon name={iconForActivity(a)} size={20}/></span>
-                    <span className="font-semibold text-white">{a.name}</span>
+                    <span className="font-semibold text-white flex-1">{a.name}</span>
+                    {a.is_virtual && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ color: "#4ADE80", background: "rgba(74,222,128,.14)", border: "1px solid rgba(74,222,128,.42)" }}>
+                        Sin compromiso
+                      </span>
+                    )}
                   </button>
                 ))}
                 <details className="w-full">
                   <summary className="cursor-pointer px-4 py-3 rounded-2xl bg-white/5 border border-white/[.16] text-sm font-semibold text-white">Otro plan…</summary>
                   <div className="mt-2 max-h-56 overflow-y-auto space-y-1">
-                    {activities.map((a) => (
+                    {activities.filter((a) => !a.is_virtual).map((a) => (
                       <button key={a.id} onClick={()=>sendLike(a.id, false)} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-left text-sm">
                         <Icon name={iconForActivity(a)} size={18}/> <span>{a.name}</span>
                       </button>

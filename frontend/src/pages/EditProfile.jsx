@@ -179,7 +179,7 @@ export default function EditProfile() {
         <div>
           <label className="text-sm text-white/60 mb-2 block">Panoramas favoritos</label>
           <div className="grid grid-cols-2 gap-2">
-            {acts.map((a) => {
+            {acts.filter((a) => !a.is_virtual).map((a) => {
               const on = f.favorite_activities.includes(a.id);
               return (
                 <button key={a.id} onClick={()=>set("favorite_activities", toggle(f.favorite_activities, a.id))}

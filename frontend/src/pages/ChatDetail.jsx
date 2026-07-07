@@ -321,7 +321,7 @@ function PlanModal({ activities, defaultActivityId = "", onClose, onSubmit }) {
         <div className="mt-4 space-y-3">
           <select data-testid="propose-activity" className="ps-input" value={act} onChange={(e)=>setAct(e.target.value)}>
             <option value="">Elige actividad…</option>
-            {activities.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {activities.filter((a) => !a.is_virtual).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           <div>
             <p className="text-xs text-white/60 mb-2">¿Cuándo?</p>

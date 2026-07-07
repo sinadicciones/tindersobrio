@@ -3,7 +3,10 @@
 # (emoji, name, category, lucide_icon)
 # `emoji` is kept in the DB for backward compatibility with older clients and
 # feature-parity of the "content" layer, but the visual UI now renders `icon`.
+# Special "Chatear online" is placed first — it's a low-friction virtual option
+# that the Discover plan modal surfaces at the top of the list.
 SEED_ACTIVITIES = [
+    ("💬", "Chatear online", "virtual", "MessageCircle"),
     ("☕", "Café y conversación", "cafe", "Coffee"),
     ("🥾", "Caminata o trekking", "aire_libre", "Mountain"),
     ("🌳", "Paseo por un parque", "aire_libre", "Trees"),

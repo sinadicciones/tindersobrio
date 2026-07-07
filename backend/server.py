@@ -1515,8 +1515,16 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
 
             my_act = proposals_resolved.get(user["id"])
             their_act = proposals_resolved.get(body.target_user_id)
+            # Chat-online is a low-friction virtual activity — the system message
+            # invites them to start chatting instead of coordinating a physical panorama.
+            def _is_virtual(a):
+                return bool(a) and (a.get("is_virtual") or a.get("category") == "virtual")
+
             if my_act and their_act and my_act["id"] == their_act["id"]:
-                sys_text = f"¡Están de acuerdo! {my_act['emoji']} {my_act['name']}. Solo falta el cuándo 😊"
+                if _is_virtual(my_act):
+                    sys_text = f"¡Están de acuerdo! {my_act['emoji']} {my_act['name']}. Empiecen conversando por acá 💬"
+                else:
+                    sys_text = f"¡Están de acuerdo! {my_act['emoji']} {my_act['name']}. Solo falta el cuándo 😊"
             elif my_act and their_act:
                 sys_text = (
                     f"A {my_alias} le tinca {my_act['emoji']} {my_act['name']} y a "
@@ -1525,7 +1533,10 @@ async def like_user(body: LikeIn, user: dict = Depends(current_user)):
             elif my_act or their_act:
                 lone = my_act or their_act
                 lone_alias = my_alias if my_act else other_alias
-                sys_text = f"A {lone_alias} le tinca: {lone['emoji']} {lone['name']}. ¿Te sumas?"
+                if _is_virtual(lone):
+                    sys_text = f"A {lone_alias} le tinca {lone['emoji']} {lone['name']}. Cachen de qué se trata por acá 💬"
+                else:
+                    sys_text = f"A {lone_alias} le tinca: {lone['emoji']} {lone['name']}. ¿Te sumas?"
             else:
                 # Pick up to 3 shared favorite activities as inspiration.
                 my_favs = set(user.get("favorite_activities") or [])
@@ -2703,7 +2714,8 @@ async def seed_admin_and_data():
         for emoji, name, cat, icon in SEED_ACTIVITIES:
             await db.activities.insert_one({
                 "id": str(uuid.uuid4()), "emoji": emoji, "icon": icon, "name": name,
-                "category": cat, "active": True, "created_at": now_iso(),
+                "category": cat, "active": True, "is_virtual": cat == "virtual",
+                "created_at": now_iso(),
             })
         logger.info("Actividades sembradas")
     else:
@@ -2713,6 +2725,22 @@ async def seed_admin_and_data():
             new_icon = icon_by_name.get(a.get("name"))
             if new_icon:
                 await db.activities.update_one({"id": a["id"]}, {"$set": {"icon": new_icon}})
+        # Idempotently upsert virtual activities that may not exist yet in a
+        # previously-seeded DB (e.g., production). Match by exact name.
+        for emoji, name, cat, icon in SEED_ACTIVITIES:
+            if cat != "virtual":
+                continue
+            existing = await db.activities.find_one({"name": name}, {"id": 1, "_id": 0})
+            if not existing:
+                await db.activities.insert_one({
+                    "id": str(uuid.uuid4()), "emoji": emoji, "icon": icon, "name": name,
+                    "category": cat, "active": True, "is_virtual": True,
+                    "created_at": now_iso(),
+                })
+                logger.info("Actividad virtual '%s' sembrada", name)
+            else:
+                # Ensure is_virtual flag is set on legacy docs
+                await db.activities.update_one({"id": existing["id"]}, {"$set": {"is_virtual": True, "category": cat}})
 
     # Groups
     if await db.groups.count_documents({}) == 0:
