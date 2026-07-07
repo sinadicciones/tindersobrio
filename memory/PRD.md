@@ -2,6 +2,16 @@
 
 **Última actualización:** 2026-02-10
 
+## v2.7 — "Chatear online" como plan de baja fricción (Feb 2026)
+- ✅ **Nueva actividad virtual "Chatear online"** (💬, `is_virtual=true`, `category=virtual`, icon `MessageCircle`) sembrada idempotentemente — se autoinserta en DBs pre-existentes (producción) sin duplicar.
+- ✅ **Discover — modal "Me tinca"**: la opción aparece **primera** con fondo verde-menta y badge "Sin compromiso". Otras 2 sugerencias son panoramas físicos comunes. Dropdown "Otro plan…" filtra actividades virtuales.
+- ✅ **Mis Planes**: chat_online NO aparece (`/like` con virtual no crea documento en `db.plans`).
+- ✅ **Mensaje de sistema virtual-friendly**: cuando ambos usuarios eligen chat_online, se muestra "¡Están de acuerdo! 💬 Chatear online. Empiecen conversando por acá 💬". Cuando solo uno propone virtual: "Cachen de qué se trata por acá 💬".
+- ✅ **Onboarding / EditProfile**: el picker de "Actividades favoritas" filtra virtuales (no tiene sentido marcar chat como panorama favorito).
+- ✅ **ChatDetail — Propose Plan**: el `<select>` filtra virtuales (chat online no se agenda formalmente).
+- ✅ **Defense-in-depth**: `POST /matches/{mid}/propose-plan` rechaza con 400 si el activity es virtual: "Chatear online no se puede agendar como panorama. Sigan la conversa por acá."
+- ✅ Testeado E2E (`iteration_25`): 5/5 backend + Playwright frontend flow completo. Regresión intacta.
+
 ## v2.6 — Sin_problema + Handler global 422 (Feb 2026)
 - ✅ **Bugfix** onboarding paso Reglas: `sober_time=""` ya no rompe la validación Pydantic (defensa dual: frontend strip + backend `field_validator` que convierte `""` → `None`).
 - ✅ **Nueva opción "No tengo problemas con dependencias"** (`sin_problema`) en `relationship_with_substances`. Cuando se elige, el bloque de `sober_time` se oculta (no aplica).

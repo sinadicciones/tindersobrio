@@ -1928,6 +1928,8 @@ async def propose_plan(match_id: str, body: ProposePlanIn, user: dict = Depends(
     act = await db.activities.find_one({"id": body.activity_id}, {"_id": 0})
     if not act:
         raise HTTPException(status_code=404, detail="Actividad no encontrada")
+    if act.get("is_virtual") or act.get("category") == "virtual":
+        raise HTTPException(status_code=400, detail="Chatear online no se puede agendar como panorama. Sigan la conversa por acá.")
     plan_id = str(uuid.uuid4())
     plan_doc = {
         "id": plan_id,
