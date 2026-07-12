@@ -1,6 +1,13 @@
 # PlanSobrio - Product Requirements Document
 
-**Última actualización:** 2026-02-10
+**Última actualización:** 2026-02-12
+
+## v2.8 — Landing promocional `/promocion` (Feb 2026)
+- ✅ **Nueva ruta pública `/promocion`** en App.js. Landing con fondo blanco y tonos de marca (coral #FF6B5E → violeta #8B5CF6, verde menta #4ADE80).
+- ✅ **Secciones**: Nav con logo + CTA, Hero con headline + 2 CTAs (Únete / Compartir), 4 cards de modos (Apoyo/Amistad/Amor/Grupos), Cómo funciona en 3 pasos, "Para quién es" con 4 bullets inclusivos (recuperación / vida sana / sin dependencias / sin fiesta), bloque de compartir con gradient fuerte, CTA final, Footer con Salud Responde.
+- ✅ **Compartir integrado**: WhatsApp, X, Facebook, Copiar enlace + Native Share API (`navigator.share`) para móvil. Toast confirma copia.
+- ✅ **SEO**: Landing agregada a `sitemap.xml` con priority 0.9. Meta OG globales existentes aplican.
+- ✅ **Accesibilidad y responsive**: mobile-first, +18 disclaimer, contacto de crisis en footer.
 
 ## v2.7 — "Chatear online" como plan de baja fricción (Feb 2026)
 - ✅ **Nueva actividad virtual "Chatear online"** (💬, `is_virtual=true`, `category=virtual`, icon `MessageCircle`) sembrada idempotentemente — se autoinserta en DBs pre-existentes (producción) sin duplicar.

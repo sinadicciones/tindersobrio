@@ -26,6 +26,7 @@ import CuentaSuspendida from "@/pages/CuentaSuspendida";
 import Waitlist from "@/pages/Waitlist";
 import AuthCallback from "@/pages/AuthCallback";
 import PublicProfile from "@/pages/PublicProfile";
+import Promocion from "@/pages/Promocion";
 
 function Loader() {
   return (
@@ -79,6 +80,7 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/promocion" element={<Promocion />} />
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Register />} />
       <Route path="/olvide-contrasena" element={<ForgotPassword />} />
