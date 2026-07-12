@@ -1,0 +1,178 @@
+<title>PlanSobrio para Aliados — Suma tu lugar</title>
+<style>
+:root{
+  --ground:#0B0C10; --surface:#14161C; --card:#1D212B;
+  --ink:#FFFFFF; --sub:#C7CBD6; --mut:#8E93A3;
+  --line:rgba(255,255,255,.16); --line-soft:rgba(255,255,255,.09);
+  --coral:#FF6B5E; --violet:#8B5CF6; --mint:#4ADE80;
+  --grad:linear-gradient(135deg,#FF6B5E 0%,#8B5CF6 100%);
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth} html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
+svg{fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.wrap{max-width:1000px;margin:0 auto;padding:0 22px}
+.btn{display:inline-flex;align-items:center;gap:8px;font-weight:800;border-radius:999px;text-decoration:none;cursor:pointer;border:none}
+.btn-p{background:var(--grad);color:#fff;padding:15px 28px;font-size:15.5px;box-shadow:0 14px 34px -12px rgba(255,107,94,.6)}
+.btn svg{width:16px;height:16px}
+
+.nav{position:sticky;top:0;z-index:50;background:rgba(11,12,16,.88);backdrop-filter:blur(14px);border-bottom:1px solid var(--line-soft)}
+.nav .in{display:flex;align-items:center;gap:12px;padding:14px 22px;max-width:1000px;margin:0 auto}
+.logo{display:flex;align-items:center;gap:9px;font-weight:900;font-size:17px;text-decoration:none;color:#fff}
+.logo .m{width:30px;height:30px;border-radius:10px;background:var(--grad);display:grid;place-items:center}
+.logo .m svg{width:16px;height:16px}
+.beta{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--mint);background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.4);padding:4px 9px;border-radius:999px}
+.nav .aliados{margin-left:auto;font-size:12px;font-weight:700;color:var(--sub)}
+
+.hero{position:relative;overflow:hidden;padding:60px 0 46px;text-align:center}
+.hero::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 60% at 50% -10%, rgba(139,92,246,.2), transparent 60%),radial-gradient(50% 50% at 85% 20%, rgba(255,107,94,.14), transparent 55%)}
+.hero .in{position:relative}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--mint);background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.4);padding:7px 15px;border-radius:999px;margin-bottom:20px}
+h1{font-size:clamp(30px,4.8vw,46px);line-height:1.06;font-weight:900;letter-spacing:-.025em;margin:0 auto 16px;max-width:16ch;text-wrap:balance}
+.hero p.sub{font-size:17px;color:var(--sub);margin:0 auto 28px;max-width:56ch}
+.trust{margin-top:16px;font-size:12.5px;color:var(--mut)}
+
+section{padding:52px 0}
+.kick{font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--coral);font-weight:800;text-align:center;display:block}
+h2{font-size:clamp(24px,3.6vw,32px);font-weight:900;letter-spacing:-.02em;line-height:1.1;margin:12px auto 8px;text-align:center;max-width:20ch;text-wrap:balance}
+.lead{color:var(--sub);text-align:center;max-width:54ch;margin:0 auto}
+
+.benefits{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:36px}
+@media(max-width:860px){.benefits{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.benefits{grid-template-columns:1fr}}
+.ben{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px}
+.ben .fi{width:44px;height:44px;border-radius:13px;background:rgba(255,255,255,.08);border:1px solid var(--line);display:grid;place-items:center;margin-bottom:13px}
+.ben.hi .fi{background:rgba(74,222,128,.14);border-color:rgba(74,222,128,.4)}
+.ben.hi .fi svg{stroke:var(--mint)}
+.ben .fi svg{width:21px;height:21px}
+.ben h3{margin:0 0 6px;font-size:15px;font-weight:800}
+.ben p{margin:0;font-size:13px;color:var(--sub)}
+
+.steps{background:var(--surface);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+.stepgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:34px}
+@media(max-width:760px){.stepgrid{grid-template-columns:1fr}}
+.step{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;position:relative}
+.step .n{width:32px;height:32px;border-radius:10px;background:var(--grad);display:grid;place-items:center;font-weight:900;font-size:15px;margin-bottom:12px;font-variant-numeric:tabular-nums}
+.step h3{margin:0 0 6px;font-size:15.5px;font-weight:800}
+.step p{margin:0;font-size:13.5px;color:var(--sub)}
+
+/* form */
+.formwrap{max-width:600px;margin:0 auto}
+.form{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px;margin-top:32px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12.5px;font-weight:700;color:var(--sub);margin-bottom:7px}
+.field .req{color:var(--coral)}
+.inp{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:12px;padding:13px 14px;color:#fff;font-size:14.5px;font-family:inherit}
+.inp::placeholder{color:var(--mut)}
+.inp:focus{outline:2px solid var(--violet);outline-offset:1px;border-color:transparent}
+select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238E93A3' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.row2{grid-template-columns:1fr}}
+textarea.inp{min-height:92px;resize:vertical;line-height:1.5}
+.check{display:flex;gap:11px;align-items:flex-start;margin:6px 0 20px;font-size:13px;color:var(--sub);line-height:1.5}
+.check input{width:20px;height:20px;margin-top:1px;accent-color:var(--mint);flex:none}
+.submit{width:100%;justify-content:center;padding:16px;font-size:16px}
+.formnote{text-align:center;font-size:12px;color:var(--mut);margin-top:14px}
+
+/* success preview */
+.successcard{max-width:600px;margin:20px auto 0;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.4);border-radius:20px;padding:24px;text-align:center}
+.successcard .ic{width:52px;height:52px;border-radius:50%;background:rgba(74,222,128,.16);border:1px solid rgba(74,222,128,.5);display:grid;place-items:center;margin:0 auto 12px}
+.successcard .ic svg{width:26px;height:26px;stroke:var(--mint)}
+.successcard h3{margin:0 0 6px;font-size:18px;font-weight:800}
+.successcard p{margin:0;font-size:14px;color:var(--sub)}
+.tinytag{display:inline-block;margin-top:10px;font-size:10.5px;color:var(--mut);border:1px dashed var(--line);padding:4px 10px;border-radius:999px}
+
+footer{border-top:1px solid var(--line-soft);padding:30px 0 40px;text-align:center}
+footer .made{font-size:13.5px;color:var(--sub)}
+footer .made a{color:#fff;font-weight:700;text-decoration:none}
+@media (prefers-reduced-motion: no-preference){
+  .hero .in>*{animation:up .6s cubic-bezier(.2,.7,.3,1) both}
+  @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+}
+a:focus-visible,.btn:focus-visible{outline:2px solid var(--coral);outline-offset:2px}
+</style>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="sprout" viewBox="0 0 24 24"><path d="M12 20v-7"/><path d="M12 13c0-3.5-2.5-6-6-6 0 3.5 2.5 6 6 6z"/><path d="M12 11c0-3 2.2-5 5.5-5 0 3-2.2 5-5.5 5z"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5S13.9 16 14.5 19"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.7c2.6.2 4.3 1.6 4.9 4.3"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5-6.5-10.2a6.5 6.5 0 0 1 13 0C18.5 16 12 21 12 21z"/><circle cx="12" cy="10.6" r="2.2"/></symbol>
+  <symbol id="badge" viewBox="0 0 24 24"><path d="M12 3.5l7 2.8v5.2c0 4.6-3 7.9-7 9-4-1.1-7-4.4-7-9V6.3z"/><path d="M9 12l2 2 4-4.5"/></symbol>
+  <symbol id="gift" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M4 13h16M12 9v11"/><path d="M12 9S10.5 5 8.5 5 6 8 8 9M12 9s1.5-4 3.5-4S18 8 16 9"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+</defs></svg>
+
+<div class="nav"><div class="in">
+  <a class="logo" href="#"><span class="m"><svg><use href="#sprout"/></svg></span>PlanSobrio</a>
+  <span class="beta">Beta</span>
+  <span class="aliados">Para aliados</span>
+</div></div>
+
+<header class="hero"><div class="wrap in">
+  <span class="eyebrow"><svg style="width:13px;height:13px;stroke:#4ADE80"><use href="#gift"/></svg>Convenios · Gratis en beta</span>
+  <h1>Suma tu lugar a la red de panoramas sin alcohol</h1>
+  <p class="sub">Conecta con un público que busca planes de día, sin alcohol, y que es fiel a los lugares donde se siente bien recibido. Cafés, gimnasios, cultura, wellness y más.</p>
+  <a class="btn btn-p" href="#registro"><svg><use href="#arrow"/></svg>Quiero sumarme gratis</a>
+  <p class="trust">Un proyecto de SinAdicciones.org · Sin costo durante la beta</p>
+</div></header>
+
+<section><div class="wrap">
+  <span class="kick">Por qué sumarte</span>
+  <h2>Un público difícil de alcanzar, buscándote a ti</h2>
+  <div class="benefits">
+    <div class="ben"><span class="fi"><svg><use href="#users"/></svg></span><h3>Público que sí llega</h3><p>Personas que viven sin alcohol y buscan activamente dónde ir de día. Clientes fieles, no de una noche.</p></div>
+    <div class="ben"><span class="fi"><svg><use href="#pin"/></svg></span><h3>En el mapa de planes</h3><p>Apareces en la app por comuna, justo cuando alguien busca un panorama cerca.</p></div>
+    <div class="ben"><span class="fi"><svg><use href="#badge"/></svg></span><h3>Sello de confianza</h3><p>El sello "Lugar PlanSobrio" y un Score Sobrio le dicen a la comunidad que eres un espacio para ellos.</p></div>
+    <div class="ben hi"><span class="fi"><svg><use href="#gift"/></svg></span><h3>Gratis en beta</h3><p>Sumarte no tiene costo. Queremos que veas resultados antes que nada.</p></div>
+  </div>
+</div></section>
+
+<section class="steps"><div class="wrap">
+  <span class="kick">Cómo funciona</span>
+  <h2>Tres pasos, sin complicaciones</h2>
+  <div class="stepgrid">
+    <div class="step"><div class="n">1</div><h3>Te registras aquí</h3><p>Completa el formulario en dos minutos. Nos cuentas qué puedes ofrecer.</p></div>
+    <div class="step"><div class="n">2</div><h3>Conversamos por WhatsApp</h3><p>Te contactamos, resolvemos dudas y creamos juntos la ficha de tu lugar.</p></div>
+    <div class="step"><div class="n">3</div><h3>La comunidad te descubre</h3><p>Tu local aparece en la app y empiezas a recibir a un público que valora lo que haces.</p></div>
+  </div>
+</div></section>
+
+<section id="registro"><div class="wrap formwrap">
+  <span class="kick">Súmate</span>
+  <h2>Registra tu lugar</h2>
+  <p class="lead">Completa tus datos y te contactamos por WhatsApp dentro de 48 horas.</p>
+
+  <form class="form" onsubmit="return false">
+    <div class="field"><label>Nombre de contacto <span class="req">*</span></label><input class="inp" placeholder="Tu nombre"></div>
+    <div class="field"><label>Empresa o lugar <span class="req">*</span></label><input class="inp" placeholder="Ej: Café Aurora"></div>
+    <div class="row2">
+      <div class="field"><label>Comuna <span class="req">*</span></label>
+        <select class="inp"><option>Elige tu comuna…</option><option>Providencia</option><option>Ñuñoa</option><option>Las Condes</option><option>Santiago Centro</option><option>Otra…</option></select>
+      </div>
+      <div class="field"><label>Tipo de lugar <span class="req">*</span></label>
+        <select class="inp"><option>Elige…</option><option>Café / Restaurante saludable</option><option>Gimnasio o centro deportivo</option><option>Yoga, meditación o wellness</option><option>Centro cultural, museo o teatro</option><option>Taller o academia</option><option>Café o librería</option><option>Espacio para eventos</option><option>Panorama al aire libre</option><option>Otro</option></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Email <span class="req">*</span></label><input class="inp" type="email" placeholder="hola@tulugar.cl"></div>
+      <div class="field"><label>WhatsApp <span class="req">*</span></label><input class="inp" placeholder="+569 1234 5678"></div>
+    </div>
+    <div class="field"><label>¿Qué puedes ofrecer a la comunidad? <span class="req">*</span></label>
+      <textarea class="inp" placeholder="Ej: 2x1 en cafés de día, una clase de prueba gratis, descuento en la entrada, un evento sin alcohol al mes…"></textarea>
+    </div>
+    <label class="check"><input type="checkbox"><span>Entiendo que PlanSobrio conecta con un público que vive sin alcohol y quiero recibir a esa comunidad.</span></label>
+    <button class="btn btn-p submit">Enviar solicitud</button>
+    <p class="formnote">Sin costo durante la beta · Te contactamos por WhatsApp en 48 h</p>
+  </form>
+
+  <!-- Vista del estado de éxito (referencia) -->
+  <div class="successcard">
+    <div class="ic"><svg><use href="#check"/></svg></div>
+    <h3>¡Gracias! Recibimos tu solicitud 🎉</h3>
+    <p>Te contactaremos por WhatsApp dentro de 48 horas para crear la ficha de tu lugar.</p>
+    <span class="tinytag">↑ así se ve la pantalla de éxito tras enviar</span>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span class="made">Hecho con 💛 desde <a href="https://sinadicciones.org">SinAdicciones.org</a></span>
+</div></footer>
