@@ -2,6 +2,44 @@
 
 **Última actualización:** 2026-02-12
 
+## v3.2 — Landing de Convenios / Aliados B2B (Feb 2026)
+
+**Backend (`server.py`)**:
+- Modelo `PartnerIn` con validación Chile (WhatsApp digits ≥8, EmailStr) + `PARTNER_OFFER_TYPES` enum (9 tipos).
+- `POST /api/partners` público: honeypot `website` (silent drop), rate-limit 30s por email+IP, inserta doc en colección `partners` con `status='nuevo'`, `client_ip`, `offer_type_label`.
+- Índices creados en startup: `partners.email`, `partners.status`, `partners.created_at`.
+- 2 correos por registro:
+  1. Confirmación transactional al aliado (`type='partner_confirmation'`, force=True) — funciona en preview y prod.
+  2. Alerta interna al equipo (`send_internal_email` con `notif_type='admin_new_partner'` y **`bypass_env_suppression=True`**) — llega a `nelson@sinadicciones.org` incluso en preview.
+- Startup migración: existing `admin_notification_recipients` docs reciben `active_for.admin_new_partner: True`.
+
+**Email templates** (`core/email_service.py`):
+- `partner_confirmation_body(contact_name, company)`: gracias + próximos pasos + botón "Conocer PlanSobrio".
+- `admin_new_partner_body(...)`: datos completos del aliado + botón "Contactar por WhatsApp" (`https://wa.me/<digits>`).
+- Nuevo parámetro `bypass_env_suppression` en `send_internal_email` para señales de negocio de bajo volumen.
+
+**Frontend** (`/pages/Convenios.jsx`):
+- Tema claro (#FFFFFF fondo, #F6F5F9 alternos, #E7E4EE bordes, coral→violeta CTA, verde BETA #16A34A).
+- Hero + 4 tarjetas beneficios (Users, MapPin, ShieldCheck, HandHeart) + 3 pasos con numeración gradiente.
+- Formulario 8 campos + honeypot invisible + validación inline en español + botón submit gradiente.
+- `SuccessBlock` post-submit con testid `convenios-success`.
+- SEO meta tags dinámicos + canonical (limpieza en unmount).
+
+**Rutas** (`App.js`):
+- `/convenios` (público) y `/aliados` → redirect 301 client-side a `/convenios`.
+
+**Nav integration** (`Promocion.jsx`):
+- Link "Convenios" en top-nav (`promo-nav-convenios`) y footer (`promo-footer-convenios`).
+
+**SEO**:
+- `sitemap.xml` incluye `/convenios` (priority 0.8).
+- `llms.txt` describe la página B2B para crawlers de IA.
+
+**Testing** (iteration 26):
+- 10/10 pytest cases pass: happy-path, honeypot drop, validaciones (offer_type/whatsapp/email/empty), rate-limit 429, email_log confirmation+admin, sitemap entry, /aliados route.
+- Playwright frontend: renderizado, testids, validación inline, scroll a formulario, SuccessBlock, nav+footer links.
+- File: `/app/backend/tests/test_iteration26_partners.py`.
+
 ## v3.1 — Blog público con SEO real + Nano Banana (Feb 2026)
 
 **Backend (`server.py`)**:
