@@ -2,6 +2,18 @@
 
 **Última actualización:** 2026-02-12
 
+## v2.9 — Landing `/promocion` reestructurada para SEO (Feb 2026)
+- ✅ **H1 SEO-optimizado**: "Conoce personas para compartir planes sin alcohol ni drogas" (reemplaza el ambiguo "planes sanos"). H1 único por página.
+- ✅ **Meta tags dinámicos por ruta** con `useEffect`: `<title>`, `<meta description>`, `og:title`, `og:description`, `twitter:*` — restaurados al desmontar para no contaminar otras rutas.
+- ✅ **JSON-LD estructurado**: `SoftwareApplication` (LifestyleApplication, gratis CLP), `Organization` (con logo), `FAQPage` con 7 Q&A → habilita rich snippets en Google.
+- ✅ **Nueva sección "¿Qué buscas hoy?"** (selector de intención): 4 cards con testids `promo-intencion-{apoyo|amistad|amor|grupos}` que linkean a `/registro?intencion=X`.
+- ✅ **Nueva sección "Seguridad"** con 6 pilares verdaderos: info sensible protegida, reporte/bloqueo, cero tolerancia sustancias, **correo verificado** (no "perfiles verificados"), canales de ayuda, reglas convivencia.
+- ✅ **Nueva sección FAQ**: 7 preguntas colapsables (es app de citas / necesito recuperación / solo amigos / es gratis / cómo se verifican perfiles / ocultar situación de recuperación / qué pasa si alguien ofrece sustancias) con `<ChevronDown>` animado.
+- ✅ **Cambio "no por foto" → "no solo por foto"**: elimina contradicción con la UI que sí muestra fotos.
+- ✅ **Cierre nuevo**: "Tu próximo café puede empezar aquí" + "Toma menos de 2 minutos. Tú decides qué información compartir."
+- ✅ **Español neutro LATAM**: sin voseo/argentinismo/lenguaje inclusivo forzado. Se mantiene "te tinca" en Discover como marca.
+- ✅ Verificado E2E con Playwright: SEO tags + JSON-LD + FAQ colapsable funcionando.
+
 ## v2.8 — Landing promocional `/promocion` (Feb 2026)
 - ✅ **Nueva ruta pública `/promocion`** en App.js. Landing con fondo blanco y tonos de marca (coral #FF6B5E → violeta #8B5CF6, verde menta #4ADE80).
 - ✅ **Secciones**: Nav con logo + CTA, Hero con headline + 2 CTAs (Únete / Compartir), 4 cards de modos (Apoyo/Amistad/Amor/Grupos), Cómo funciona en 3 pasos, "Para quién es" con 4 bullets inclusivos (recuperación / vida sana / sin dependencias / sin fiesta), bloque de compartir con gradient fuerte, CTA final, Footer con Salud Responde.
