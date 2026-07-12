@@ -552,6 +552,29 @@ class AdminActionIn(BaseModel):
     action: Literal["warn", "suspend", "ban", "reactivate"]
     note: Optional[str] = ""
 
+
+class BlogPostIn(BaseModel):
+    slug: str
+    title: str
+    meta_description: str
+    excerpt: str
+    content_html: str
+    cover_url: Optional[str] = None
+    cover_alt: Optional[str] = ""
+    author_name: str = "Equipo PlanSobrio"
+    author_bio: Optional[str] = "Escribimos desde SinAdicciones.org, la comunidad para vivir sin alcohol ni drogas."
+    tags: List[str] = []
+    keyword: Optional[str] = ""
+    status: Literal["borrador", "publicado"] = "borrador"
+    reading_minutes: Optional[int] = None
+    cta_soft_title: Optional[str] = None
+    cta_soft_text: Optional[str] = None
+
+
+class BlogCoverGenIn(BaseModel):
+    prompt: str
+    slug: Optional[str] = None
+
 # ------------------------------------------------------------------
 # Auth Routes
 # ------------------------------------------------------------------
@@ -2873,6 +2896,424 @@ async def seed_admin_and_data():
     await db.users.update_many({"show_zodiac": {"$exists": False}}, {"$set": {"show_zodiac": False}})
     await db.users.update_many({"show_children": {"$exists": False}}, {"$set": {"show_children": True}})
     await db.users.update_many({"show_height": {"$exists": False}}, {"$set": {"show_height": False}})
+
+    # Blog index
+    try:
+        await db.blog_posts.create_index("slug", unique=True)
+    except Exception:
+        pass
+
+
+# ============================================================================
+# BLOG
+# ============================================================================
+BLOG_STATIC_DIR = "/app/frontend/public/blog"
+SITEMAP_PATH = "/app/frontend/public/sitemap.xml"
+FRONTEND_ORIGIN = "https://plansobrio.com"
+
+
+def _slugify(text: str) -> str:
+    import re, unicodedata
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    text = re.sub(r"[^a-zA-Z0-9\s-]", "", text.lower()).strip()
+    text = re.sub(r"[\s_]+", "-", text)
+    text = re.sub(r"-+", "-", text)
+    return text[:120].strip("-")
+
+
+def _reading_minutes(html: str) -> int:
+    import re
+    txt = re.sub(r"<[^>]+>", " ", html or "")
+    words = len(txt.split())
+    return max(1, round(words / 220))
+
+
+def _serialize_blog_post(p: dict) -> dict:
+    return {
+        "id": p["id"],
+        "slug": p["slug"],
+        "title": p["title"],
+        "meta_description": p.get("meta_description", ""),
+        "excerpt": p.get("excerpt", ""),
+        "content_html": p.get("content_html", ""),
+        "cover_url": p.get("cover_url"),
+        "cover_alt": p.get("cover_alt", ""),
+        "author_name": p.get("author_name", "Equipo PlanSobrio"),
+        "author_bio": p.get("author_bio", ""),
+        "tags": p.get("tags", []),
+        "keyword": p.get("keyword", ""),
+        "status": p.get("status", "borrador"),
+        "reading_minutes": p.get("reading_minutes"),
+        "cta_soft_title": p.get("cta_soft_title"),
+        "cta_soft_text": p.get("cta_soft_text"),
+        "published_at": p.get("published_at"),
+        "updated_at": p.get("updated_at"),
+    }
+
+
+def _blog_html_template(post: dict) -> str:
+    """Static HTML page for a single blog post — served by frontend public folder.
+    Contains meta + JSON-LD Article + BreadcrumbList + noscript body so bots
+    reading raw HTML can index the content. Real users get the React SPA on top.
+    """
+    import html as _h
+    import json as _j
+
+    title = f"{post['title']} — PlanSobrio"
+    desc = post.get("meta_description", "")
+    url = f"{FRONTEND_ORIGIN}/blog/{post['slug']}"
+    cover = post.get("cover_url") or f"{FRONTEND_ORIGIN}/og.png"
+    pub = post.get("published_at") or ""
+    upd = post.get("updated_at") or pub
+
+    article_ld = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": post["title"],
+        "description": desc,
+        "image": [cover],
+        "datePublished": pub,
+        "dateModified": upd,
+        "author": {"@type": "Person", "name": post.get("author_name", "Equipo PlanSobrio")},
+        "publisher": {
+            "@type": "Organization",
+            "name": "PlanSobrio",
+            "logo": {"@type": "ImageObject", "url": f"{FRONTEND_ORIGIN}/favicon-512.png"},
+        },
+        "mainEntityOfPage": url,
+        "inLanguage": "es-CL",
+    }
+    breadcrumb_ld = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Inicio", "item": FRONTEND_ORIGIN + "/"},
+            {"@type": "ListItem", "position": 2, "name": "Blog", "item": FRONTEND_ORIGIN + "/blog"},
+            {"@type": "ListItem", "position": 3, "name": post["title"], "item": url},
+        ],
+    }
+    return f"""<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>{_h.escape(title)}</title>
+<meta name="description" content="{_h.escape(desc)}"/>
+<link rel="canonical" href="{url}"/>
+<meta property="og:type" content="article"/>
+<meta property="og:title" content="{_h.escape(title)}"/>
+<meta property="og:description" content="{_h.escape(desc)}"/>
+<meta property="og:url" content="{url}"/>
+<meta property="og:image" content="{cover}"/>
+<meta property="og:locale" content="es_CL"/>
+<meta property="article:published_time" content="{pub}"/>
+<meta property="article:modified_time" content="{upd}"/>
+<meta property="article:author" content="{_h.escape(post.get('author_name',''))}"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="{_h.escape(title)}"/>
+<meta name="twitter:description" content="{_h.escape(desc)}"/>
+<meta name="twitter:image" content="{cover}"/>
+<script type="application/ld+json">{_j.dumps(article_ld, ensure_ascii=False)}</script>
+<script type="application/ld+json">{_j.dumps(breadcrumb_ld, ensure_ascii=False)}</script>
+</head>
+<body style="max-width:720px;margin:40px auto;padding:24px;font-family:Georgia,serif;line-height:1.7;color:#0F172A">
+<nav style="font-size:13px;color:#64748B;margin-bottom:16px"><a href="/" style="color:#64748B">Inicio</a> › <a href="/blog" style="color:#64748B">Blog</a> › {_h.escape(post['title'])}</nav>
+<header>
+<h1 style="font-size:34px;line-height:1.15;margin:0 0 12px">{_h.escape(post['title'])}</h1>
+<p style="color:#64748B;font-size:14px;margin:0 0 24px">Por {_h.escape(post.get('author_name',''))} · {post.get('reading_minutes','')} min de lectura</p>
+</header>
+<article>
+{post['content_html']}
+</article>
+<hr style="margin:40px 0;border:none;border-top:1px solid #E2E8F0"/>
+<footer style="font-size:14px;color:#64748B">
+<p><strong>Sobre el autor:</strong> {_h.escape(post.get('author_bio',''))}</p>
+<p>Hecho con 💛 desde <a href="https://sinadicciones.org" style="color:#0F172A">SinAdicciones.org</a></p>
+<p style="margin-top:16px"><a href="/blog" style="color:#0F172A">← Ver todos los artículos</a> · <a href="/registro" style="background:linear-gradient(135deg,#FF6B5E,#8B5CF6);color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:700;display:inline-block;margin-top:8px">Crear mi cuenta gratis en PlanSobrio</a></p>
+</footer>
+</body>
+</html>
+"""
+
+
+def _blog_list_html_template(posts: list) -> str:
+    """Static /blog listing HTML for bots."""
+    import html as _h
+    items = ""
+    for p in posts:
+        items += f'<li style="margin-bottom:24px"><h2 style="margin:0 0 6px;font-size:22px"><a href="/blog/{_h.escape(p["slug"])}" style="color:#0F172A;text-decoration:none">{_h.escape(p["title"])}</a></h2><p style="color:#64748B;font-size:14px;margin:0 0 4px">{p.get("reading_minutes","")} min · {p.get("published_at","")[:10]}</p><p style="margin:0">{_h.escape(p.get("excerpt",""))}</p></li>'
+    return f"""<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Blog PlanSobrio — Vida sin alcohol ni drogas</title>
+<meta name="description" content="Artículos y guías para vivir sin alcohol ni drogas: panoramas, mocktails, habilidades sociales y comunidad sobria en Chile."/>
+<link rel="canonical" href="{FRONTEND_ORIGIN}/blog"/>
+<meta property="og:type" content="website"/>
+<meta property="og:title" content="Blog PlanSobrio"/>
+<meta property="og:description" content="Guías para vivir sin alcohol ni drogas."/>
+<meta property="og:url" content="{FRONTEND_ORIGIN}/blog"/>
+<meta property="og:image" content="{FRONTEND_ORIGIN}/og.png"/>
+</head>
+<body style="max-width:720px;margin:40px auto;padding:24px;font-family:system-ui,-apple-system,sans-serif;line-height:1.55;color:#0F172A">
+<header>
+<h1 style="font-size:32px;line-height:1.1;margin:0 0 8px">Blog PlanSobrio</h1>
+<p style="color:#64748B;margin:0 0 32px">Guías, ideas y reflexiones para vivir sin alcohol ni drogas — y encontrar la comunidad que las acompaña.</p>
+</header>
+<ul style="list-style:none;padding:0">{items}</ul>
+<footer style="margin-top:40px;padding-top:20px;border-top:1px solid #E2E8F0;font-size:13px;color:#64748B">
+<p>Hecho con 💛 desde <a href="https://sinadicciones.org" style="color:#0F172A">SinAdicciones.org</a></p>
+</footer>
+</body>
+</html>
+"""
+
+
+async def _regen_blog_static_files():
+    """Rewrite bot-friendly `/blog/{slug}.html` mirrors for every published post.
+    We DO NOT write `/blog/index.html` nor `/blog/{slug}/index.html` because
+    those would hijack the React SPA routes for real users. Bots that want raw
+    HTML can hit `/blog/{slug}.html` (also included in sitemap fallback).
+    Real users hit `/blog/{slug}` → React SPA renders with dynamic meta.
+    """
+    import os as _os
+    _os.makedirs(BLOG_STATIC_DIR, exist_ok=True)
+    posts = []
+    async for p in db.blog_posts.find({"status": "publicado"}).sort("published_at", -1):
+        posts.append(_serialize_blog_post(p))
+
+    # Clean any stale interfering index.html files
+    for stale in [_os.path.join(BLOG_STATIC_DIR, "index.html")]:
+        try: _os.remove(stale)
+        except FileNotFoundError: pass
+
+    # Individual post HTMLs (only the flat .html variant — safe for React SPA)
+    for p in posts:
+        slug_dir = _os.path.join(BLOG_STATIC_DIR, p["slug"])
+        slug_index = _os.path.join(slug_dir, "index.html")
+        try: _os.remove(slug_index)
+        except FileNotFoundError: pass
+        try: _os.rmdir(slug_dir)
+        except OSError: pass
+        with open(_os.path.join(BLOG_STATIC_DIR, p["slug"] + ".html"), "w", encoding="utf-8") as f:
+            f.write(_blog_html_template(p))
+
+    # Rewrite sitemap with published blog posts
+    await _regen_sitemap(posts)
+
+
+async def _regen_sitemap(published_posts: list):
+    import os as _os
+    urls = [
+        ("/", "1.0", "weekly"),
+        ("/promocion", "0.9", "weekly"),
+        ("/blog", "0.8", "weekly"),
+        ("/registro", "0.7", "monthly"),
+        ("/login", "0.5", "monthly"),
+        ("/terminos", "0.3", "monthly"),
+        ("/privacidad", "0.3", "monthly"),
+    ]
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for path, priority, freq in urls:
+        parts.append(f"  <url><loc>{FRONTEND_ORIGIN}{path}</loc><lastmod>{today}</lastmod><changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
+    for p in published_posts:
+        lm = (p.get("updated_at") or p.get("published_at") or "")[:10] or today
+        parts.append(f"  <url><loc>{FRONTEND_ORIGIN}/blog/{p['slug']}</loc><lastmod>{lm}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>")
+    parts.append("</urlset>")
+    with open(SITEMAP_PATH, "w", encoding="utf-8") as f:
+        f.write("\n".join(parts))
+
+
+# ---- Admin endpoints (protected) ----
+@api.post("/admin/blog/posts")
+async def admin_create_post(body: BlogPostIn, user: dict = Depends(require_admin)):
+    slug = _slugify(body.slug) or _slugify(body.title)
+    if not slug:
+        raise HTTPException(status_code=400, detail="Slug inválido")
+    if await db.blog_posts.find_one({"slug": slug}):
+        raise HTTPException(status_code=400, detail="Ya existe un post con ese slug")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "slug": slug,
+        "title": body.title,
+        "meta_description": body.meta_description,
+        "excerpt": body.excerpt,
+        "content_html": body.content_html,
+        "cover_url": body.cover_url,
+        "cover_alt": body.cover_alt or "",
+        "author_name": body.author_name,
+        "author_bio": body.author_bio or "",
+        "tags": body.tags or [],
+        "keyword": body.keyword or "",
+        "status": body.status,
+        "reading_minutes": body.reading_minutes or _reading_minutes(body.content_html),
+        "cta_soft_title": body.cta_soft_title,
+        "cta_soft_text": body.cta_soft_text,
+        "published_at": now if body.status == "publicado" else None,
+        "updated_at": now,
+        "created_at": now,
+    }
+    await db.blog_posts.insert_one(doc)
+    await _regen_blog_static_files()
+    return _serialize_blog_post(doc)
+
+
+@api.get("/admin/blog/posts")
+async def admin_list_posts(user: dict = Depends(require_admin)):
+    out = []
+    async for p in db.blog_posts.find({}).sort("updated_at", -1):
+        out.append(_serialize_blog_post(p))
+    return out
+
+
+@api.get("/admin/blog/posts/{pid}")
+async def admin_get_post(pid: str, user: dict = Depends(require_admin)):
+    p = await db.blog_posts.find_one({"id": pid})
+    if not p:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+    return _serialize_blog_post(p)
+
+
+@api.patch("/admin/blog/posts/{pid}")
+async def admin_update_post(pid: str, body: BlogPostIn, user: dict = Depends(require_admin)):
+    p = await db.blog_posts.find_one({"id": pid})
+    if not p:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+    slug = _slugify(body.slug) or _slugify(body.title)
+    if slug != p["slug"] and await db.blog_posts.find_one({"slug": slug}):
+        raise HTTPException(status_code=400, detail="Slug duplicado")
+    now = datetime.now(timezone.utc).isoformat()
+    pub_at = p.get("published_at")
+    if body.status == "publicado" and not pub_at:
+        pub_at = now
+    upd = {
+        "slug": slug,
+        "title": body.title,
+        "meta_description": body.meta_description,
+        "excerpt": body.excerpt,
+        "content_html": body.content_html,
+        "cover_url": body.cover_url,
+        "cover_alt": body.cover_alt or "",
+        "author_name": body.author_name,
+        "author_bio": body.author_bio or "",
+        "tags": body.tags or [],
+        "keyword": body.keyword or "",
+        "status": body.status,
+        "reading_minutes": body.reading_minutes or _reading_minutes(body.content_html),
+        "cta_soft_title": body.cta_soft_title,
+        "cta_soft_text": body.cta_soft_text,
+        "published_at": pub_at,
+        "updated_at": now,
+    }
+    await db.blog_posts.update_one({"id": pid}, {"$set": upd})
+    await _regen_blog_static_files()
+    updated = await db.blog_posts.find_one({"id": pid})
+    return _serialize_blog_post(updated)
+
+
+@api.delete("/admin/blog/posts/{pid}")
+async def admin_delete_post(pid: str, user: dict = Depends(require_admin)):
+    p = await db.blog_posts.find_one({"id": pid})
+    if not p:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+    await db.blog_posts.delete_one({"id": pid})
+    # Clean up static files
+    import os as _os
+    for path in [
+        _os.path.join(BLOG_STATIC_DIR, p["slug"], "index.html"),
+        _os.path.join(BLOG_STATIC_DIR, p["slug"] + ".html"),
+    ]:
+        try: _os.remove(path)
+        except FileNotFoundError: pass
+    try: _os.rmdir(_os.path.join(BLOG_STATIC_DIR, p["slug"]))
+    except OSError: pass
+    await _regen_blog_static_files()
+    return {"ok": True}
+
+
+@api.post("/admin/blog/cover-gen")
+async def admin_generate_cover(body: BlogCoverGenIn, user: dict = Depends(require_admin)):
+    """Generate a blog cover image with Gemini Nano Banana via Emergent LLM key."""
+    try:
+        import base64 as _b64
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        api_key = os.environ.get("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY no configurado")
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"blog-cover-{uuid.uuid4().hex[:8]}",
+            system_message="You generate warm, editorial-style cover photos for a Chilean sober-community blog.",
+        )
+        chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
+        prompt_txt = (
+            f"Create a warm editorial cover photo (landscape 16:9) for a blog article about: {body.prompt}. "
+            "Natural daylight, real Latin American / Chilean people or scenes when relevant, "
+            "cozy authentic feeling, no alcohol or drugs visible, no text overlay."
+        )
+        _, images = await chat.send_message_multimodal_response(UserMessage(text=prompt_txt))
+        if not images:
+            raise HTTPException(status_code=500, detail="No se generó imagen")
+        img_bytes = _b64.b64decode(images[0]["data"])
+        import os as _os
+        uploads_dir = "/app/frontend/public/uploads/blog"
+        _os.makedirs(uploads_dir, exist_ok=True)
+        fname = f"cover-{body.slug or uuid.uuid4().hex[:8]}-{int(datetime.now(timezone.utc).timestamp())}.png"
+        with open(_os.path.join(uploads_dir, fname), "wb") as f:
+            f.write(img_bytes)
+        return {"url": f"/uploads/blog/{fname}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("cover-gen failed")
+        raise HTTPException(status_code=500, detail=f"Error generando imagen: {str(e)}")
+
+
+# ---- Public endpoints ----
+@api.get("/blog/posts")
+async def public_list_posts():
+    out = []
+    async for p in db.blog_posts.find({"status": "publicado"}).sort("published_at", -1):
+        d = _serialize_blog_post(p)
+        d.pop("content_html", None)  # keep list light
+        out.append(d)
+    return out
+
+
+@api.get("/blog/posts/{slug}")
+async def public_get_post(slug: str):
+    p = await db.blog_posts.find_one({"slug": slug, "status": "publicado"})
+    if not p:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+    return _serialize_blog_post(p)
+
+
+@api.get("/blog/related/{slug}")
+async def public_related_posts(slug: str, limit: int = 3):
+    p = await db.blog_posts.find_one({"slug": slug, "status": "publicado"})
+    if not p:
+        return []
+    tags = p.get("tags") or []
+    query = {"status": "publicado", "slug": {"$ne": slug}}
+    if tags:
+        query["tags"] = {"$in": tags}
+    out = []
+    async for q in db.blog_posts.find(query).sort("published_at", -1).limit(limit):
+        d = _serialize_blog_post(q)
+        d.pop("content_html", None)
+        out.append(d)
+    # Fill with any published if not enough matches
+    if len(out) < limit:
+        seen = {x["slug"] for x in out} | {slug}
+        async for q in db.blog_posts.find({"status": "publicado", "slug": {"$nin": list(seen)}}).sort("published_at", -1).limit(limit - len(out)):
+            d = _serialize_blog_post(q)
+            d.pop("content_html", None)
+            out.append(d)
+    return out
+
 
 @app.on_event("startup")
 async def on_startup():

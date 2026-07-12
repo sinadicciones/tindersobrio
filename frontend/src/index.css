@@ -158,3 +158,21 @@ h1, h2, h3, h4, .font-display {
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+/* --------------------------------------------------------------------------
+ * Blog reading typography — comfortable long-form reading
+ * ------------------------------------------------------------------------ */
+.blog-body { color: #0F172A; font-size: 18px; line-height: 1.7; max-width: 68ch; }
+.blog-body p { margin: 0 0 1.15em; }
+.blog-body h2 { font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 900; font-size: 28px; line-height: 1.2; margin: 2em 0 .6em; letter-spacing: -.01em; color: #0F172A; }
+.blog-body h3 { font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 21px; line-height: 1.25; margin: 1.6em 0 .5em; color: #0F172A; }
+.blog-body ul, .blog-body ol { margin: 0 0 1.25em 1.25em; padding: 0; }
+.blog-body li { margin: 0 0 .5em; }
+.blog-body a { color: #7C3AED; text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1.5px; }
+.blog-body a:hover { color: #5B21B6; }
+.blog-body strong { color: #0F172A; font-weight: 700; }
+.blog-body em { font-style: italic; }
+.blog-body blockquote { border-left: 3px solid #8B5CF6; padding-left: 1em; color: #475569; font-style: italic; margin: 1.5em 0; }
+.blog-body img { max-width: 100%; border-radius: 16px; margin: 1.5em 0; }
+.blog-body hr { border: none; border-top: 1px solid #E2E8F0; margin: 2em 0; }
+.blog-body code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-size: .9em; }

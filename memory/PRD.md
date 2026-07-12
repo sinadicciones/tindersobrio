@@ -2,6 +2,34 @@
 
 **Última actualización:** 2026-02-12
 
+## v3.1 — Blog público con SEO real + Nano Banana (Feb 2026)
+
+**Backend (`server.py`)**:
+- Modelo `BlogPostIn` + colección `blog_posts` con índice único slug.
+- Admin CRUD: `POST/GET/PATCH/DELETE /api/admin/blog/posts` (protegidos por `require_admin`).
+- Público: `GET /api/blog/posts` (listado), `GET /api/blog/posts/{slug}`, `GET /api/blog/related/{slug}` (por tags).
+- **`_regen_blog_static_files()`**: al publicar/actualizar un post, escribe `/app/frontend/public/blog/{slug}.html` con **meta + JSON-LD Article + BreadcrumbList reales** para bots que no ejecutan JS. También reescribe `sitemap.xml` con lastmod.
+- **Nano Banana cover generation**: `POST /api/admin/blog/cover-gen` via `LlmChat + gemini-3.1-flash-image-preview` (Emergent LLM key). Guarda PNG en `/uploads/blog/`.
+
+**Frontend**:
+- `/pages/Blog.jsx`: grilla listado con cover, fecha, tiempo lectura, tags. Meta dinámica.
+- `/pages/BlogPost.jsx`: artículo con lectura óptima (68ch, blog-body typography 18px/1.7), breadcrumbs, autor con mini-bio, cover, contenido con `[[CTA_SOFT]]` parseado, CTA fuerte automático al final, tags, related posts. JSON-LD Article + BreadcrumbList vía `useEffect`.
+- `/components/BlogCTA.jsx`: variants `soft` (dark card `#1D212B`) + `strong` (gradient coral→violet). El componente se inserta donde aparezca `[[CTA_SOFT]]` en `content_html`.
+- `/pages/admin/BlogAdmin.jsx`: CRUD completo con editor `contentEditable` + toolbar (H2/H3/bold/italic/listas/links/marker CTA), sidebar con cover URL + botón "Generar con IA (Nano Banana)", SEO fields (keyword, tags), CTA soft por post, toggle borrador/publicado.
+
+**Contenido inicial** (`scripts/seed_blog_posts.py`):
+- 3 posts publicados según BLOGCONTENIDO.md:
+  - `planes-sin-alcohol-santiago` (pilar, 8 min)
+  - `tragos-sin-alcohol-mocktails` (6 min)
+  - `como-decir-no-tomo` (5 min)
+
+**SEO verificado con curl**:
+- `curl /blog/{slug}.html` → 8KB HTML crudo con title, meta description, Article JSON-LD, BreadcrumbList, canonical, OG + Twitter.
+- `/sitemap.xml` incluye 10 URLs (7 core + 3 blog posts) con lastmod.
+- Link "Blog" en nav de `/promocion` + footer.
+
+**Consideración arquitectural**: Como CRA + SPA React, `/blog/{slug}` (sin extensión) sirve React con meta inyectada por `useEffect` (Google + Bing ejecutan JS y la ven). Para AI crawlers zero-JS, la variante `.html` con meta real está disponible en la misma URL con extensión. Producción con SSR completo requeriría migración a Next.js.
+
 ## v3.0 — SEO + rendering para IA y Google (Feb 2026)
 - ✅ **`<noscript>` semántico** en `index.html`: 5.6KB con H1 SEO, subtítulo, cuatro modos, cómo funciona, FAQ (5 preguntas críticas), CTAs (registro/login), footer con contacto y disclaimer de crisis. Bots zero-JS ven el mensaje completo aunque no ejecuten React.
 - ✅ **JSON-LD site-wide en `index.html`** (3 schemas: `Organization` + `WebSite` + `SoftwareApplication`) con founder=Nelson González, parentOrganization=Sinadicciones.org, areaServed=Chile, offers gratis.

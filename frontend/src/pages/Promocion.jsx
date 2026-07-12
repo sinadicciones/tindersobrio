@@ -223,6 +223,13 @@ export default function Promocion() {
           <span className="font-display text-xl font-black tracking-tight">PlanSobrio</span>
         </Link>
         <div className="flex items-center gap-2">
+          <Link
+            to="/blog"
+            data-testid="promo-nav-blog"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition"
+          >
+            Blog
+          </Link>
           <button
             onClick={s.native}
             data-testid="promo-nav-share"
@@ -576,6 +583,7 @@ export default function Promocion() {
             </span>
           </div>
           <div className="flex items-center gap-5">
+            <Link to="/blog" className="hover:text-slate-900 transition" data-testid="promo-footer-blog">Blog</Link>
             <Link to="/terminos" className="hover:text-slate-900 transition">Términos</Link>
             <Link to="/privacidad" className="hover:text-slate-900 transition">Privacidad</Link>
             <a href="mailto:contacto@sinadicciones.org" className="hover:text-slate-900 transition">Contacto</a>

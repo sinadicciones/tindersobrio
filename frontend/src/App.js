@@ -27,6 +27,8 @@ import Waitlist from "@/pages/Waitlist";
 import AuthCallback from "@/pages/AuthCallback";
 import PublicProfile from "@/pages/PublicProfile";
 import Promocion from "@/pages/Promocion";
+import Blog from "@/pages/Blog";
+import BlogPost from "@/pages/BlogPost";
 
 function Loader() {
   return (
@@ -81,6 +83,8 @@ function AppRouter() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/promocion" element={<Promocion />} />
+      <Route path="/blog" element={<Blog />} />
+      <Route path="/blog/:slug" element={<BlogPost />} />
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Register />} />
       <Route path="/olvide-contrasena" element={<ForgotPassword />} />
