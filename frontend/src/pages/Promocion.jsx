@@ -429,9 +429,14 @@ export default function Promocion() {
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-8 items-center">
             <div className="mx-auto lg:mx-0">
               <div className="w-44 h-44 rounded-3xl ps-gradient p-[3px] shadow-2xl shadow-purple-500/20">
-                <div className="w-full h-full rounded-[22px] bg-white flex items-center justify-center overflow-hidden">
-                  <span className="font-display text-6xl font-black ps-gradient-text">NG</span>
-                </div>
+                <img
+                  src="https://customer-assets.emergentagent.com/job_comunidad-sobria/artifacts/b1cxt8p1_IMG_3198.jpeg"
+                  alt="Nelson González, fundador de PlanSobrio y Sinadicciones.org"
+                  loading="lazy"
+                  decoding="async"
+                  data-testid="fundador-photo"
+                  className="w-full h-full rounded-[22px] object-cover"
+                />
               </div>
             </div>
             <div>
