@@ -27,7 +27,7 @@ Página pública para que gimnasios, cafés, centros culturales y lugares de pan
 ## BLOQUE para Emergent — Landing de Convenios + panel
 
 ```
-Crea una página pública de convenios/aliados en la ruta /convenios (también accesible como /aliados que redirige a /convenios), con el sistema visual Blanco Editorial de la app. Es una landing de captación B2B, no requiere login.
+Crea una página pública de convenios/aliados en la ruta /convenios (también accesible como /aliados que redirige a /convenios). Es una landing de captación B2B, no requiere login. Usa el TEMA CLARO descrito abajo (fondo blanco), NO el tema oscuro de la app.
 
 0. TEMA CLARO (fondo blanco), coherente con la landing principal: fondo #FFFFFF, secciones alternas #F6F5F9, tarjetas blancas con borde #E7E4EE y sombra suave, texto #1A1524 (secundario #5B5766), íconos de línea oscuros. Los acentos de marca se mantienen: gradiente coral #FF6B5E → violeta #8B5CF6 en botones y números de paso; el bloque "gratis" y la insignia BETA en verde #16A34A sobre fondo #EAF7EF. Ver referencia visual en mockups/convenios.html.
 
