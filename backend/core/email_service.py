@@ -61,9 +61,9 @@ DEFAULT_PREFERENCES = {
 }
 
 # Transactional types SKIP daily cap, quiet hours, and preferences.
-TRANSACTIONAL_TYPES = {"password_reset", "welcome", "waitlist"}
+TRANSACTIONAL_TYPES = {"password_reset", "welcome", "waitlist", "partner_confirmation"}
 # Internal team types SKIP quiet hours and user daily cap.
-INTERNAL_TYPES = {"admin_new_user", "admin_daily_summary", "admin_grave_report"}
+INTERNAL_TYPES = {"admin_new_user", "admin_daily_summary", "admin_grave_report", "admin_new_partner"}
 
 
 # --------------------------------------------------------------------------
@@ -569,6 +569,51 @@ def admin_grave_report_body(category: str, when: str) -> tuple[str, str]:
     return subject, body
 
 
+def partner_confirmation_body(contact_name: str, company: str) -> tuple[str, str]:
+    """Email de confirmación al aliado que acaba de enviar el formulario."""
+    subject = "Recibimos tu solicitud para sumarte a PlanSobrio 💛"
+    body = (
+        f"<p style=\"margin:0 0 12px 0;\"><strong>Hola {contact_name},</strong></p>"
+        f"<p style=\"margin:0 0 12px 0;color:rgba(255,255,255,0.9);\">"
+        f"Gracias por querer sumar a <strong>{company}</strong> a la red de lugares PlanSobrio. "
+        "Ya recibimos tu solicitud y la estamos revisando.</p>"
+        "<p style=\"margin:0 0 12px 0;color:rgba(255,255,255,0.85);\"><strong>Próximos pasos:</strong></p>"
+        "<p style=\"margin:0 0 6px 0;color:rgba(255,255,255,0.8);\">1. Te contactaremos por WhatsApp dentro de <strong>48 horas</strong>.</p>"
+        "<p style=\"margin:0 0 6px 0;color:rgba(255,255,255,0.8);\">2. Conversamos para entender bien tu propuesta y crear tu ficha.</p>"
+        "<p style=\"margin:0 0 6px 0;color:rgba(255,255,255,0.8);\">3. Tu lugar aparece en el mapa de planes de la app con el sello «Lugar PlanSobrio».</p>"
+        "<p style=\"margin:16px 0 12px 0;color:rgba(255,255,255,0.85);\">"
+        "En la etapa beta el convenio es <strong>sin costo</strong>. Buscamos aliados que quieran "
+        "recibir bien a un público que vive sin alcohol y busca panoramas de día.</p>"
+        f"{_button('Conocer PlanSobrio', f'{FRONTEND_URL}/promocion')}"
+        "<p style=\"margin:24px 0 0 0;color:rgba(255,255,255,0.65);font-size:13px;\">"
+        "Si tienes dudas, respóndenos este correo o escríbenos a "
+        "<a href=\"mailto:contacto@sinadicciones.org\" style=\"color:rgba(255,255,255,0.85);\">contacto@sinadicciones.org</a>.</p>"
+    )
+    return subject, body
+
+
+def admin_new_partner_body(
+    contact_name: str, company: str, comuna: str, email_partner: str,
+    whatsapp: str, offer_type: str, offer_text: str,
+) -> tuple[str, str]:
+    """Email interno al equipo (nelson@sinadicciones.org) por cada aliado nuevo."""
+    subject = f"Nuevo aliado interesado: {company} ({offer_type}) en {comuna}"
+    wa_digits = "".join(ch for ch in whatsapp if ch.isdigit())
+    body = (
+        "<p style=\"margin:0 0 12px 0;\"><strong>Se registró un nuevo aliado en la landing de convenios.</strong></p>"
+        f"<p style=\"margin:0 0 4px 0;\">Empresa/Lugar: <strong>{company}</strong></p>"
+        f"<p style=\"margin:0 0 4px 0;\">Contacto: <strong>{contact_name}</strong></p>"
+        f"<p style=\"margin:0 0 4px 0;\">Comuna: {comuna}</p>"
+        f"<p style=\"margin:0 0 4px 0;\">Tipo de oferta: {offer_type}</p>"
+        f"<p style=\"margin:0 0 4px 0;\">Email: <a href=\"mailto:{email_partner}\" style=\"color:#8B5CF6;\">{email_partner}</a></p>"
+        f"<p style=\"margin:0 0 12px 0;\">WhatsApp: <a href=\"https://wa.me/{wa_digits}\" style=\"color:#8B5CF6;\">{whatsapp}</a></p>"
+        "<p style=\"margin:14px 0 6px 0;font-weight:800;\">Qué puede ofrecer a la comunidad:</p>"
+        f"<p style=\"margin:0 0 16px 0;color:rgba(255,255,255,0.85);white-space:pre-wrap;\">{offer_text}</p>"
+        f"{_button('Contactar por WhatsApp', f'https://wa.me/{wa_digits}')}"
+    )
+    return subject, body
+
+
 async def send_internal_email(
     db,
     *,
@@ -577,13 +622,18 @@ async def send_internal_email(
     subject: str,
     body_html: str,
     grave_group_ref: Optional[str] = None,
+    bypass_env_suppression: bool = False,
 ) -> Dict[str, Any]:
     """Send an internal email to all active admin recipients for this notif_type.
     Handles 1/hour grouping for grave reports via `grave_group_ref`.
+
+    `bypass_env_suppression` (default False) — set True for low-volume business
+    signals (e.g. `admin_new_partner`) that should ALWAYS reach ops even from
+    the preview environment. Normal user-churn notifications stay suppressed.
     """
-    # In non-production environments, log the intent but never send.
-    # Prevents preview/dev test-user churn from flooding real admin inboxes.
-    if SUPPRESS_INTERNAL:
+    # In non-production environments, log the intent but never send — unless
+    # explicitly bypassed for low-volume business alerts.
+    if SUPPRESS_INTERNAL and not bypass_env_suppression:
         logger.info(f"[email:internal-suppressed] env={ENVIRONMENT} type={notif_type} ref={event_ref}")
         await db.email_log.update_one(
             {"idempotency_key": _idempotency_key("internal", notif_type, event_ref)},

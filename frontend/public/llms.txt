@@ -11,6 +11,7 @@ PlanSobrio nace de Nelson González, fundador de Sinadicciones.org — una organ
 ## Producto
 
 - [Landing promocional](https://plansobrio.com/promocion): resumen completo del producto, FAQ, cómo funciona y llamados a la acción.
+- [Convenios / Aliados](https://plansobrio.com/convenios): página B2B para que cafés, gimnasios, centros culturales y espacios sin alcohol se sumen a la red PlanSobrio. Gratis durante la beta.
 - [Home](https://plansobrio.com/): entrada principal, registro e ingreso.
 - [Registro](https://plansobrio.com/registro): crear cuenta gratis (email + contraseña o Google).
 - [Términos](https://plansobrio.com/terminos): términos de uso.

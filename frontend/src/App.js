@@ -29,6 +29,7 @@ import PublicProfile from "@/pages/PublicProfile";
 import Promocion from "@/pages/Promocion";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
+import Convenios from "@/pages/Convenios";
 
 function Loader() {
   return (
@@ -83,6 +84,8 @@ function AppRouter() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/promocion" element={<Promocion />} />
+      <Route path="/convenios" element={<Convenios />} />
+      <Route path="/aliados" element={<Navigate to="/convenios" replace />} />
       <Route path="/blog" element={<Blog />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
       <Route path="/login" element={<Login />} />

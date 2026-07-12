@@ -520,6 +520,58 @@ class WaitlistIn(BaseModel):
     country: str = "OTHER"
     city: Optional[str] = None
 
+
+PARTNER_OFFER_TYPES = {
+    "cafe_restaurante_saludable",
+    "gimnasio_deporte",
+    "yoga_meditacion_wellness",
+    "cultura_museo_teatro",
+    "taller_academia",
+    "cafe_libreria",
+    "espacio_eventos",
+    "aire_libre",
+    "otro",
+}
+
+
+class PartnerIn(BaseModel):
+    contact_name: str
+    company: str
+    comuna: str
+    email: EmailStr
+    whatsapp: str
+    offer_type: str
+    offer_text: str
+    accept_public: bool = False
+    # Honeypot — bots often fill hidden fields. Real users leave it empty.
+    website: Optional[str] = ""
+
+    @field_validator("contact_name", "company", "comuna", "offer_text")
+    @classmethod
+    def _non_empty(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("campo requerido")
+        return v
+
+    @field_validator("offer_type")
+    @classmethod
+    def _valid_offer_type(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v not in PARTNER_OFFER_TYPES:
+            raise ValueError("tipo de oferta no válido")
+        return v
+
+    @field_validator("whatsapp")
+    @classmethod
+    def _valid_whatsapp(cls, v: str) -> str:
+        raw = (v or "").strip()
+        digits = "".join(ch for ch in raw if ch.isdigit())
+        # Chile: +569XXXXXXXX -> 11 digits, or 9XXXXXXXX -> 9 digits, or 569XXXXXXXX
+        if len(digits) < 8 or len(digits) > 15:
+            raise ValueError("WhatsApp inválido — usa formato +569XXXXXXXX")
+        return raw
+
 class ReasonIn(BaseModel):
     text: str
 
@@ -957,6 +1009,100 @@ async def join_waitlist(body: WaitlistIn):
     except Exception:
         logger.exception("waitlist email send failed")
     return {"ok": True}
+
+
+PARTNER_OFFER_LABELS = {
+    "cafe_restaurante_saludable": "Café / Restaurante saludable",
+    "gimnasio_deporte": "Gimnasio o centro deportivo",
+    "yoga_meditacion_wellness": "Yoga, meditación o wellness",
+    "cultura_museo_teatro": "Centro cultural, museo o teatro",
+    "taller_academia": "Taller o academia",
+    "cafe_libreria": "Café / Librería",
+    "espacio_eventos": "Espacio para eventos",
+    "aire_libre": "Panorama al aire libre",
+    "otro": "Otro",
+}
+
+
+@api.post("/partners")
+async def create_partner(body: PartnerIn, request: Request):
+    """Public endpoint: aliado/convenio registration from /convenios landing.
+
+    - Honeypot: `website` field must be empty (bots fill everything).
+    - Rate-limit: 1 request per IP+email per 30s to blunt spam.
+    - Sends 2 emails: confirmation to aliado + internal alert to team.
+    """
+    # Honeypot check — silently accept then drop
+    if (body.website or "").strip():
+        logger.info("partner honeypot triggered")
+        return {"ok": True}
+
+    email = body.email.lower().strip()
+    client_ip = (request.headers.get("x-forwarded-for") or request.client.host or "").split(",")[0].strip()
+
+    # Simple rate limit: same email OR same IP within last 30s -> reject
+    recent_cutoff = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    recent = await db.partners.find_one({
+        "$or": [{"email": email}, {"client_ip": client_ip}] if client_ip else [{"email": email}],
+        "created_at": {"$gte": recent_cutoff},
+    })
+    if recent:
+        raise HTTPException(status_code=429, detail="Ya recibimos tu solicitud, gracias. Te contactaremos pronto.")
+
+    offer_label = PARTNER_OFFER_LABELS.get(body.offer_type, body.offer_type)
+    partner_doc = {
+        "id": str(uuid.uuid4()),
+        "contact_name": body.contact_name.strip(),
+        "company": body.company.strip(),
+        "comuna": body.comuna.strip(),
+        "email": email,
+        "whatsapp": body.whatsapp.strip(),
+        "offer_type": body.offer_type,
+        "offer_type_label": offer_label,
+        "offer_text": body.offer_text.strip(),
+        "accept_public": bool(body.accept_public),
+        "status": "nuevo",
+        "notes": "",
+        "client_ip": client_ip,
+        "created_at": now_iso(),
+    }
+    await db.partners.insert_one(partner_doc)
+
+    # 1) Confirmation email to aliado (transactional — bypasses gates via user_id=None + force)
+    try:
+        subj, html_body = email_svc.partner_confirmation_body(
+            contact_name=partner_doc["contact_name"], company=partner_doc["company"],
+        )
+        await email_svc.send_email(
+            db, user_id=None, to=email, type="partner_confirmation",
+            event_ref=f"partner_confirm:{partner_doc['id']}",
+            subject=subj, body_html=html_body, force=True,
+        )
+    except Exception:
+        logger.exception("partner confirmation email failed")
+
+    # 2) Internal alert to admin recipients (nelson@sinadicciones.org by default)
+    try:
+        subj_i, html_i = email_svc.admin_new_partner_body(
+            contact_name=partner_doc["contact_name"],
+            company=partner_doc["company"],
+            comuna=partner_doc["comuna"],
+            email_partner=email,
+            whatsapp=partner_doc["whatsapp"],
+            offer_type=offer_label,
+            offer_text=partner_doc["offer_text"],
+        )
+        await email_svc.send_internal_email(
+            db, notif_type="admin_new_partner",
+            event_ref=f"partner_new:{partner_doc['id']}",
+            subject=subj_i, body_html=html_i,
+            bypass_env_suppression=True,
+        )
+    except Exception:
+        logger.exception("partner internal alert failed")
+
+    return {"ok": True, "id": partner_doc["id"]}
+
 
 # ------------------------------------------------------------------
 # Uploads
@@ -2685,16 +2831,26 @@ async def seed_admin_and_data():
     await db.email_log.create_index([("user_id", 1), ("type", 1), ("sent_at", -1)])
     await db.email_preferences.create_index("user_id", unique=True)
     await db.admin_notification_recipients.create_index("email", unique=True)
+    # Partners (convenios/aliados) collection
+    await db.partners.create_index("email")
+    await db.partners.create_index("status")
+    await db.partners.create_index([("created_at", -1)])
     # Seed default admin recipient (idempotent). If deleted from /admin panel,
     # it stays deleted — $setOnInsert only fills on the initial insert.
     await db.admin_notification_recipients.update_one(
         {"email": "nelson@sinadicciones.org"},
         {"$setOnInsert": {
             "email": "nelson@sinadicciones.org",
-            "active_for": {"admin_new_user": True, "admin_daily_summary": True, "admin_grave_report": True},
+            "active_for": {"admin_new_user": True, "admin_daily_summary": True, "admin_grave_report": True, "admin_new_partner": True},
             "created_at": now_iso(),
         }},
         upsert=True,
+    )
+    # Ensure existing recipient docs have the new admin_new_partner opt-in ON
+    # (backwards-compat migration for accounts created before Convenios existed).
+    await db.admin_notification_recipients.update_many(
+        {"active_for.admin_new_partner": {"$exists": False}},
+        {"$set": {"active_for.admin_new_partner": True}},
     )
     # Geo indexes (idempotent)
     await db.users.create_index([("location.coords", "2dsphere")])
