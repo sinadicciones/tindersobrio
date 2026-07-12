@@ -29,6 +29,8 @@ Página pública para que gimnasios, cafés, centros culturales y lugares de pan
 ```
 Crea una página pública de convenios/aliados en la ruta /convenios (también accesible como /aliados que redirige a /convenios), con el sistema visual Blanco Editorial de la app. Es una landing de captación B2B, no requiere login.
 
+0. TEMA CLARO (fondo blanco), coherente con la landing principal: fondo #FFFFFF, secciones alternas #F6F5F9, tarjetas blancas con borde #E7E4EE y sombra suave, texto #1A1524 (secundario #5B5766), íconos de línea oscuros. Los acentos de marca se mantienen: gradiente coral #FF6B5E → violeta #8B5CF6 en botones y números de paso; el bloque "gratis" y la insignia BETA en verde #16A34A sobre fondo #EAF7EF. Ver referencia visual en mockups/convenios.html.
+
 1. ESTRUCTURA DE LA LANDING (mobile-first, HTML real con sus meta tags para poder compartirla):
    - Header simple con el logo PlanSobrio + badge BETA.
    - Hero: título "Suma tu lugar a la red de panoramas sin alcohol" + bajada "Conecta con un público que busca planes de día, sin alcohol, y que es fiel a los lugares donde se siente bien recibido." + botón que hace scroll al formulario ("Quiero sumarme gratis").
