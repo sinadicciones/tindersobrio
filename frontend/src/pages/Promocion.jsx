@@ -74,6 +74,17 @@ const FAQS = [
     q: "¿Qué pasa si alguien ofrece alcohol o drogas?",
     a: "Está estrictamente prohibido. Cada perfil, chat y grupo tiene botón de reporte. Las cuentas que promuevan o vendan sustancias son suspendidas sin previo aviso.",
   },
+  {
+    q: "¿Quién está detrás de PlanSobrio?",
+    a: (
+      <>
+        PlanSobrio nace de <b>Nelson González</b>, fundador de{" "}
+        <a href="https://sinadicciones.org" target="_blank" rel="noopener noreferrer" className="text-[#8B5CF6] font-semibold underline underline-offset-2 hover:text-[#6D28D9]">Sinadicciones.org</a> — una organización chilena dedicada a acompañar procesos de recuperación de adicciones, difundir información y visibilizar historias reales. PlanSobrio es la extensión digital de ese trabajo: llevar la comunidad sobria al espacio donde hoy la mayoría busca conectar.{" "}
+        <a href="https://sinadicciones.org" target="_blank" rel="noopener noreferrer" className="text-[#8B5CF6] font-semibold underline underline-offset-2 hover:text-[#6D28D9]">Conoce Sinadicciones.org →</a>
+      </>
+    ),
+    aText: "PlanSobrio nace de Nelson González, fundador de Sinadicciones.org — una organización chilena dedicada a acompañar procesos de recuperación de adicciones, difundir información y visibilizar historias reales. PlanSobrio es la extensión digital de ese trabajo. Más en https://sinadicciones.org",
+  },
 ];
 
 function Faq() {
@@ -170,7 +181,7 @@ export default function Promocion() {
         mainEntity: FAQS.map((f) => ({
           "@type": "Question",
           name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
+          acceptedAnswer: { "@type": "Answer", text: f.aText || f.a },
         })),
       },
     ]);
@@ -499,7 +510,12 @@ export default function Promocion() {
               <Sprout size={14} className="text-white" strokeWidth={2.2}/>
             </div>
             <span className="font-display font-black text-slate-900">PlanSobrio</span>
-            <span className="opacity-70">· hecho con cariño en Chile</span>
+            <span className="opacity-70 inline-flex items-center gap-1">
+              · hecho con <Heart size={12} strokeWidth={0} fill="#FF6B5E" className="inline-block"/> desde{" "}
+              <a href="https://sinadicciones.org" target="_blank" rel="noopener noreferrer" data-testid="footer-sinadicciones" className="font-semibold text-slate-900 hover:text-[#8B5CF6] transition underline underline-offset-2 decoration-slate-300">
+                Sinadicciones.org
+              </a>
+            </span>
           </div>
           <div className="flex items-center gap-5">
             <Link to="/terminos" className="hover:text-slate-900 transition">Términos</Link>
