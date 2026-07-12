@@ -4,34 +4,47 @@ import { toast } from "sonner";
 import {
   Heart, Smile, Users, Compass, MessageCircle, CalendarHeart,
   Sprout, ArrowRight, Share2, Copy, Check, Sparkles,
-  ShieldCheck, HandHeart, MapPin,
+  ShieldCheck, HandHeart, MapPin, Send, Mail, Linkedin, MessageSquare,
 } from "lucide-react";
 
 const SHARE_URL = "https://plansobrio.com/promocion";
+const SHARE_TITLE = "PlanSobrio";
 const SHARE_TEXT =
-  "Descubrí PlanSobrio 🌱 — la comunidad chilena para conectar con personas que viven planes sanos, sin que el alcohol ni las drogas sean el foco. Únete: ";
+  "Descubre PlanSobrio 🌱 — la comunidad para conectar con personas que viven planes sanos, sin que el alcohol ni las drogas sean el foco. Únete:";
+const enc = (s) => encodeURIComponent(s);
 
 function useShare() {
   const [copied, setCopied] = useState(false);
-  const share = async () => {
-    if (navigator.share) {
-      try { await navigator.share({ title: "PlanSobrio", text: SHARE_TEXT, url: SHARE_URL }); return; }
-      catch { /* user cancelled */ }
-    }
-    copy();
-  };
+
+  const openWin = (url) => window.open(url, "_blank", "noopener,noreferrer");
+
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`${SHARE_TEXT}${SHARE_URL}`);
+      await navigator.clipboard.writeText(`${SHARE_TEXT} ${SHARE_URL}`);
       setCopied(true);
       toast.success("Enlace copiado — compártelo con quien quieras");
       setTimeout(() => setCopied(false), 2500);
     } catch { toast.error("No se pudo copiar el enlace"); }
   };
-  const whatsapp = () => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(SHARE_TEXT + SHARE_URL)}`, "_blank", "noopener");
-  const twitter = () => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(SHARE_URL)}`, "_blank", "noopener");
-  const facebook = () => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}`, "_blank", "noopener");
-  return { share, copy, whatsapp, twitter, facebook, copied };
+
+  const native = async () => {
+    if (navigator.share) {
+      try { await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); return; }
+      catch { /* user cancelled */ }
+    }
+    copy();
+  };
+
+  const whatsapp = () => openWin(`https://api.whatsapp.com/send?text=${enc(SHARE_TEXT + " " + SHARE_URL)}`);
+  const twitter = () => openWin(`https://twitter.com/intent/tweet?text=${enc(SHARE_TEXT)}&url=${enc(SHARE_URL)}`);
+  const facebook = () => openWin(`https://www.facebook.com/sharer/sharer.php?u=${enc(SHARE_URL)}&quote=${enc(SHARE_TEXT)}`);
+  const telegram = () => openWin(`https://t.me/share/url?url=${enc(SHARE_URL)}&text=${enc(SHARE_TEXT)}`);
+  const linkedin = () => openWin(`https://www.linkedin.com/sharing/share-offsite/?url=${enc(SHARE_URL)}`);
+  const reddit = () => openWin(`https://www.reddit.com/submit?url=${enc(SHARE_URL)}&title=${enc("PlanSobrio — comunidad para conectar sin alcohol ni drogas")}`);
+  const email = () => openWin(`mailto:?subject=${enc("Descubre PlanSobrio")}&body=${enc(SHARE_TEXT + "\n\n" + SHARE_URL)}`);
+  const sms = () => openWin(`sms:?&body=${enc(SHARE_TEXT + " " + SHARE_URL)}`);
+
+  return { native, copy, whatsapp, twitter, facebook, telegram, linkedin, reddit, email, sms, copied };
 }
 
 export default function Promocion() {
@@ -59,7 +72,7 @@ export default function Promocion() {
         </Link>
         <div className="flex items-center gap-2">
           <button
-            onClick={s.share}
+            onClick={s.native}
             data-testid="promo-nav-share"
             className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold hover:border-slate-300 hover:bg-slate-50 transition"
           >
@@ -78,7 +91,7 @@ export default function Promocion() {
       {/* Hero */}
       <header className="mx-auto max-w-6xl px-5 sm:px-8 pt-10 sm:pt-16 pb-14">
         <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 backdrop-blur px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-600" data-testid="promo-hero-badge">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]"/> Comunidad chilena · Beta abierta
+          <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]"/> Comunidad de conexión sana · Beta abierta
         </div>
         <h1
           data-testid="promo-hero-title"
@@ -87,7 +100,7 @@ export default function Promocion() {
           Conecta con personas que viven <span className="ps-gradient-text">planes sanos</span>,<br className="hidden sm:block"/> sin alcohol ni drogas de por medio.
         </h1>
         <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed" data-testid="promo-hero-sub">
-          Match por <b className="text-slate-900">panorama</b>, no por foto. Chatea, proponé un café, un cerro, un cine o un grupo.
+          Match por <b className="text-slate-900">plan</b>, no por foto. Chatea, propón un café, un cerro, un cine o suma un grupo.
           Ya sea que estés en <b className="text-slate-900">recuperación</b> o simplemente elijas la <b className="text-slate-900">conexión sana</b>, PlanSobrio es tu lugar.
         </p>
 
@@ -99,13 +112,13 @@ export default function Promocion() {
           >
             Únete gratis <ArrowRight size={17} strokeWidth={2.4}/>
           </Link>
-          <button
-            onClick={s.share}
+          <a
+            href="#compartir"
             data-testid="promo-hero-share"
             className="inline-flex items-center gap-2 rounded-full border-2 border-slate-900 bg-white px-6 py-3 text-[15px] font-bold hover:bg-slate-900 hover:text-white transition"
           >
             <Share2 size={16} strokeWidth={2.2}/> Compartir con alguien
-          </button>
+          </a>
         </div>
 
         <p className="mt-6 text-xs text-slate-500 flex items-center gap-2" data-testid="promo-hero-note">
@@ -116,13 +129,13 @@ export default function Promocion() {
       {/* Modos */}
       <section className="mx-auto max-w-6xl px-5 sm:px-8 py-14">
         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500" data-testid="promo-modos-lab">Cuatro maneras de conectar</p>
-        <h2 className="mt-3 font-display text-3xl sm:text-4xl font-black tracking-tight">Elegí cómo querés vincularte.</h2>
+        <h2 className="mt-3 font-display text-3xl sm:text-4xl font-black tracking-tight">Elige cómo quieres vincularte.</h2>
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
-            { icon: HandHeart, title: "Apoyo", desc: "Encontrá a alguien que entiende tu proceso. Escuchar y ser escuchado, sin juicios.", grad: "from-rose-100 to-white", accent: "#FF6B5E" },
-            { icon: Smile, title: "Amistad", desc: "Amistades reales que se construyen con planes reales: caminatas, ferias, cines, conversas.", grad: "from-amber-50 to-white", accent: "#F59E0B" },
+            { icon: HandHeart, title: "Apoyo", desc: "Encuentra a alguien que entiende tu proceso. Escuchar y ser escuchado, sin juicios.", grad: "from-rose-100 to-white", accent: "#FF6B5E" },
+            { icon: Smile, title: "Amistad", desc: "Amistades reales que se construyen con planes reales: caminatas, ferias, cines, conversaciones.", grad: "from-amber-50 to-white", accent: "#F59E0B" },
             { icon: Heart, title: "Amor", desc: "Vínculos románticos donde el foco es la persona, no la copa. Match por afinidad de planes.", grad: "from-fuchsia-100 to-white", accent: "#8B5CF6" },
-            { icon: Users, title: "Grupos", desc: "Sumate a comunidades temáticas — café, deporte, cordillera, arte — con eventos reales.", grad: "from-emerald-50 to-white", accent: "#4ADE80" },
+            { icon: Users, title: "Grupos", desc: "Únete a comunidades temáticas — café, deporte, cordillera, arte — con eventos reales.", grad: "from-emerald-50 to-white", accent: "#4ADE80" },
           ].map((m, i) => (
             <div
               key={m.title}
@@ -150,9 +163,9 @@ export default function Promocion() {
 
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { n: "01", icon: Sprout, title: "Regístrate", desc: "Contános tu alias, tus panoramas favoritos y tu relación con las sustancias — o si simplemente elegís la sobriedad." },
-            { n: "02", icon: Compass, title: "Descubre por afinidad", desc: "Deslizá perfiles con planes en común. Si te tinca, propone un café, una caminata o solo chatear online." },
-            { n: "03", icon: CalendarHeart, title: "Conéctate en la vida real", desc: "Chateen, acuerden un panorama y súmense a grupos con eventos abiertos por Santiago." },
+            { n: "01", icon: Sprout, title: "Regístrate", desc: "Cuéntanos tu alias, tus panoramas favoritos y tu relación con las sustancias — o si simplemente eliges la sobriedad." },
+            { n: "02", icon: Compass, title: "Descubre por afinidad", desc: "Desliza perfiles con planes en común. Si te gusta, propón un café, una caminata o solo chatear online." },
+            { n: "03", icon: CalendarHeart, title: "Conéctate en la vida real", desc: "Chatea, acuerda un panorama y únete a grupos con eventos abiertos en tu ciudad." },
           ].map((step) => (
             <div key={step.n} data-testid={`promo-paso-${step.n}`} className="rounded-3xl border border-slate-200 bg-white p-6 hover:border-slate-300 transition">
               <div className="flex items-center justify-between">
@@ -178,14 +191,14 @@ export default function Promocion() {
                 Cualquier persona que <span className="ps-gradient-text">quiera conectar sano</span>.
               </h2>
               <p className="mt-3 text-slate-600 leading-relaxed">
-                No importa dónde estés en el camino. PlanSobrio es tuyo si te sentís identificade con alguna de estas realidades:
+                No importa dónde estés en el camino. PlanSobrio es tuyo si te identificas con alguna de estas realidades:
               </p>
               <ul className="mt-6 space-y-3">
                 {[
-                  "Estás en proceso de recuperación y querés vincularte con gente que entiende.",
-                  "Vives sin alcohol ni drogas desde hace tiempo y buscás pares.",
-                  "Nunca tuviste problemas con dependencias — simplemente preferís planes sanos.",
-                  "Querés sumarte a una comunidad amable, sin ambientes de fiesta.",
+                  "Estás en proceso de recuperación y quieres vincularte con personas que entienden.",
+                  "Vives sin alcohol ni drogas desde hace tiempo y buscas pares.",
+                  "Nunca tuviste problemas con dependencias — simplemente prefieres planes sanos.",
+                  "Quieres unirte a una comunidad amable, sin ambientes de fiesta.",
                 ].map((li) => (
                   <li key={li} className="flex items-start gap-3">
                     <span className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#4ADE8020", color: "#16A34A" }}>
@@ -200,7 +213,7 @@ export default function Promocion() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { icon: MessageCircle, label: "Chatear online", desc: "Sin presión, empieza suave." },
-                { icon: MapPin, label: "Grupos por comuna", desc: "Encontrate cerca." },
+                { icon: MapPin, label: "Grupos por zona", desc: "Encuéntralos cerca." },
                 { icon: Sparkles, label: "Planes reales", desc: "Café, cerro, cine, feria." },
                 { icon: ShieldCheck, label: "Comunidad segura", desc: "Reglas claras y reportes." },
               ].map((c) => (
@@ -216,56 +229,62 @@ export default function Promocion() {
       </section>
 
       {/* Compartir */}
-      <section className="mx-auto max-w-6xl px-5 sm:px-8 py-14" id="compartir">
+      <section className="mx-auto max-w-6xl px-5 sm:px-8 py-14 scroll-mt-16" id="compartir">
         <div className="rounded-[32px] ps-gradient p-8 sm:p-12 text-white shadow-2xl shadow-purple-500/25">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-80">Ayúdanos a crecer</p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-black tracking-tight" data-testid="promo-share-title">
-                Alguien que conoces necesita saber que existimos.
-              </h2>
-              <p className="mt-3 opacity-90 leading-relaxed">
-                Comparte PlanSobrio con quien creas que le puede aportar. Cada persona que llega, hace la red más fuerte.
-              </p>
-            </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-80">Ayúdanos a crecer</p>
+            <h2 className="mt-3 font-display text-3xl sm:text-4xl font-black tracking-tight max-w-2xl" data-testid="promo-share-title">
+              Alguien que conoces necesita saber que existimos.
+            </h2>
+            <p className="mt-3 opacity-90 leading-relaxed max-w-2xl">
+              Comparte PlanSobrio directamente en tu red favorita. Cada persona que llega, hace la comunidad más fuerte.
+            </p>
+          </div>
 
-            <div className="space-y-2.5">
+          <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            {[
+              { key: "whatsapp", label: "WhatsApp", onClick: s.whatsapp, bg: "#25D366", char: "W" },
+              { key: "telegram", label: "Telegram", onClick: s.telegram, bg: "#26A5E4", icon: Send },
+              { key: "x", label: "X · Twitter", onClick: s.twitter, bg: "#000000", char: "𝕏" },
+              { key: "facebook", label: "Facebook", onClick: s.facebook, bg: "#1877F2", char: "f" },
+              { key: "linkedin", label: "LinkedIn", onClick: s.linkedin, bg: "#0A66C2", icon: Linkedin },
+              { key: "reddit", label: "Reddit", onClick: s.reddit, bg: "#FF4500", char: "r" },
+              { key: "email", label: "Correo", onClick: s.email, bg: "#0F172A", icon: Mail },
+              { key: "sms", label: "SMS", onClick: s.sms, bg: "#334155", icon: MessageSquare },
+            ].map((r) => (
               <button
-                onClick={s.whatsapp}
-                data-testid="promo-share-whatsapp"
-                className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white text-[#0F172A] px-5 py-4 font-bold text-[15px] hover:bg-slate-50 transition"
+                key={r.key}
+                onClick={r.onClick}
+                data-testid={`promo-share-${r.key}`}
+                className="group flex flex-col items-center justify-center gap-2 rounded-2xl bg-white text-[#0F172A] p-4 font-bold text-[13px] hover:-translate-y-0.5 transition shadow-md"
               >
-                <span className="flex items-center gap-3"><span className="text-xl">💬</span> Compartir por WhatsApp</span>
-                <ArrowRight size={16} strokeWidth={2.4}/>
-              </button>
-              <button
-                onClick={s.twitter}
-                data-testid="promo-share-x"
-                className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/15 backdrop-blur border border-white/30 text-white px-5 py-4 font-bold text-[15px] hover:bg-white/20 transition"
-              >
-                <span className="flex items-center gap-3"><span className="font-black text-lg">𝕏</span> Compartir en X</span>
-                <ArrowRight size={16} strokeWidth={2.4}/>
-              </button>
-              <button
-                onClick={s.facebook}
-                data-testid="promo-share-facebook"
-                className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/15 backdrop-blur border border-white/30 text-white px-5 py-4 font-bold text-[15px] hover:bg-white/20 transition"
-              >
-                <span className="flex items-center gap-3"><span className="font-black text-lg">f</span> Compartir en Facebook</span>
-                <ArrowRight size={16} strokeWidth={2.4}/>
-              </button>
-              <button
-                onClick={s.copy}
-                data-testid="promo-share-copy"
-                className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/15 backdrop-blur border border-white/30 text-white px-5 py-4 font-bold text-[15px] hover:bg-white/20 transition"
-              >
-                <span className="flex items-center gap-3">
-                  {s.copied ? <Check size={18} strokeWidth={2.4}/> : <Copy size={18} strokeWidth={2.2}/>}
-                  {s.copied ? "¡Enlace copiado!" : "Copiar enlace"}
+                <span
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg font-black shadow-sm"
+                  style={{ background: r.bg }}
+                >
+                  {r.icon ? <r.icon size={20} strokeWidth={2}/> : r.char}
                 </span>
-                <ArrowRight size={16} strokeWidth={2.4}/>
+                <span>{r.label}</span>
               </button>
-            </div>
+            ))}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              onClick={s.native}
+              data-testid="promo-share-native"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-white/15 backdrop-blur border border-white/30 text-white px-5 py-3.5 font-bold text-[14px] hover:bg-white/20 transition"
+            >
+              <Share2 size={17} strokeWidth={2.2}/> Más opciones del sistema
+            </button>
+            <button
+              onClick={s.copy}
+              data-testid="promo-share-copy"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-white text-[#0F172A] px-5 py-3.5 font-bold text-[14px] hover:bg-slate-50 transition"
+            >
+              {s.copied ? <Check size={17} strokeWidth={2.4}/> : <Copy size={17} strokeWidth={2.2}/>}
+              {s.copied ? "¡Enlace copiado!" : "Copiar enlace"}
+            </button>
           </div>
         </div>
       </section>
@@ -313,7 +332,7 @@ export default function Promocion() {
           </div>
         </div>
         <p className="mt-6 text-xs text-slate-400 max-w-3xl">
-          PlanSobrio es una comunidad de conexión sana. No reemplaza tratamiento profesional ni atención de urgencia. Si estás en crisis, contactá a <a href="tel:+56224254200" className="underline hover:text-slate-700">Salud Responde 600 360 7777</a>.
+          PlanSobrio es una comunidad de conexión sana. No reemplaza tratamiento profesional ni atención de urgencia. Si estás en crisis, contacta a <a href="tel:+56224254200" className="underline hover:text-slate-700">Salud Responde 600 360 7777</a>.
         </p>
       </footer>
     </div>
