@@ -423,6 +423,48 @@ export default function Promocion() {
       {/* FAQ */}
       <Faq/>
 
+      {/* Fundador */}
+      <section className="mx-auto max-w-6xl px-5 sm:px-8 py-14" data-testid="promo-fundador">
+        <div className="rounded-[32px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-white p-8 sm:p-12">
+          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-8 items-center">
+            <div className="mx-auto lg:mx-0">
+              <div className="w-44 h-44 rounded-3xl ps-gradient p-[3px] shadow-2xl shadow-purple-500/20">
+                <div className="w-full h-full rounded-[22px] bg-white flex items-center justify-center overflow-hidden">
+                  <span className="font-display text-6xl font-black ps-gradient-text">NG</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Detrás del proyecto</p>
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-black tracking-tight" data-testid="promo-fundador-title">
+                Nelson González — <span className="ps-gradient-text">fundador de PlanSobrio</span>
+              </h2>
+              <p className="mt-4 text-slate-700 leading-relaxed">
+                Persona en recuperación, padre, hijo y hermano. Fundador de{" "}
+                <a href="https://sinadicciones.org" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#8B5CF6] underline underline-offset-2 hover:text-[#6D28D9]" data-testid="fundador-sinadicciones-link">
+                  Sinadicciones.org
+                </a>{" "}
+                y autor del libro <em>&ldquo;El principio del mapa inverso&rdquo;</em>. PlanSobrio nace de años acompañando procesos de recuperación en Chile — de la convicción de que <b>los vínculos sanos son el mejor tratamiento de largo plazo</b> y de que la vida sobria merece un espacio propio en internet, más allá de los grupos de ayuda tradicionales.
+              </p>
+              <p className="mt-3 text-slate-600 leading-relaxed">
+                &ldquo;No se trata de la vida que dejaste. Se trata de la vida que puedes construir ahora.&rdquo;
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <a
+                  href="https://sinadicciones.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="fundador-cta-org"
+                  className="inline-flex items-center gap-2 rounded-full border-2 border-slate-900 bg-white px-5 py-2.5 text-sm font-bold hover:bg-slate-900 hover:text-white transition"
+                >
+                  Conocer Sinadicciones.org <ArrowRight size={15} strokeWidth={2.4}/>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Compartir */}
       <section className="mx-auto max-w-6xl px-5 sm:px-8 py-14 scroll-mt-16" id="compartir">
         <div className="rounded-[32px] ps-gradient p-8 sm:p-12 text-white shadow-2xl shadow-purple-500/25">
