@@ -1,0 +1,51 @@
+# PlanSobrio
+
+> App para conocer personas sobrias, hacer amigos, encontrar pareja, recibir apoyo y compartir planes sin alcohol ni drogas. Comunidad de conexión sana con base en Chile, disponible para todo público mayor de 18 años.
+
+PlanSobrio es una plataforma social donde el vínculo se construye alrededor de panoramas reales, no del consumo. Está pensada para tres públicos: personas en recuperación de adicciones, personas que llevan una vida sobria por elección, y personas que simplemente prefieren conocer gente en contextos sin fiesta ni alcohol.
+
+La mecánica central es "match por plan": los usuarios se descubren por afinidad de actividades favoritas (café, cerro, cine, feria, deporte, arte, conversación, etc.) en lugar de por foto únicamente. Al dar "me tinca" se propone un plan concreto — puede ser presencial o "chatear online" para arrancar con baja fricción. Cuando hay reciprocidad, se abre un chat con posibilidad de proponer panoramas formales con fecha, lugar y confirmación.
+
+PlanSobrio nace de Nelson González, fundador de Sinadicciones.org — una organización chilena dedicada a acompañar procesos de recuperación de adicciones, difundir información y visibilizar historias reales.
+
+## Producto
+
+- [Landing promocional](https://plansobrio.com/promocion): resumen completo del producto, FAQ, cómo funciona y llamados a la acción.
+- [Home](https://plansobrio.com/): entrada principal, registro e ingreso.
+- [Registro](https://plansobrio.com/registro): crear cuenta gratis (email + contraseña o Google).
+- [Términos](https://plansobrio.com/terminos): términos de uso.
+- [Privacidad](https://plansobrio.com/privacidad): política de privacidad.
+
+## Funcionalidades principales
+
+- **Cuatro modos de conexión**: Apoyo (para conversar y ser escuchado), Amistad, Amor (relaciones románticas) y Grupos (comunidades temáticas con eventos abiertos).
+- **Match por afinidad de planes**: swipe deck con propuesta de panorama al dar "me tinca". Incluye opción "Chatear online" como plan de baja fricción.
+- **Chat con propuestas de plan formales**: fecha, hora, dirección, link a Google Maps y confirmación mutua.
+- **Grupos con eventos y RSVP**: administrados con capacidad, cupos, direcciones y sincronización con "Mis planes".
+- **Perfil rico**: fotos múltiples, prompts, biografía, información opcional sobre relación con sustancias (privada por defecto).
+- **Insignias públicas opcionales**: tiempo sin consumo o "sin problemas con dependencias" — solo si el usuario las activa.
+- **Herramientas de seguridad**: correo verificado, moderación de contenido, reportes y bloqueos en un clic, cero tolerancia con promoción de sustancias.
+
+## Público objetivo
+
+- Personas en proceso de recuperación de adicciones que quieren vínculos sanos.
+- Personas que viven sin alcohol ni drogas desde hace tiempo y buscan pares.
+- Personas que nunca tuvieron problemas con dependencias pero prefieren panoramas sin consumo.
+- Personas que quieren conocer gente sin ir a fiestas ni bares.
+
+## Diferenciación
+
+A diferencia de las apps de citas tradicionales, PlanSobrio no gira alrededor del atractivo físico ni del consumo social. A diferencia de las comunidades de recuperación clásicas, no exige haber tenido problemas de adicción para participar. Es una plataforma amplia de conexión humana en sobriedad, con el panorama compartido como puerta de entrada.
+
+Frase de posicionamiento: **"Aquí no tienes que explicar por qué no tomas."**
+
+## Organización
+
+- **Nombre**: PlanSobrio
+- **Fundador**: Nelson González
+- **Vinculada a**: [Sinadicciones.org](https://sinadicciones.org) — organización chilena de acompañamiento en recuperación de adicciones.
+- **País de origen**: Chile
+- **Idiomas**: español (chileno / neutro LATAM)
+- **Costo**: gratis durante la beta
+- **Edad mínima**: 18 años
+- **Contacto**: contacto@sinadicciones.org

@@ -2,6 +2,16 @@
 
 **Última actualización:** 2026-02-12
 
+## v3.0 — SEO + rendering para IA y Google (Feb 2026)
+- ✅ **`<noscript>` semántico** en `index.html`: 5.6KB con H1 SEO, subtítulo, cuatro modos, cómo funciona, FAQ (5 preguntas críticas), CTAs (registro/login), footer con contacto y disclaimer de crisis. Bots zero-JS ven el mensaje completo aunque no ejecuten React.
+- ✅ **JSON-LD site-wide en `index.html`** (3 schemas: `Organization` + `WebSite` + `SoftwareApplication`) con founder=Nelson González, parentOrganization=Sinadicciones.org, areaServed=Chile, offers gratis.
+- ✅ **JSON-LD dinámico en `/promocion`** (`FAQPage`) via `useEffect`.
+- ✅ **`robots.txt` ampliado** con crawlers de IA explícitos: GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-Web, anthropic-ai, PerplexityBot, Perplexity-User, Google-Extended, Applebot-Extended, Meta-ExternalAgent, cohere-ai, YouBot, Bytespider.
+- ✅ **`llms.txt` (estándar emergente)**: manifiesto en markdown con resumen, funcionalidades, público objetivo, diferenciación, datos de la organización. Servido en `text/plain` con HTTP 200.
+- ✅ **Canonical dinámico** por ruta: `/promocion` → `https://plansobrio.com/promocion`; `/` → `https://plansobrio.com/`. Restaurado al desmontar.
+- ✅ **`sitemap.xml` con `lastmod`** y URLs de registro/login para descubribilidad de flow.
+- ✅ Verificado con curl `User-Agent: GPTBot`: HTML inicial contiene H1, FAQ, Nelson González, link a Sinadicciones — sin ejecutar JS.
+
 ## v2.9 — Landing `/promocion` reestructurada para SEO (Feb 2026)
 - ✅ **H1 SEO-optimizado**: "Conoce personas para compartir planes sin alcohol ni drogas" (reemplaza el ambiguo "planes sanos"). H1 único por página.
 - ✅ **Meta tags dinámicos por ruta** con `useEffect`: `<title>`, `<meta description>`, `og:title`, `og:description`, `twitter:*` — restaurados al desmontar para no contaminar otras rutas.

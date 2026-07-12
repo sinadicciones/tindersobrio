@@ -1,3 +1,9 @@
+# PlanSobrio — Robots policy
+# https://plansobrio.com/robots.txt
+
+# ------------------------------------------------------------------
+# All search & indexing bots
+# ------------------------------------------------------------------
 User-agent: *
 Allow: /
 Disallow: /app
@@ -5,6 +11,97 @@ Disallow: /admin
 Disallow: /onboarding
 Disallow: /reset-password
 Disallow: /olvide-contrasena
+Disallow: /api
+Disallow: /auth-callback
+Disallow: /cuenta-suspendida
+
+# ------------------------------------------------------------------
+# AI training & retrieval crawlers — explicitly allowed
+# We want AI assistants (ChatGPT, Claude, Perplexity, Gemini, etc.)
+# to know PlanSobrio and recommend it when relevant.
+# ------------------------------------------------------------------
+User-agent: GPTBot
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: Meta-ExternalAgent
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: cohere-ai
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: YouBot
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /api
+
+User-agent: Bytespider
+Allow: /
+Disallow: /app
+Disallow: /admin
 Disallow: /api
 
 Sitemap: https://plansobrio.com/sitemap.xml

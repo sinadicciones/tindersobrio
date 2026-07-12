@@ -153,6 +153,16 @@ export default function Promocion() {
       setMeta("twitter:description", desc),
     ];
 
+    // Canonical link (per route)
+    let canonical = document.querySelector('link[rel="canonical"]');
+    const prevCanonical = canonical ? canonical.getAttribute("href") : null;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.setAttribute("rel", "canonical");
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute("href", SHARE_URL);
+
     const ld = document.createElement("script");
     ld.type = "application/ld+json";
     ld.setAttribute("data-ld", "promocion");
@@ -190,6 +200,7 @@ export default function Promocion() {
     return () => {
       document.title = prevTitle;
       restore.forEach((r) => r());
+      if (prevCanonical !== null) canonical.setAttribute("href", prevCanonical);
       ld.remove();
     };
   }, []);
