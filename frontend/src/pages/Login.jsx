@@ -1,18 +1,38 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import GoogleAuthButton from "@/components/GoogleAuthButton";
+import { COUNTRY_CODES } from "@/constants/countries";
 
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
+  const routerLoc = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+
+  // Same URL-param capture as Register.jsx — some users click a landing link
+  // then go to /login (already registered from a previous device). Preserve
+  // the ?pais / UTM in case they later create a new account here.
+  useEffect(() => {
+    const params = new URLSearchParams(routerLoc.search);
+    const pais = (params.get("pais") || "").toUpperCase().trim();
+    const acquisition = {
+      pais: pais && COUNTRY_CODES.includes(pais) ? pais : undefined,
+      utm_source:   params.get("utm_source")   || undefined,
+      utm_medium:   params.get("utm_medium")   || undefined,
+      utm_campaign: params.get("utm_campaign") || undefined,
+      utm_content:  params.get("utm_content")  || undefined,
+    };
+    if (Object.values(acquisition).some(Boolean)) {
+      try { localStorage.setItem("ps_acquisition", JSON.stringify(acquisition)); } catch (_e) { /* ignore */ }
+    }
+  }, [routerLoc.search]);
 
   const submit = async (e) => {
     e.preventDefault();

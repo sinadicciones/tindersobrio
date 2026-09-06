@@ -27,6 +27,7 @@ from core.storage import init_storage, put_object, get_object
 from core.seed_data import SEED_ACTIVITIES, SEED_GROUPS, DEMO_PROFILES, DEMO_PHOTOS, DEMO_PROMPTS
 from core.geo_seed import (
     RM_CENTROIDS, SANTIAGO_CENTER, COUNTRIES_SEED, HELPLINES_SEED_CL,
+    HELPLINES_SEED_BY_COUNTRY, VERIFIED_COUNTRY_CODES,
     city_coords_for, default_country_coords,
 )
 from core import metrics as metrics_mod
@@ -423,6 +424,13 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     birthdate: str  # ISO date
+    # Optional country hint from landing (?pais=XX)
+    pais: Optional[str] = None
+    # UTM tracking (?utm_source=... &utm_medium=... &utm_campaign=... &utm_content=...)
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    utm_content: Optional[str] = None
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -438,7 +446,9 @@ class LocationIn(BaseModel):
 class OnboardingIn(BaseModel):
     alias: str
     gender: Literal["femenino", "masculino", "no_binario", "prefiero_no_decir"]
-    comuna: str
+    # `comuna` es opcional a nivel modelo — solo requerido si el país es Chile.
+    # La validación real está en el endpoint (usa location.country).
+    comuna: Optional[str] = None
     modes: List[Literal["apoyo", "amistad", "amor", "grupos"]]
     interested_genders: Optional[List[str]] = None
     age_min: Optional[int] = None
@@ -641,6 +651,21 @@ async def register(body: RegisterIn, response: Response):
     if exists:
         raise HTTPException(status_code=400, detail="Ya existe una cuenta con este correo")
     uid = str(uuid.uuid4())
+    # Normalize country hint from ?pais=XX. If not a valid known country, ignore.
+    pais_hint = (body.pais or "").upper().strip() or None
+    if pais_hint:
+        valid = await db.countries.count_documents({"code": pais_hint, "enabled": True})
+        if not valid:
+            pais_hint = None
+    # Acquisition tracking (UTM + landing_pais) — used to measure which
+    # campaign/country brings users that convert to real plans.
+    acquisition = {
+        "utm_source": (body.utm_source or "")[:80] or None,
+        "utm_medium": (body.utm_medium or "")[:80] or None,
+        "utm_campaign": (body.utm_campaign or "")[:80] or None,
+        "utm_content": (body.utm_content or "")[:200] or None,
+        "landing_pais": pais_hint,
+    }
     user_doc = {
         "id": uid,
         "email": email,
@@ -651,7 +676,10 @@ async def register(body: RegisterIn, response: Response):
         "onboarding_complete": False,
         "created_at": now_iso(),
         "is_demo": False,
+        "acquisition": acquisition,
     }
+    if pais_hint:
+        user_doc["country"] = pais_hint
     await db.users.insert_one(user_doc)
     token = create_access_token(uid, email)
     set_auth_cookie(response, token)
@@ -978,10 +1006,19 @@ async def list_countries():
 
 @api.get("/geo/helplines")
 async def list_helplines(country: str = Query("CL")):
-    """Returns emergency/support helplines for a country."""
+    """Returns emergency/support helplines for a country.
+
+    Response: `{country, verified, helplines}`. If `verified=false`, the frontend
+    must show the safe fallback ("estamos verificando las líneas de tu país")
+    to avoid promoting an unconfirmed number.
+    """
     country = country.upper()
     docs = await db.helplines.find({"country": country}, {"_id": 0}).sort("order", 1).to_list(50)
-    return docs
+    return {
+        "country": country,
+        "verified": country in VERIFIED_COUNTRY_CODES,
+        "helplines": docs,
+    }
 
 @api.post("/waitlist")
 async def join_waitlist(body: WaitlistIn):
@@ -1207,17 +1244,37 @@ async def complete_onboarding(body: OnboardingIn, user: dict = Depends(current_u
         raise HTTPException(status_code=400, detail="Debes ser mayor de 18 años")
 
     loc_in = body.location.model_dump() if body.location else {}
+    country_code = (loc_in.get("country") or "CL").upper()
+    city_in = (loc_in.get("city") or "").strip() or None
+    comuna_in = (loc_in.get("comuna") or body.comuna or "").strip() or None
+
+    # Regla de ubicación: se exige país + ciudad para todos.
+    # Solo Chile también admite/prefiere comuna (heredado). Si no viene city
+    # pero sí comuna (CL), se usa la comuna como city.
+    if country_code == "CL":
+        if not city_in and not comuna_in:
+            raise HTTPException(status_code=400, detail="Necesitamos tu comuna o ciudad")
+        if not city_in:
+            city_in = comuna_in
+    else:
+        if not city_in:
+            raise HTTPException(status_code=400, detail="Necesitamos tu ciudad")
+        # For non-Chile countries comuna is not applicable — ignore if sent.
+        comuna_in = None
+
     location = build_location_doc(
-        country=loc_in.get("country") or "CL",
-        comuna=loc_in.get("comuna") or body.comuna,
-        city=loc_in.get("city") or body.comuna,
+        country=country_code,
+        comuna=comuna_in,
+        city=city_in,
         coords=loc_in.get("coords"),
     )
 
     update = {
         "alias": body.alias.strip(),
         "gender": body.gender,
-        "comuna": body.comuna,
+        # `comuna` legacy field: CL uses the real comuna; other countries store city.
+        "comuna": comuna_in or city_in or "",
+        "city": city_in,
         "modes": body.modes,
         "interested_genders": body.interested_genders or [],
         "age_min": body.age_min or 18,
@@ -1444,6 +1501,7 @@ async def discover(
     age_max: Optional[int] = Query(None),
     comuna: Optional[str] = Query(None),
     radius_km: Optional[int] = Query(None, ge=1, le=500),
+    scope: Optional[str] = Query(None),  # "nearby" | "country" | "regional"
     user: dict = Depends(current_user),
 ):
     if mode not in ("apoyo", "amistad", "amor"):
@@ -1452,6 +1510,8 @@ async def discover(
         raise HTTPException(status_code=400, detail="Completa tu perfil primero")
     if mode not in user.get("modes", []):
         raise HTTPException(status_code=400, detail="Activa este modo en tu perfil")
+    if scope and scope not in ("nearby", "country", "regional"):
+        raise HTTPException(status_code=400, detail="Scope inválido")
     uid = user["id"]
 
     # excluded: liked/passed, blocked, blockedby, reported
@@ -1473,6 +1533,17 @@ async def discover(
     }
     if comuna:
         query["comuna"] = comuna
+
+    # Scope filter — country/regional/nearby. `nearby` uses the geoNear pipeline
+    # below (existing behavior). `country` restricts to same country as the user.
+    # `regional` allows any enabled country (Latinoamérica + hispano).
+    my_country = user.get("country") or (user.get("location") or {}).get("country") or "CL"
+    if scope == "country" or (scope is None and my_country):
+        query["country"] = my_country
+    elif scope == "regional":
+        # No country constraint — any enabled hispanohablante country.
+        pass
+    # `nearby` doesn't filter by country here; the geoNear radius handles it.
 
     if mode == "amor":
         my_gender = user.get("gender")
@@ -3002,13 +3073,16 @@ async def seed_admin_and_data():
             }},
             upsert=True,
         )
-    # Helplines (idempotent per name+country).
-    for h in HELPLINES_SEED_CL:
-        await db.helplines.update_one(
-            {"country": h["country"], "name": h["name"]},
-            {"$set": h},
-            upsert=True,
-        )
+    # Helplines verificadas por país (5 países). Los demás países quedan sin
+    # helplines — el frontend muestra un mensaje seguro hasta que se verifiquen.
+    for country_code, helplines in HELPLINES_SEED_BY_COUNTRY.items():
+        for h in helplines:
+            doc = {**h, "country": country_code}
+            await db.helplines.update_one(
+                {"country": country_code, "name": h["name"]},
+                {"$set": doc},
+                upsert=True,
+            )
 
     # Backfill `location` + `country` on users missing them (demos, admin, early testers).
     async for u in db.users.find({"location": {"$exists": False}}, {"id": 1, "comuna": 1, "_id": 0}):

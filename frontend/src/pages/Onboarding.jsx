@@ -72,7 +72,14 @@ export default function Onboarding() {
   const canNext = () => {
     if (step === 0) return form.alias.length >= 2 && form.gender && (!needsBirthdate || form.birthdate);
     if (step === 1) return form.modes.length > 0 && (!form.modes.includes("amor") || (form.interested_genders.length && form.age_min && form.age_max));
-    if (step === 2) return !!(form.location && form.location.comuna);
+    if (step === 2) {
+      // Multi-país: se exige país + ciudad (o comuna en CL).
+      const loc = form.location;
+      if (!loc || !loc.country) return false;
+      const isCL = (loc.country || "").toUpperCase() === "CL";
+      // En Chile aceptamos comuna o city; en otros países se exige city.
+      return isCL ? !!(loc.comuna || loc.city) : !!loc.city;
+    }
     if (step === 3) return !!form.relationship_with_substances;
     if (step === 4) return form.favorite_activities.length >= 3;
     if (step === 5) return form.modes.includes("amor") ? form.photos.length >= 1 : true;
@@ -91,15 +98,19 @@ export default function Onboarding() {
   const submit = async () => {
     setSaving(true);
     try {
+      const rawCountry = (form.location?.country || "CL").toUpperCase();
+      const isCL = rawCountry === "CL";
       const location = form.location ? {
-        country: (form.location.country || "CL").toUpperCase(),
-        city: form.location.city || form.location.comuna,
-        comuna: form.location.comuna,
+        country: rawCountry,
+        // En CL usamos comuna como city fallback; en otros países city es primario.
+        city: form.location.city || (isCL ? form.location.comuna : ""),
+        comuna: isCL ? (form.location.comuna || undefined) : undefined,
         coords: form.location.coords, // undefined for manual → server derives
       } : undefined;
       const payload = {
         ...form,
-        comuna: form.location?.comuna || "",
+        // Legacy `comuna` top-level: CL manda comuna real; otros países mandan city.
+        comuna: isCL ? (form.location?.comuna || "") : (form.location?.city || ""),
         birthdate: form.birthdate || undefined,
         location,
         // Filter out empty prompts before submitting (server enforces 1..6 non-empty)
@@ -235,7 +246,6 @@ export default function Onboarding() {
               <LocationPicker
                 value={form.location}
                 onChange={(loc)=>set("location", loc)}
-                onOutsideChile={()=>nav("/waitlist")}
               />
             </div>
           )}

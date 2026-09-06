@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 27 (Bloque 1 multi-país): backend + frontend testing. Backend 15/15 pytest tests pass (geo countries, helplines shape, register acquisition, onboarding multi-country, discover scopes). Frontend Playwright confirmed URL-param capture into localStorage.ps_acquisition on /registro and /login, CL verified helplines rendering with correct testids and country name 'Chile', 3 scope filter buttons in Discover, and me-tinca-btn shows 'Me tinca' for demo1 (CL).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration27_multipais.py",
+    "/app/test_reports/pytest/iteration27.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Discover default scope is 'country' (line 30 of Discover.jsx). Regional/nearby require explicit user action — expected per PRD.",
+    "server.py exceeds 3500 lines; consider splitting geo/auth/discover routers into separate modules for maintainability.",
+    "Legacy `comuna` field in User model is used to store city for non-CL users (server.py:1276) — mildly confusing; a future migration to a single `city` field would clean this up."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration27_multipais.py"],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% (all requested flows verified)"},
+  "test_credentials": "Admin: contacto@sinadicciones.org / Jodorowsky100. Demo: demo1..demo12@plansobrio.cl / Demo1234!.",
+  "seed_data_creation": "Test class creates one onboarded MX user (email `test_onb_<ts>@example.com`) for the regional discover scenario. All test emails use @example.com (regex on server rejects @plansobrio.test).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Register/onboarding accept ONLY email domains matching the server-side regex (which rejects .test TLDs). Use @example.com for test emails. Gender enum: femenino|masculino|no_binario|prefiero_no_decir (not F/M). Helplines endpoint shape is {country, verified, helplines} — Frontend NecesitoApoyo handles both new and legacy array shape. Discover default scope in UI is 'country'; the 'Filtros' button opens a panel exposing filter-scope-nearby/country/regional testids. NecesitoApoyo route is /app/necesito-apoyo (not /app/apoyo).",
+  "rca of the issue": "N/A — no bugs found."
+}

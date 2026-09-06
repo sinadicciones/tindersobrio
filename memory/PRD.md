@@ -2,6 +2,35 @@
 
 **Última actualización:** 2026-02-12
 
+## v4.0 — Multi-país (Bloque 1 expansión) (Feb 2026)
+
+**22 países hispanohablantes habilitados** (antes solo Chile).
+
+**Backend**:
+- `core/geo_seed.py`: `COUNTRIES_SEED` con 22 países (CL, AR, CO, MX, PE, ES, US, VE, EC, GT, BO, CU, DO, HN, PY, SV, NI, CR, PA, UY, PR, GQ), cada uno con `code, name, flag, timezone, order, cities[]`. `HELPLINES_SEED_BY_COUNTRY` solo cubre 5 países verificados; los otros 17 no reciben registros de helplines (frontend muestra fallback seguro).
+- `RegisterIn` acepta opcionalmente `pais` + `utm_source/medium/campaign/content`. `/auth/register` guarda `user.acquisition = {utm_*, landing_pais}` y `user.country` si el pais es válido.
+- `OnboardingIn.comuna` ahora Optional; validación real en el endpoint: CL requiere comuna o city, otros países requieren city.
+- `GET /api/geo/helplines?country=XX` cambia shape a `{country, verified, helplines[]}`. `verified=false` implica que el frontend debe mostrar fallback.
+- `GET /api/discover?scope=nearby|country|regional`: nearby usa geoNear+radius, country filtra por `user.country`, regional NO filtra por país (visible cross-border).
+- Startup: backfill `admin_new_partner: True` en recipient docs existentes. Seed loop itera `HELPLINES_SEED_BY_COUNTRY`.
+- Waitlist deja de bloquear registros — todos los 22 países están habilitados desde el día 1.
+
+**Frontend**:
+- `constants/countries.js` (nuevo): 22 países con `flag, timezone, like_verb, verified_helplines`. Helper `likeVerbForCountry(code)`: MX 'me late', AR 'me copa', CO 'me suena', PE 'me provoca', CL 'me tinca', resto 'me gusta el plan'.
+- `Register.jsx` + `Login.jsx`: captura `?pais=XX&utm_*` en `useEffect`, persiste en `localStorage.ps_acquisition`. `AuthContext.register()` lee y limpia post-registro.
+- `Register.jsx`: quitado el redirect a `/waitlist` post-registro (todos los países habilitados).
+- `LocationPicker.jsx` reescrito: `<select>` con 22 países + `<input>` city (autocomplete por país via `<datalist>`), comuna solo si `CL + city='Santiago'`.
+- `Onboarding.jsx`: `canNext` step 2 acepta city para no-CL; `submit` adapta payload (comuna solo CL).
+- `Discover.jsx`: filtros con 3 botones `filter-scope-nearby|country|regional`; `likeVerbCap` propagado a `ProfileCard`.
+- `NecesitoApoyo.jsx`: usa `AuthContext.user.country`, consume nueva shape, muestra fallback con link a sinadicciones.org si `verified=false`.
+
+**Testing** (iteration 27):
+- Backend 15/15 pytest pass (geo countries, helplines shape, register acquisition, onboarding MX sin comuna, discover scope filters, waitlist bypass).
+- Frontend Playwright: `?pais=MX&utm_*` → localStorage OK; NecesitoApoyo CL con helplines OK y ES con fallback OK; 3 scope filter buttons OK; me-tinca-btn = 'Me tinca' para demo1.
+- File: `/app/backend/tests/test_iteration27_multipais.py`.
+
+**Bloque 2 pendiente**: grupos + reuniones online con `meeting_url`, `recurrence`, `group_type`, grupos "Comunidad {país}", moderadores por grupo, zonas horarias locales, recordatorios.
+
 ## v3.2 — Landing de Convenios / Aliados B2B (Feb 2026)
 
 **Backend (`server.py`)**:

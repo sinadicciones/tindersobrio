@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api, { formatApiError, fileUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { MODES, modeColor, soberLabel, relationshipLabel, COMUNAS_RM } from "@/constants/comunas";
+import { likeVerbForCountry } from "@/constants/countries";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate as fmAnimate } from "framer-motion";
 import { toast } from "sonner";
 import { Sparkles, X, MapPin, Heart, SlidersHorizontal, HeartHandshake, Smile, Sprout, PencilLine, Ruler, Baby, Star } from "lucide-react";
@@ -26,7 +27,7 @@ export default function Discover() {
   const [matchModal, setMatchModal] = useState(null); // {other, activity}
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState({ age_min: "", age_max: "", comuna: "", radius_km: "" });
+  const [filters, setFilters] = useState({ age_min: "", age_max: "", comuna: "", radius_km: "", scope: "country" });
 
   useEffect(() => { api.get("/activities").then((r)=>setActivities(r.data)); }, []);
 
@@ -42,6 +43,7 @@ export default function Discover() {
       if (filters.age_max) params.age_max = Number(filters.age_max);
       if (filters.comuna) params.comuna = filters.comuna;
       if (filters.radius_km) params.radius_km = Number(filters.radius_km);
+      if (filters.scope) params.scope = filters.scope;
       const [{ data: cands }, { data: q }] = await Promise.all([
         api.get(`/discover`, { params }),
         api.get(`/discover/quota`),
@@ -56,11 +58,16 @@ export default function Discover() {
   useEffect(() => { if (mode) load(mode); /* eslint-disable-next-line */ }, [mode]);
 
   const applyFilters = () => { setFiltersOpen(false); load(mode); };
-  const clearFilters = () => { setFilters({ age_min: "", age_max: "", comuna: "", radius_km: "" }); setFiltersOpen(false); setTimeout(() => load(mode), 50); };
-  const activeFilterCount = (filters.age_min ? 1 : 0) + (filters.age_max ? 1 : 0) + (filters.comuna ? 1 : 0) + (filters.radius_km ? 1 : 0);
+  const clearFilters = () => { setFilters({ age_min: "", age_max: "", comuna: "", radius_km: "", scope: "country" }); setFiltersOpen(false); setTimeout(() => load(mode), 50); };
+  const activeFilterCount = (filters.age_min ? 1 : 0) + (filters.age_max ? 1 : 0) + (filters.comuna ? 1 : 0) + (filters.radius_km ? 1 : 0) + (filters.scope !== "country" ? 1 : 0);
 
   const current = candidates[idx];
   const nextProfile = candidates[idx + 1];
+  // Microcopy localizado por país: MX "me late", AR "me copa", CO "me suena",
+  // PE "me provoca", CL "me tinca", resto neutro "me gusta el plan".
+  const userCountry = (user?.country || user?.location?.country || "CL").toUpperCase();
+  const likeVerb = likeVerbForCountry(userCountry);
+  const likeVerbCap = likeVerb.charAt(0).toUpperCase() + likeVerb.slice(1);
 
   const pass = async () => {
     if (!current) return;
@@ -138,7 +145,7 @@ export default function Discover() {
       {/* Mode selector */}
       <div className="flex items-center justify-between mb-4 px-2">
         <h1 className="font-display text-2xl font-black">Descubrir</h1>
-        <span data-testid="quota-remaining" className="text-xs text-white/50">{quota.remaining}/20 me tinca</span>
+        <span data-testid="quota-remaining" className="text-xs text-white/50">{quota.remaining}/20 {likeVerb}</span>
       </div>
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1 items-center">
         {swipeModes.map((m) => {
@@ -207,6 +214,23 @@ export default function Discover() {
                     ))}
                   </div>
                 </div>
+                <div>
+                  <label className="text-sm text-white/60 mb-2 block">Alcance</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { v: "nearby",   l: "Cerca de mí" },
+                      { v: "country",  l: "Mi país" },
+                      { v: "regional", l: "Toda Latinoamérica" },
+                    ].map((s) => (
+                      <button key={s.v} type="button" data-testid={`filter-scope-${s.v}`}
+                        onClick={()=>setFilters({...filters, scope: s.v})}
+                        className={`px-3 py-2 rounded-full text-xs font-semibold border transition ${filters.scope === s.v ? "border-transparent ps-gradient text-white" : "bg-white/5 border-white/10 text-white/70"}`}>
+                        {s.l}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-white/40">Con "Toda Latinoamérica" verás gente de los 22 países hispanohablantes.</p>
+                </div>
               </div>
               <div className="mt-6 flex gap-2">
                 <button data-testid="filters-clear" onClick={clearFilters} className="ps-btn-secondary flex-1">Limpiar</button>
@@ -242,6 +266,7 @@ export default function Discover() {
             onPass={pass}
             onLike={openLike}
             resetRef={cardResetRef}
+            likeVerbCap={likeVerbCap}
           />
         </div>
       )}
@@ -323,7 +348,7 @@ export default function Discover() {
   );
 }
 
-function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef }) {
+function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef, likeVerbCap = "Me tinca" }) {
   const actById = {};
   const actByName = {};
   activities.forEach((a) => { actById[a.id] = a; actByName[a.name] = a; });
@@ -516,7 +541,7 @@ function ProfileCard({ profile, mode, activities = [], onPass, onLike, resetRef 
           Pasar
         </button>
         <button data-testid="me-tinca-btn" onClick={onLike} className="ps-btn-primary flex-[1.4] py-3.5 flex items-center justify-center gap-2 text-base">
-          <Heart size={18} strokeWidth={1.9} fill="white"/> Me tinca
+          <Heart size={18} strokeWidth={1.9} fill="white"/> {likeVerbCap}
         </button>
       </div>
     </motion.div>

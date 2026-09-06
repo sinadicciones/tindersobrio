@@ -49,8 +49,19 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (email, password, birthdate) => {
-    const { data } = await api.post("/auth/register", { email, password, birthdate });
+    // Capture landing intent stored by Register.jsx from the URL (?pais=XX + UTM).
+    // These help attribute conversions per country/campaign but are optional.
+    let acquisition = {};
+    try {
+      const raw = localStorage.getItem("ps_acquisition");
+      if (raw) acquisition = JSON.parse(raw) || {};
+    } catch (_e) { /* ignore parse errors */ }
+    const { data } = await api.post("/auth/register", {
+      email, password, birthdate, ...acquisition,
+    });
     localStorage.setItem("ps_token", data.token);
+    // One-shot: clear acquisition data now that it was posted.
+    localStorage.removeItem("ps_acquisition");
     setUser(data.user);
     return data.user;
   };

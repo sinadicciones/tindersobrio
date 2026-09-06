@@ -1,25 +1,42 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { formatApiError } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowLeft, Phone, ExternalLink, Trash2, Plus } from "lucide-react";
+import { ArrowLeft, Phone, ExternalLink, Trash2, Plus, ShieldAlert } from "lucide-react";
+import { COUNTRIES } from "@/constants/countries";
 
 export default function NecesitoApoyo() {
   const nav = useNavigate();
+  const { user } = useAuth();
   const [reasons, setReasons] = useState([]);
   const [text, setText] = useState("");
   const [helplines, setHelplines] = useState([]);
+  const [verified, setVerified] = useState(true);
+  const [countryCode, setCountryCode] = useState("CL");
 
   const load = () => api.get("/reasons").then((r)=>setReasons(r.data));
   useEffect(() => {
     load();
-    api.get("/geo/helplines", { params: { country: "CL" } })
-      .then((r) => setHelplines(r.data || []))
-      .catch(() => setHelplines([]));
+    const uc = (user?.country || user?.location?.country || "CL").toUpperCase();
+    setCountryCode(uc);
+    api.get("/geo/helplines", { params: { country: uc } })
+      .then((r) => {
+        const data = r.data || {};
+        // New response shape: {country, verified, helplines}. Fall back to legacy array shape.
+        if (Array.isArray(data)) {
+          setHelplines(data);
+          setVerified(true);
+        } else {
+          setHelplines(data.helplines || []);
+          setVerified(!!data.verified);
+        }
+      })
+      .catch(() => { setHelplines([]); setVerified(false); });
     // Anonymous counter — never sends user_id. Backend only stores date+count.
     api.post("/support-page/view").catch(() => {});
-  }, []);
+  }, [user?.country, user?.location?.country]);
 
   const add = async () => {
     if (!text.trim()) return;
@@ -28,20 +45,13 @@ export default function NecesitoApoyo() {
   };
   const del = async (id) => { await api.delete(`/reasons/${id}`); await load(); };
 
-  // Fallback helplines used if the DB collection is empty for any reason.
-  const FALLBACK_HELPLINES = [
-    { name: "Salud Responde", phone: "6003607777", display: "600 360 7777", color: "apoyo" },
-    { name: "Prevención del suicidio", phone: "*4141", display: "*4141", color: "amistad" },
-    { name: "Urgencias", phone: "131", display: "131", color: "primary" },
-    { name: "Orientación profesional", url: "https://sinadicciones.org", display: "sinadicciones.org", color: "neutral" },
-  ];
   const HELPLINE_COLORS = {
     apoyo:    "bg-[#38BDF8]/15 border-[#38BDF8]/40 hover:bg-[#38BDF8]/25 text-[#38BDF8]",
     amistad:  "bg-[#FBBF24]/15 border-[#FBBF24]/40 hover:bg-[#FBBF24]/25 text-[#FBBF24]",
     primary:  "bg-[#FF6B5E]/15 border-[#FF6B5E]/40 hover:bg-[#FF6B5E]/25 text-[#FF6B5E]",
     neutral:  "bg-white/5 border-white/10 hover:bg-white/10 text-white/70",
   };
-  const linesToShow = helplines.length > 0 ? helplines : FALLBACK_HELPLINES;
+  const countryName = COUNTRIES.find((c) => c.code === countryCode)?.name || countryCode;
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6">
@@ -75,10 +85,32 @@ export default function NecesitoApoyo() {
         </div>
       </section>
 
-      {/* Telefonos — mantienen colores de urgencia por diseño explícito */}
-      <section className="mt-5 space-y-2">
-        <p className="ps-lab"><Phone size={12} strokeWidth={1.9}/> Teléfonos de ayuda en Chile</p>
-        {linesToShow.map((h, i) => {
+      {/* Telefonos — helplines por país; muestra fallback seguro si no hay verificadas */}
+      <section className="mt-5 space-y-2" data-testid="helplines-section">
+        <p className="ps-lab"><Phone size={12} strokeWidth={1.9}/> Teléfonos de ayuda en {countryName}</p>
+        {!verified && (
+          <div className="rounded-2xl border border-[#FBBF24]/40 bg-[#FBBF24]/10 p-4" data-testid="helplines-fallback">
+            <div className="flex items-start gap-3">
+              <ShieldAlert size={20} strokeWidth={1.9} className="text-[#FBBF24] shrink-0 mt-0.5"/>
+              <div>
+                <p className="text-sm text-white font-semibold">Estamos verificando las líneas de ayuda de {countryName}.</p>
+                <p className="text-xs text-[#C7CBD6] mt-1.5 leading-relaxed">
+                  Si es una emergencia, marca el número de emergencias local. Aquí tienes orientación profesional:
+                </p>
+                <a
+                  href="https://sinadicciones.org"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid="link-sinadicciones"
+                  className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 hover:bg-white/15 px-4 py-2 text-sm text-white transition"
+                >
+                  <ExternalLink size={14} strokeWidth={1.9}/> Ir a SinAdicciones.org
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+        {verified && helplines.map((h, i) => {
           const cls = HELPLINE_COLORS[h.color] || HELPLINE_COLORS.neutral;
           const isLink = !!h.url;
           const href = isLink ? h.url : `tel:${h.phone}`;
