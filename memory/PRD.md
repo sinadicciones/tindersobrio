@@ -2,6 +2,40 @@
 
 **Última actualización:** 2026-02-12
 
+## v4.2 — Fase 3: Recursos dentro de la app (Feb 2026)
+
+**Nueva sección `/app/recursos`** — hub de valor accedido desde el Perfil (no un tab nuevo). Contiene contador de días sobrios nativo, herramientas enlazadas a SinAdicciones.org, y blog embebido (espejo).
+
+**Backend**:
+- Modelo user: `sober_counter: { active, start_date (ISO YYYY-MM-DD), milestones_notified[] }`.
+- `GET /api/sober-counter` (privado). `POST /api/sober-counter/start` (opcional `start_date`), `/reset` (hoy sin culpa), `/stop`. `PATCH /api/sober-counter/date`.
+- Milestones: 7, 30, 90, 180, 365, luego yearly. Validación: no fechas futuras (>422), no más de 60 años atrás.
+- `sober_counter` NUNCA se expone por `clear_public` (whitelist estricta).
+- Modelo `BlogPostIn.visibility: 'public'|'private'` (default public). `admin_create_post` y `admin_update_post` ahora persisten el campo (fix testing agent).
+- `GET /api/blog/posts` y `GET /api/blog/posts/{slug}` filtran `visibility != 'private'`.
+- `GET /api/app/blog/posts` (auth-required): incluye todos los publicados. Frontend abre la web pública indexable en tab nuevo — arquitectura anti-duplicado SEO.
+
+**Frontend**:
+- Nueva página `Recursos.jsx` — widget de contador arriba, 3 tarjetas de herramientas SinAdicciones (auto-evaluación / biblioteca / orientación) que abren `sinadicciones.org/{pais_lower}/...`, tarjeta Necesito Apoyo, tarjeta Comunidad {país} con bandera + reuniones, y sección Blog con 3 posts + link "Ver todo".
+- Nueva página `SoberCounter.jsx` (`/app/recursos/contador`) — StartCard con date input + ActiveState con days grande, próximo hito, milestones alcanzados, editar fecha, reiniciar sin culpa, desactivar.
+- Nueva página `BlogInApp.jsx` (`/app/recursos/blog`) — lista con filtro por tag; cada card abre `https://plansobrio.com/blog/{slug}` en pestaña nueva.
+- `Profile.jsx`: widget de contador arriba (glanceable) + menú "Recursos" con icono verde Compass.
+- Componentes `SoberCounterWidget` y `BlogCard` exportados desde Recursos.jsx para reutilizar en Profile y BlogInApp.
+
+**Arquitectura clave (anti-duplicado SEO)**:
+- El sitio Next.js (plansobrio.com) es la ÚNICA fuente indexable del blog.
+- La app espeja los posts para mostrarlos in-app, pero al tocar abre la web pública.
+- Campo `visibility=private` reservado para contenido futuro solo-logueados.
+- Herramientas clínicas no se reconstruyen — se enlazan a sinadicciones.org/{pais}/... con el país del usuario.
+
+**Testing** (iteration 29):
+- Backend 3/3 pytest pass tras fix del bug de `visibility` no persistido.
+- Frontend Playwright: todos los testids verificados en /recursos, /recursos/contador, /recursos/blog, /perfil. Tools apuntan a sinadicciones.org/cl/... para demo1. BlogCards apuntan a plansobrio.com/blog/{slug} target=_blank.
+- Test file: `/app/backend/tests/test_iteration29_recursos.py`.
+
+**Fase futura** (dejado para siguiente iteración según spec):
+- Diario / check-in diario liviano (mood + ganas + acción). Alimentaría al contador y a Necesito Apoyo.
+
 ## v4.1 — Bloque 2: Reuniones online + Comunidad (Feb 2026)
 
 **22 grupos "Comunidad {país}"** creados en startup (idempotente, `group_type='pais'`, `is_online=true`). Al terminar onboarding el usuario queda auto-unido al grupo de su país.

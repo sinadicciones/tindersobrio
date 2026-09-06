@@ -1,0 +1,38 @@
+{
+  "summary": "Fase 3 Recursos tested end-to-end. Backend: 3/3 pytest passing after fixing a real bug — /api/admin/blog/posts (POST and PATCH) never persisted the visibility field, so a post created with visibility=private leaked into /api/blog/posts (public). Added 'visibility': body.visibility to both admin_create_post doc and admin_update_post upd dict in server.py. After fix, private posts appear in /api/app/blog/posts (auth) but are correctly excluded from /api/blog/posts and /api/blog/posts/{slug} (404). Sober-counter endpoints (GET/start/reset/stop/date) all behave per spec, with future-date rejection (422 containing 'futura'), correct milestones_reached, milestones_notified cleared on PATCH date, and sober_counter never leaked in public GET /api/profile/{uid} (clear_public whitelist). Frontend: All required testids verified in /app/recursos, /app/recursos/contador, /app/recursos/blog, and /app/perfil. Tools point to https://sinadicciones.org/cl/... with target=_blank; blog cards link to https://plansobrio.com/blog/{slug} with target=_blank; sober widget correctly toggles between sober-widget-cta and sober-widget-active depending on backend state; recursos-link menu item points to /app/recursos.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST/PATCH /api/admin/blog/posts", "issue": "Missing persistence of `visibility` field caused private posts to leak in /api/blog/posts. FIXED by testing agent (added 'visibility': body.visibility to both doc and upd dicts in server.py ~3745 and ~3796).", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration29_recursos.py",
+    "/app/test_reports/pytest/iteration29.xml"
+  ],
+  "action_items": [
+    "Optional: Consider also persisting `visibility` in a default value for pre-existing blog posts via a one-off migration script or a startup routine that sets visibility='public' when missing (currently relies on $ne 'private' which handles it, but explicit is safer).",
+    "Optional: /app/recursos/blog tag click test — my broad selector [data-testid^='blog-tag-'] matched the container 'blog-tag-filters' too. UI works, but consider renaming container to 'blog-tags-container' or 'blog-tag-list' to avoid prefix ambiguity."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~4074 lines; blog admin routes still duplicate fields between POST/PATCH doc dicts — extract a `_blog_doc_from_body(body, existing=None)` helper to prevent field-drift bugs like the visibility miss.",
+    "BlogPostIn.visibility default is 'public', but existing posts (created before this field) will lack it in DB. The public query `$ne: 'private'` handles it, but a startup migration setting visibility='public' where missing would be cleaner.",
+    "clear_public correctly uses a whitelist — sober_counter can never leak. Good pattern; keep enforcing it as new private fields are added."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (added visibility field persistence in admin_create_post and admin_update_post)",
+    "/app/backend/tests/test_iteration29_recursos.py (new)"
+  ],
+  "success_rate": {"backend": "100% (3/3 after fix)", "frontend": "100% (all required testids + behaviors verified)"},
+  "test_credentials": "Admin: contacto@sinadicciones.org / Jodorowsky100. Demo: demo1..demo12@plansobrio.cl / Demo1234!.",
+  "seed_data_creation": "Test creates a temporary private blog post (slug test-private-{ts}) via admin endpoint and deletes it in the finally block. Sober counter for demo1 is force-stopped before + after each frontend/backend test to keep state clean.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "1) Fase 3 endpoints: /api/sober-counter (GET/POST start/reset/stop and PATCH /date). Body accepts optional {start_date: 'YYYY-MM-DD'}. Future dates → 422 with 'futura' in detail (wrapped as 'Value error, La fecha no puede ser futura'). 2) sober_counter is stored under user.sober_counter and NEVER exposed by clear_public. 3) Blog visibility: BlogPostIn has visibility: 'public'|'private' (default public). After this iteration, admin create/update DO persist it. Public list/detail exclude private via $ne. /api/app/blog/posts (auth) includes all publicados regardless of visibility. 4) Frontend testids for the hub: tools-section, tool-{autoevaluacion,biblioteca,orientacion}, sober-widget-cta / sober-widget-active + sober-days + sober-next-milestone, blog-section, blog-post-{slug}, blog-see-all, blog-empty, recursos-back, recursos-apoyo-link, recursos-community-link. Contador: counter-start-card, counter-start-date-input, counter-start-btn, counter-active-card, counter-days-big, counter-next-detail, counter-milestones-reached, counter-edit-date, counter-save-date, counter-reset-btn, counter-stop-btn, counter-back. Blog: blog-tag-filters, blog-tag-all, blog-tag-{name}, blog-app-empty, blog-app-back. Profile: recursos-link. 5) demo1 country is CL → sinadicciones URLs use /cl/. 6) BlogCard href is always https://plansobrio.com/blog/{slug} target=_blank — target site isn't reachable from preview env, only href correctness is asserted.",
+  "rca of the issue": "Fase 3 spec added `visibility: public|private` to BlogPostIn model. `_serialize_blog_post` and the public list/detail queries were updated to filter `$ne: 'private'`. However, admin_create_post and admin_update_post build the DB doc explicitly field-by-field and did not include `body.visibility`, so despite the model accepting the field, the value was silently dropped at write time. All new posts therefore had no `visibility` key in the DB, which — combined with the `$ne: 'private'` filter — meant everything was treated as public. Detection: created a POST via /api/admin/blog/posts with visibility=private, then queried /api/blog/posts and observed the slug present. Fix: added `'visibility': body.visibility` to both the insert doc (~line 3745) and the update set (~line 3796). Verified: 1) private post absent from /api/blog/posts, 2) /api/blog/posts/{slug} returns 404, 3) /api/app/blog/posts (auth) returns the post."
+}

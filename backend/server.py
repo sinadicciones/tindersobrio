@@ -645,6 +645,8 @@ class BlogPostIn(BaseModel):
     reading_minutes: Optional[int] = None
     cta_soft_title: Optional[str] = None
     cta_soft_text: Optional[str] = None
+    # Fase 3: `public` sale en la app pública; `private` solo para logueados en /app/recursos/blog
+    visibility: Literal["public", "private"] = "public"
 
 
 class BlogCoverGenIn(BaseModel):
@@ -1448,6 +1450,124 @@ async def profile_completeness(user: dict = Depends(current_user)):
     if percent >= 100:
         next_suggestion = None
     return {"percent": percent, "next_suggestion": next_suggestion}
+
+
+# ------------------------------------------------------------------
+# Fase 3 — Contador de días sobrios (privado, opcional)
+# ------------------------------------------------------------------
+# Milestone thresholds shown en la app. Después de 365 se agrega yearly (730, 1095…)
+BASE_MILESTONES = [7, 30, 90, 180, 365]
+
+
+def _sober_days(start_date_iso: str) -> int:
+    """Days elapsed since `start_date_iso` (YYYY-MM-DD). Clamped at 0."""
+    try:
+        start = datetime.fromisoformat(start_date_iso).date()
+    except Exception:
+        return 0
+    today = datetime.now(timezone.utc).date()
+    return max(0, (today - start).days)
+
+
+def _next_milestone(days: int) -> int:
+    """Return the next unreached milestone. After 365 → yearly (365 * n)."""
+    for m in BASE_MILESTONES:
+        if days < m:
+            return m
+    # After 1 year: siguiente aniversario
+    years = days // 365
+    return (years + 1) * 365
+
+
+def _sober_payload(user: dict) -> dict:
+    sc = user.get("sober_counter") or {}
+    if not sc.get("active") or not sc.get("start_date"):
+        return {"active": False}
+    days = _sober_days(sc["start_date"])
+    return {
+        "active": True,
+        "start_date": sc["start_date"],
+        "days": days,
+        "next_milestone": _next_milestone(days),
+        "milestones_reached": [m for m in BASE_MILESTONES if days >= m] + [365 * n for n in range(2, (days // 365) + 1)],
+        "milestones_notified": sc.get("milestones_notified") or [],
+    }
+
+
+class SoberStartIn(BaseModel):
+    # ISO date YYYY-MM-DD. Si es None, usa hoy.
+    start_date: Optional[str] = None
+
+    @field_validator("start_date", mode="before")
+    @classmethod
+    def _empty_none(cls, v):
+        s = (v or "").strip() if isinstance(v, str) else v
+        return s or None
+
+    @field_validator("start_date")
+    @classmethod
+    def _valid_date(cls, v):
+        if v is None:
+            return v
+        try:
+            d = datetime.fromisoformat(v).date()
+        except Exception as ex:
+            raise ValueError("Fecha inválida (usa YYYY-MM-DD)") from ex
+        today = datetime.now(timezone.utc).date()
+        if d > today:
+            raise ValueError("La fecha no puede ser futura")
+        # Sanity: máximo 60 años atrás
+        if (today - d).days > 365 * 60:
+            raise ValueError("La fecha es demasiado antigua")
+        return v
+
+
+@api.get("/sober-counter")
+async def sober_counter_get(user: dict = Depends(current_user)):
+    """Estado privado del contador. Nunca se expone en el perfil público."""
+    return _sober_payload(user)
+
+
+@api.post("/sober-counter/start")
+async def sober_counter_start(body: SoberStartIn, user: dict = Depends(current_user)):
+    start = body.start_date or datetime.now(timezone.utc).date().isoformat()
+    sc = {"active": True, "start_date": start, "milestones_notified": [], "updated_at": now_iso()}
+    await db.users.update_one({"id": user["id"]}, {"$set": {"sober_counter": sc}})
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0}) or {}
+    return _sober_payload(fresh)
+
+
+@api.post("/sober-counter/reset")
+async def sober_counter_reset(user: dict = Depends(current_user)):
+    """Reinicia a hoy sin culpa — «cada intento cuenta»."""
+    start = datetime.now(timezone.utc).date().isoformat()
+    sc = {"active": True, "start_date": start, "milestones_notified": [], "updated_at": now_iso()}
+    await db.users.update_one({"id": user["id"]}, {"$set": {"sober_counter": sc}})
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0}) or {}
+    return _sober_payload(fresh)
+
+
+@api.post("/sober-counter/stop")
+async def sober_counter_stop(user: dict = Depends(current_user)):
+    await db.users.update_one({"id": user["id"]}, {"$set": {"sober_counter.active": False, "sober_counter.updated_at": now_iso()}})
+    return {"active": False}
+
+
+@api.patch("/sober-counter/date")
+async def sober_counter_update_date(body: SoberStartIn, user: dict = Depends(current_user)):
+    if not body.start_date:
+        raise HTTPException(status_code=400, detail="Falta start_date")
+    # Cambiar fecha reinicia los avisos de hitos para no re-notificar retroactivo
+    sc_update = {
+        "sober_counter.active": True,
+        "sober_counter.start_date": body.start_date,
+        "sober_counter.milestones_notified": [],
+        "sober_counter.updated_at": now_iso(),
+    }
+    await db.users.update_one({"id": user["id"]}, {"$set": sc_update})
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0}) or {}
+    return _sober_payload(fresh)
+
 
 @api.delete("/profile/me")
 async def delete_account(response: Response, user: dict = Depends(current_user)):
@@ -3622,6 +3742,7 @@ async def admin_create_post(body: BlogPostIn, user: dict = Depends(require_admin
         "published_at": now if body.status == "publicado" else None,
         "updated_at": now,
         "created_at": now,
+        "visibility": body.visibility,
     }
     await db.blog_posts.insert_one(doc)
     await _regen_blog_static_files()
@@ -3674,6 +3795,7 @@ async def admin_update_post(pid: str, body: BlogPostIn, user: dict = Depends(req
         "cta_soft_text": body.cta_soft_text,
         "published_at": pub_at,
         "updated_at": now,
+        "visibility": body.visibility,
     }
     await db.blog_posts.update_one({"id": pid}, {"$set": upd})
     await _regen_blog_static_files()
@@ -3743,7 +3865,8 @@ async def admin_generate_cover(body: BlogCoverGenIn, user: dict = Depends(requir
 @api.get("/blog/posts")
 async def public_list_posts():
     out = []
-    async for p in db.blog_posts.find({"status": "publicado"}).sort("published_at", -1):
+    # Solo `visibility=public` (default) — private posts se ven vía /app/blog en app auth.
+    async for p in db.blog_posts.find({"status": "publicado", "visibility": {"$ne": "private"}}).sort("published_at", -1):
         d = _serialize_blog_post(p)
         d.pop("content_html", None)  # keep list light
         out.append(d)
@@ -3752,10 +3875,24 @@ async def public_list_posts():
 
 @api.get("/blog/posts/{slug}")
 async def public_get_post(slug: str):
-    p = await db.blog_posts.find_one({"slug": slug, "status": "publicado"})
+    p = await db.blog_posts.find_one({"slug": slug, "status": "publicado", "visibility": {"$ne": "private"}})
     if not p:
         raise HTTPException(status_code=404, detail="Post no encontrado")
     return _serialize_blog_post(p)
+
+
+# ---- In-app endpoints (autenticado) ----
+# Fase 3: Recursos > Blog. Muestra TODOS los publicados (incluye private).
+# El detalle sigue vía /blog/posts/{slug} público — la app espeja la lista
+# y linkea a la versión web al abrir el post.
+@api.get("/app/blog/posts")
+async def app_list_posts(user: dict = Depends(current_user)):
+    out = []
+    async for p in db.blog_posts.find({"status": "publicado"}).sort("published_at", -1):
+        d = _serialize_blog_post(p)
+        d.pop("content_html", None)
+        out.append(d)
+    return out
 
 
 @api.get("/blog/related/{slug}")

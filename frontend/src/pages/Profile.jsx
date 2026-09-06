@@ -5,12 +5,13 @@ import Avatar from "@/components/Avatar";
 import {
   LifeBuoy, PencilLine, LogOut, Settings, ExternalLink, Trash2,
   MapPin, Sprout, ChevronRight, HeartHandshake, Smile, Heart, Users,
-  Ruler, Baby, Star, Sparkles,
+  Ruler, Baby, Star, Sparkles, Compass,
 } from "lucide-react";
 import { MODES, soberLabel, relationshipLabel } from "@/constants/comunas";
 import { fileUrl, formatApiError } from "@/lib/api";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { SoberCounterWidget } from "@/pages/Recursos";
 
 const MODE_ICON = { apoyo: HeartHandshake, amistad: Smile, amor: Heart, grupos: Users };
 
@@ -18,11 +19,15 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const [completeness, setCompleteness] = useState(null);
+  const [soberCounter, setSoberCounter] = useState(null);
 
   useEffect(() => {
     let live = true;
     api.get("/profile/me/completeness")
       .then((r) => { if (live) setCompleteness(r.data); })
+      .catch(() => {});
+    api.get("/sober-counter")
+      .then((r) => { if (live) setSoberCounter(r.data); })
       .catch(() => {});
     return () => { live = false; };
   }, [user?.id, user?.updated_at]);
@@ -72,6 +77,15 @@ export default function Profile() {
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6 pb-24">
+      {/* Fase 3: contador de días sobrios — glanceable arriba del Perfil (privado) */}
+      {soberCounter && (
+        <div className="mb-4">
+          <SoberCounterWidget counter={soberCounter} onChanged={() => {
+            api.get("/sober-counter").then((r) => setSoberCounter(r.data)).catch(() => {});
+          }}/>
+        </div>
+      )}
+
       {completeness && completeness.percent < 100 && (
         <div data-testid="profile-completeness" className="ps-card p-4 mb-4">
           <div className="flex items-center justify-between">
@@ -184,6 +198,7 @@ export default function Profile() {
 
       <div className="mt-4 space-y-2">
         {menuItem(<LifeBuoy size={20} strokeWidth={1.9}/>, null, "Necesito apoyo", "Respiración, mis razones y teléfonos de ayuda", null, "/app/necesito-apoyo", "necesito-apoyo-link", true)}
+        {menuItem(<Compass size={20} strokeWidth={1.9}/>, "#4ADE80", "Recursos", "Contador de días, herramientas y blog", null, "/app/recursos", "recursos-link")}
         {menuItem(<PencilLine size={20} strokeWidth={1.9}/>, null, "Editar perfil", "Fotos, frases, ubicación y modos", null, "/app/perfil/editar", "edit-profile-link")}
         {user.role === "admin" && menuItem(<Settings size={20} strokeWidth={1.9}/>, null, "Panel admin", "Moderación y catálogos", null, "/admin", "admin-link")}
         {menuItem(<ExternalLink size={20} strokeWidth={1.9}/>, null, "Orientación en SinAdicciones.org", "Ayuda profesional y centros", () => window.open("https://sinadicciones.org", "_blank"), null, "external-sinadicciones")}

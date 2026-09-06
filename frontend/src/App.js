@@ -19,6 +19,9 @@ import ChatDetail from "@/pages/ChatDetail";
 import Profile from "@/pages/Profile";
 import EditProfile from "@/pages/EditProfile";
 import NecesitoApoyo from "@/pages/NecesitoApoyo";
+import Recursos from "@/pages/Recursos";
+import SoberCounter from "@/pages/SoberCounter";
+import BlogInApp from "@/pages/BlogInApp";
 import Admin from "@/pages/Admin";
 import Terminos from "@/pages/Terminos";
 import Privacidad from "@/pages/Privacidad";
@@ -110,6 +113,9 @@ function AppRouter() {
         <Route path="perfil/editar" element={<EditProfile />} />
         <Route path="usuario/:id" element={<PublicProfile />} />
         <Route path="necesito-apoyo" element={<NecesitoApoyo />} />
+        <Route path="recursos" element={<Recursos />} />
+        <Route path="recursos/contador" element={<SoberCounter />} />
+        <Route path="recursos/blog" element={<BlogInApp />} />
       </Route>
 
       <Route path="/admin" element={<RequireAuth adminOnly requireOnboarding={false}><Admin /></RequireAuth>} />
