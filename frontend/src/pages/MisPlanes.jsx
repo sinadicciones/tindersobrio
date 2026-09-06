@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import api from "@/lib/api";
+import api, { formatApiError } from "@/lib/api";
 import { toast } from "sonner";
-import { CalendarHeart, CalendarDays, CheckCircle2, Users as UsersIcon, MapPin, ExternalLink } from "lucide-react";
+import { CalendarHeart, CalendarDays, CheckCircle2, Users as UsersIcon, MapPin, ExternalLink, Video } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { Icon, iconForActivity } from "@/lib/icons";
 
@@ -144,22 +144,69 @@ function EventPlanCard({ p, onCancel, past }) {
         </p>
       )}
 
-      <div className="mt-3 pt-3 border-t border-white/[.09] flex items-center justify-between gap-2">
+      <div className="mt-3 pt-3 border-t border-white/[.09] flex items-center justify-between gap-2 flex-wrap">
         <span data-testid={`event-plan-attendees-${ev.id}`} className="text-[12px] text-[#C7CBD6] inline-flex items-center gap-1.5">
           <UsersIcon size={13} strokeWidth={1.9}/>
           <span className="text-white font-semibold">{ev.attendee_count || 0}</span>
           {cap ? <span>de {cap} van</span> : <span>{(ev.attendee_count || 0) === 1 ? "persona va" : "personas van"}</span>}
         </span>
-        {!past && onCancel && (
-          <button
-            data-testid={`event-plan-cancel-${ev.id}`}
-            onClick={() => onCancel(ev.id)}
-            className="text-[11px] font-bold px-3 py-1.5 rounded-full text-red-300 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition"
-          >
-            Ya no voy
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {ev.is_online && ev.meeting_url && !past && (
+            <MeetingButton eid={ev.id}/>
+          )}
+          {!past && onCancel && (
+            <button
+              data-testid={`event-plan-cancel-${ev.id}`}
+              onClick={() => onCancel(ev.id)}
+              className="text-[11px] font-bold px-3 py-1.5 rounded-full text-red-300 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition"
+            >
+              Ya no voy
+            </button>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+// MeetingButton — encapsula la lógica de "unirse a la reunión" con gate de 15 min.
+function MeetingButton({ eid }) {
+  const [status, setStatus] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const { data } = await api.get(`/events/${eid}/meeting-status`);
+        if (alive) setStatus(data);
+      } catch { /* ignore */ }
+    };
+    check();
+    const t = setInterval(check, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [eid]);
+  const join = async () => {
+    try {
+      const { data } = await api.post(`/events/${eid}/join-meeting`);
+      window.open(data.meeting_url, "_blank", "noopener,noreferrer");
+    } catch (ex) {
+      toast.error(formatApiError(ex.response?.data?.detail));
+    }
+  };
+  if (!status) return null;
+  if (status.can_join) {
+    return (
+      <button
+        data-testid={`plan-join-meeting-${eid}`}
+        onClick={join}
+        className="text-[11px] font-bold px-3 py-1.5 rounded-full text-[#4ADE80] bg-[#4ADE80]/15 border border-[#4ADE80]/40 hover:bg-[#4ADE80]/25 transition inline-flex items-center gap-1.5"
+      >
+        <Video size={12} strokeWidth={2.4}/> Unirse
+      </button>
+    );
+  }
+  return (
+    <span className="text-[10px] text-white/50 italic" data-testid={`plan-too-early-${eid}`}>
+      Enlace activo 15 min antes
+    </span>
   );
 }

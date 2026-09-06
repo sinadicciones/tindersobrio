@@ -597,6 +597,11 @@ class GroupIn(BaseModel):
     rules: str
     is_online: bool = False
     comuna: Optional[str] = None
+    # Tipo del grupo — usado por la UI para banners/permisos:
+    # "apoyo" (círculo de conversación, muestra aviso "no reemplaza terapia"),
+    # "actividad" (deporte, cultura), "pais" (Comunidad {país}), "tematico".
+    group_type: Literal["apoyo", "actividad", "pais", "tematico"] = "actividad"
+    country: Optional[str] = None  # solo para group_type="pais"
 
 class EventIn(BaseModel):
     group_id: str
@@ -608,6 +613,15 @@ class EventIn(BaseModel):
     address: Optional[str] = ""
     map_link: Optional[str] = ""
     capacity: int = 20
+    # --- Bloque 2: reuniones online ---
+    is_online: bool = False
+    meeting_url: Optional[str] = None  # Zoom/Meet/Jitsi — solo si is_online
+    recurrence: Optional[str] = None   # Texto libre display: "Cada martes 20:00"
+    # Recurrencia estructurada (opcional). Si ambos están seteados, un job diario
+    # actualiza `when` al próximo cumplimiento de weekday+time. weekday: 0=Lun..6=Dom.
+    recurrence_weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    recurrence_time: Optional[str] = None   # "HH:MM" 24h, en la TZ base
+    tz: Optional[str] = "America/Santiago"  # zona horaria base de la recurrencia
 
 class AdminActionIn(BaseModel):
     target_user_id: str
@@ -2296,6 +2310,10 @@ async def my_plans(user: dict = Depends(current_user)):
                     "map_link": ev.get("map_link", ""),
                     "capacity": ev.get("capacity", 0),
                     "attendee_count": attendee_counts.get(ev["id"], 0),
+                    # Bloque 2 — reuniones online (necesarios para MeetingButton en MisPlanes)
+                    "is_online": bool(ev.get("is_online")),
+                    "meeting_url": ev.get("meeting_url"),
+                    "recurrence": ev.get("recurrence"),
                 },
                 "group": {"id": g["id"], "name": g.get("name"), "emoji": g.get("emoji")} if g else None,
             })
@@ -2403,6 +2421,9 @@ async def list_groups(user: dict = Depends(current_user)):
     for g in groups:
         g["member_count"] = counts.get(g["id"], 0)
         g["is_member"] = g["id"] in my_memberships
+        g["is_moderator"] = user["id"] in (g.get("moderators") or [])
+        # Legacy backfill: groups created before Bloque 2 have no group_type
+        g.setdefault("group_type", "actividad")
     return groups
 
 @api.get("/groups/{gid}")
@@ -2416,7 +2437,19 @@ async def get_group(gid: str, user: dict = Depends(current_user)):
     aliases = [u.get("alias") async for u in users_cur if u.get("alias")]
     g["member_count"] = len(members)
     g["is_member"] = user["id"] in set(member_ids)
+    g["is_moderator"] = user["id"] in (g.get("moderators") or [])
     g["member_aliases"] = aliases
+    g.setdefault("group_type", "actividad")
+    # Hidrata mensaje fijado (si existe)
+    if g.get("pinned_message_id"):
+        pinned = await db.group_messages.find_one(
+            {"id": g["pinned_message_id"], "group_id": gid, "hidden": {"$ne": True}},
+            {"_id": 0},
+        )
+        if pinned:
+            author = await db.users.find_one({"id": pinned.get("from_user")}, {"alias": 1, "_id": 0})
+            pinned["alias"] = author.get("alias") if author else None
+            g["pinned_message"] = pinned
     return g
 
 @api.post("/groups/{gid}/join")
@@ -2439,7 +2472,7 @@ async def group_messages(gid: str, user: dict = Depends(current_user)):
     is_member = await db.group_members.find_one({"group_id": gid, "user_id": user["id"]})
     if not is_member:
         raise HTTPException(status_code=403, detail="Únete al grupo para ver el chat")
-    msgs = await db.group_messages.find({"group_id": gid}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    msgs = await db.group_messages.find({"group_id": gid, "hidden": {"$ne": True}}, {"_id": 0}).sort("created_at", 1).to_list(500)
     # Batch-fetch alias + photo for every distinct sender at once (N+1 safe).
     uids = list({m["from_user"] for m in msgs if m.get("from_user") and m["from_user"] != "system"})
     profiles = {}
@@ -2492,11 +2525,18 @@ async def list_events(gid: str, user: dict = Depends(current_user)):
     if all_uids:
         async for u in db.users.find({"id": {"$in": all_uids}}, {"id": 1, "alias": 1, "_id": 0}):
             aliases_map[u["id"]] = u.get("alias")
+    # Batch fetch attendance counts (Bloque 2: métrica de asistencia real a reuniones online)
+    attendance = {}
+    if eids:
+        att_pipe = [{"$match": {"event_id": {"$in": eids}}}, {"$group": {"_id": "$event_id", "n": {"$sum": 1}}}]
+        async for row in db.event_attendance.aggregate(att_pipe):
+            attendance[row["_id"]] = row["n"]
     for e in events:
         uids = by_event.get(e["id"], [])
         e["attendee_count"] = len(uids)
         e["going"] = user["id"] in uids
         e["attendees"] = [aliases_map.get(uid) for uid in uids if aliases_map.get(uid)]
+        e["joined_count"] = attendance.get(e["id"], 0)
     return events
 
 @api.post("/events/{eid}/rsvp")
@@ -2517,6 +2557,173 @@ async def rsvp_event(eid: str, user: dict = Depends(current_user)):
 async def unrsvp_event(eid: str, user: dict = Depends(current_user)):
     await db.event_rsvps.delete_one({"event_id": eid, "user_id": user["id"]})
     return {"ok": True}
+
+
+# ------------------------------------------------------------------
+# Bloque 2 — Reuniones online: gate 15 min antes + tracking asistencia
+# ------------------------------------------------------------------
+MEETING_JOIN_WINDOW_MIN = 15  # se puede unir desde 15 min antes de la hora
+
+def _parse_when(when_str: str) -> Optional[datetime]:
+    """Parse an ISO datetime. Returns None if the format is unknown."""
+    try:
+        return datetime.fromisoformat((when_str or "").replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+@api.get("/events/{eid}/meeting-status")
+async def meeting_status(eid: str, user: dict = Depends(current_user)):
+    """Returns whether the current user can open the meeting URL right now.
+
+    - `can_join` True only when: event is online, user is RSVP'd, and we're
+      within `MEETING_JOIN_WINDOW_MIN` minutes before `when` OR the event
+      already started (no cutoff on the tail — meetings can run long).
+    - `minutes_until_open` counts down for the UI; negative = already open.
+    """
+    e = await db.events.find_one({"id": eid}, {"_id": 0})
+    if not e:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    if not e.get("is_online") or not e.get("meeting_url"):
+        return {"can_join": False, "reason": "not_online"}
+    rsvp = await db.event_rsvps.find_one({"event_id": eid, "user_id": user["id"]})
+    if not rsvp:
+        return {"can_join": False, "reason": "not_rsvpd"}
+    dt = _parse_when(e.get("when"))
+    if not dt:
+        return {"can_join": False, "reason": "invalid_time"}
+    now = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    delta = (dt - now).total_seconds() / 60.0
+    can = delta <= MEETING_JOIN_WINDOW_MIN
+    return {
+        "can_join": can,
+        "reason": "ok" if can else "too_early",
+        "minutes_until_open": max(0, int(delta - MEETING_JOIN_WINDOW_MIN)),
+        "window_minutes": MEETING_JOIN_WINDOW_MIN,
+    }
+
+
+@api.post("/events/{eid}/join-meeting")
+async def join_meeting(eid: str, user: dict = Depends(current_user)):
+    """Records attendance and returns the meeting URL. Enforces the 15-min gate."""
+    status = await meeting_status(eid, user)  # type: ignore[arg-type]
+    if not status.get("can_join"):
+        reason = status.get("reason", "denied")
+        msg = {
+            "not_online":    "Esta reunión no es online",
+            "not_rsvpd":     "Necesitas apuntarte al plan primero",
+            "too_early":     "El enlace se activa 15 minutos antes de empezar",
+            "invalid_time":  "Fecha del plan no válida",
+        }.get(reason, "No puedes unirte en este momento")
+        raise HTTPException(status_code=403, detail=msg)
+    e = await db.events.find_one({"id": eid}, {"_id": 0})
+    # Idempotent attendance record (métrica de asistencia)
+    now_str = now_iso()
+    await db.event_attendance.update_one(
+        {"event_id": eid, "user_id": user["id"]},
+        {"$setOnInsert": {"id": str(uuid.uuid4()), "event_id": eid, "user_id": user["id"], "joined_at": now_str},
+         "$set": {"last_joined_at": now_str}},
+        upsert=True,
+    )
+    return {"meeting_url": e.get("meeting_url")}
+
+
+# ------------------------------------------------------------------
+# Bloque 2 — Rol moderador de grupo (fijar, ocultar, gestionar eventos)
+# ------------------------------------------------------------------
+async def require_group_moderator(gid: str, user: dict) -> dict:
+    """Raise 403 unless user is a group moderator OR global admin."""
+    if user.get("role") == "admin":
+        return user
+    g = await db.groups.find_one({"id": gid}, {"moderators": 1, "_id": 0})
+    if not g:
+        raise HTTPException(status_code=404, detail="Grupo no encontrado")
+    if user["id"] not in (g.get("moderators") or []):
+        raise HTTPException(status_code=403, detail="No eres moderador de este grupo")
+    return user
+
+
+@api.post("/groups/{gid}/pin/{mid}")
+async def pin_group_message(gid: str, mid: str, user: dict = Depends(current_user)):
+    await require_group_moderator(gid, user)
+    msg = await db.group_messages.find_one({"id": mid, "group_id": gid}, {"_id": 0})
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado")
+    await db.groups.update_one({"id": gid}, {"$set": {"pinned_message_id": mid, "pinned_at": now_iso()}})
+    return {"ok": True}
+
+
+@api.post("/groups/{gid}/unpin")
+async def unpin_group_message(gid: str, user: dict = Depends(current_user)):
+    await require_group_moderator(gid, user)
+    await db.groups.update_one({"id": gid}, {"$unset": {"pinned_message_id": "", "pinned_at": ""}})
+    return {"ok": True}
+
+
+@api.post("/groups/{gid}/hide/{mid}")
+async def hide_group_message(gid: str, mid: str, user: dict = Depends(current_user)):
+    await require_group_moderator(gid, user)
+    r = await db.group_messages.update_one({"id": mid, "group_id": gid}, {"$set": {"hidden": True, "hidden_at": now_iso(), "hidden_by": user["id"]}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado")
+    return {"ok": True}
+
+
+class ModeratorIn(BaseModel):
+    user_id: str
+
+
+@api.post("/admin/groups/{gid}/moderators")
+async def admin_add_moderator(gid: str, body: ModeratorIn, _: dict = Depends(require_admin)):
+    g = await db.groups.find_one({"id": gid}, {"_id": 0})
+    if not g:
+        raise HTTPException(status_code=404, detail="Grupo no encontrado")
+    u = await db.users.find_one({"id": body.user_id}, {"_id": 0})
+    if not u:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    await db.groups.update_one({"id": gid}, {"$addToSet": {"moderators": body.user_id}})
+    return {"ok": True}
+
+
+@api.delete("/admin/groups/{gid}/moderators/{uid}")
+async def admin_remove_moderator(gid: str, uid: str, _: dict = Depends(require_admin)):
+    await db.groups.update_one({"id": gid}, {"$pull": {"moderators": uid}})
+    return {"ok": True}
+
+
+@api.post("/groups/{gid}/events")
+async def moderator_create_event(gid: str, body: EventIn, user: dict = Depends(current_user)):
+    """Group moderator (or admin) creates an event for the group."""
+    if body.group_id != gid:
+        raise HTTPException(status_code=400, detail="group_id no coincide")
+    await require_group_moderator(gid, user)
+    doc = {"id": str(uuid.uuid4()), "created_at": now_iso(), "created_by": user["id"], **body.model_dump()}
+    await db.events.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.patch("/groups/{gid}/events/{eid}")
+async def moderator_update_event(gid: str, eid: str, body: dict, user: dict = Depends(current_user)):
+    await require_group_moderator(gid, user)
+    body.pop("id", None); body.pop("_id", None); body.pop("group_id", None)
+    r = await db.events.update_one({"id": eid, "group_id": gid}, {"$set": body})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    return {"ok": True}
+
+
+@api.delete("/groups/{gid}/events/{eid}")
+async def moderator_delete_event(gid: str, eid: str, user: dict = Depends(current_user)):
+    await require_group_moderator(gid, user)
+    r = await db.events.delete_one({"id": eid, "group_id": gid})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    await db.event_rsvps.delete_many({"event_id": eid})
+    return {"ok": True}
+
 
 # ------------------------------------------------------------------
 # Admin
@@ -3084,13 +3291,43 @@ async def seed_admin_and_data():
                 upsert=True,
             )
 
+    # Bloque 2: grupo "Comunidad {país}" para cada país habilitado. Idempotente.
+    # Cada usuario nuevo del país cae acá para que nunca vea un feed vacío.
+    for c in COUNTRIES_SEED:
+        if not c.get("enabled"):
+            continue
+        gid = f"comunidad-{c['code'].lower()}"
+        await db.groups.update_one(
+            {"id": gid},
+            {"$setOnInsert": {
+                "id": gid,
+                "emoji": c.get("flag", "🌎"),
+                "name": f"Comunidad {c['name']}",
+                "description": f"Espacio para conectar con gente de {c['name']} que vive sin alcohol. Comparte planes, dudas y buenas ondas.",
+                "rules": "Sin alcohol ni sustancias. Respeto y confidencialidad. No es un espacio profesional — si necesitas ayuda urgente, ve a «Necesito apoyo».",
+                "is_online": True,
+                "comuna": None,
+                "group_type": "pais",
+                "country": c["code"],
+                "active": True,
+                "moderators": [],
+                "created_at": now_iso(),
+            }},
+            upsert=True,
+        )
+
+    # Bloque 2: reuniones globales de apoyo online (idempotentes).
+    # Se anclan al grupo "Comunidad Chile" como espacio base. Cada usuario ve
+    # la hora en su TZ local (frontend hace la conversión).
+    await _seed_recurring_meetings()
+
     # Backfill `location` + `country` on users missing them (demos, admin, early testers).
     async for u in db.users.find({"location": {"$exists": False}}, {"id": 1, "comuna": 1, "_id": 0}):
         loc = build_location_doc(country="CL", comuna=u.get("comuna"), city=u.get("comuna"), coords=None)
         if loc:
             await db.users.update_one({"id": u["id"]}, {"$set": {"location": loc, "country": "CL"}})
-    # Same for groups
-    async for g in db.groups.find({"location.coords": {"$exists": False}}, {"id": 1, "comuna": 1, "_id": 0}):
+    # Same for groups (excluye grupos de tipo "pais" que ya tienen country asignado)
+    async for g in db.groups.find({"location.coords": {"$exists": False}, "group_type": {"$ne": "pais"}}, {"id": 1, "comuna": 1, "_id": 0}):
         loc = build_location_doc(country="CL", comuna=g.get("comuna"), city=g.get("comuna"), coords=None)
         if loc:
             await db.groups.update_one({"id": g["id"]}, {"$set": {"location": loc, "country": "CL"}})
@@ -3545,6 +3782,130 @@ async def public_related_posts(slug: str, limit: int = 3):
     return out
 
 
+# ------------------------------------------------------------------
+# Bloque 2 — Helpers: recurrencia semanal + seed de reuniones globales
+# ------------------------------------------------------------------
+def _next_weekly_occurrence(
+    weekday: int,
+    hh: int,
+    mm: int,
+    tz_name: str = "America/Santiago",
+    now_utc: Optional[datetime] = None,
+) -> datetime:
+    """Given a weekly recurrence (weekday 0=Mon..6=Sun, hh:mm in tz `tz_name`),
+    return the NEXT occurrence in UTC. If today's occurrence is still in the
+    future, return today; otherwise skip to the next matching weekday.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = timezone.utc
+    now_utc = now_utc or datetime.now(timezone.utc)
+    now_local = now_utc.astimezone(tz)
+    delta_days = (weekday - now_local.weekday()) % 7
+    candidate = now_local.replace(hour=hh, minute=mm, second=0, microsecond=0) + timedelta(days=delta_days)
+    if candidate <= now_local:
+        candidate += timedelta(days=7)
+    return candidate.astimezone(timezone.utc)
+
+
+async def _seed_recurring_meetings() -> None:
+    """Semilla idempotente de 2 reuniones globales de apoyo online.
+    Ancladas al grupo Comunidad Chile porque es el hub inicial; visibles a todos.
+    """
+    templates = [
+        {
+            "id": "meeting-circulo-martes",
+            "emoji": "🌱",
+            "title": "Círculo de apoyo online — martes 20:00",
+            "description": "Conversación semanal entre pares sin alcohol. Se comparte sin obligación. No reemplaza tratamiento profesional.",
+            "weekday": 1, "hour": 20, "minute": 0,
+            "recurrence": "Cada martes 20:00 (hora Chile)",
+            "meeting_url": "https://meet.jit.si/plansobrio-circulo",
+        },
+        {
+            "id": "meeting-conversacion-sabado",
+            "emoji": "☕️",
+            "title": "Conversación de fin de semana — sábado 11:00",
+            "description": "Encuentro relajado con café en mano. Trae tus historias de panoramas sin alcohol de la semana.",
+            "weekday": 5, "hour": 11, "minute": 0,
+            "recurrence": "Cada sábado 11:00 (hora Chile)",
+            "meeting_url": "https://meet.jit.si/plansobrio-sabado",
+        },
+    ]
+    group_id = "comunidad-cl"
+    for t in templates:
+        next_when = _next_weekly_occurrence(t["weekday"], t["hour"], t["minute"], "America/Santiago")
+        await db.events.update_one(
+            {"id": t["id"]},
+            {"$setOnInsert": {
+                "id": t["id"],
+                "group_id": group_id,
+                "emoji": t["emoji"],
+                "title": t["title"],
+                "description": t["description"],
+                "when": next_when.isoformat(),
+                "location": "Online",
+                "address": "",
+                "map_link": "",
+                "capacity": 200,
+                "is_online": True,
+                "meeting_url": t["meeting_url"],
+                "recurrence": t["recurrence"],
+                "recurrence_weekday": t["weekday"],
+                "recurrence_time": f"{t['hour']:02d}:{t['minute']:02d}",
+                "tz": "America/Santiago",
+                "created_at": now_iso(),
+            }},
+            upsert=True,
+        )
+
+
+async def _recurrence_roll_forward_loop() -> None:
+    """Daily-ish job: for every recurring event whose `when` is already in the
+    past, roll `when` forward to the next weekly occurrence. Keeps the RSVP
+    list intact — attendees stay registered for the series.
+
+    Runs an initial pass immediately on startup (heals stale seeds after
+    long downtime), then every hour.
+    """
+    first = True
+    while True:
+        try:
+            now_utc = datetime.now(timezone.utc)
+            cursor = db.events.find(
+                {"recurrence_weekday": {"$exists": True, "$ne": None},
+                 "recurrence_time": {"$exists": True, "$ne": None}},
+                {"_id": 0},
+            )
+            async for e in cursor:
+                dt = _parse_when(e.get("when"))
+                if not dt or dt.tzinfo is None:
+                    dt = (dt or now_utc).replace(tzinfo=timezone.utc)
+                if dt <= now_utc:
+                    try:
+                        hh, mm = (e.get("recurrence_time") or "0:0").split(":")
+                        next_dt = _next_weekly_occurrence(
+                            int(e["recurrence_weekday"]),
+                            int(hh),
+                            int(mm),
+                            e.get("tz") or "America/Santiago",
+                            now_utc,
+                        )
+                        await db.events.update_one(
+                            {"id": e["id"]},
+                            {"$set": {"when": next_dt.isoformat()}},
+                        )
+                    except Exception:
+                        logger.exception("recurrence roll_forward failed for event %s", e.get("id"))
+        except Exception:
+            logger.exception("recurrence loop iteration failed")
+        # Initial pass runs immediately; subsequent passes wait 1h.
+        await asyncio.sleep(5 if first else 3600)
+        first = False
+
+
 @app.on_event("startup")
 async def on_startup():
     init_storage()
@@ -3555,6 +3916,8 @@ async def on_startup():
     asyncio.create_task(email_svc.queue_drain_loop(db))
     # Scheduled email jobs (admin daily summary 08:30, plan reminders 09:00, weekly Thu 12:00)
     asyncio.create_task(email_svc.scheduled_jobs_loop(db, metrics_mod))
+    # Bloque 2: rueda hacia adelante los eventos recurrentes cuando quedan en el pasado
+    asyncio.create_task(_recurrence_roll_forward_loop())
 
 # ------------------------------------------------------------------
 app.include_router(api)

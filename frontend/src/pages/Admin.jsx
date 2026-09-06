@@ -283,7 +283,7 @@ function GroupsAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [eventsPanelFor, setEventsPanelFor] = useState(null); // group.id showing events panel
 
-  const emptyGroup = { emoji: "", name: "", description: "", rules: "", is_online: false, comuna: "" };
+  const emptyGroup = { emoji: "", name: "", description: "", rules: "", is_online: false, comuna: "", group_type: "actividad", country: "" };
   const [f, setF] = useState(emptyGroup);
 
   const load = () => api.get("/groups").then((r)=>setGs(r.data));
@@ -292,7 +292,11 @@ function GroupsAdmin() {
   const openCreate = () => { setEditing(null); setF(emptyGroup); setShowForm(true); };
   const openEdit = (g) => {
     setEditing(g.id);
-    setF({ emoji: g.emoji || "", name: g.name || "", description: g.description || "", rules: g.rules || "", is_online: !!g.is_online, comuna: g.comuna || "" });
+    setF({
+      emoji: g.emoji || "", name: g.name || "", description: g.description || "",
+      rules: g.rules || "", is_online: !!g.is_online, comuna: g.comuna || "",
+      group_type: g.group_type || "actividad", country: g.country || "",
+    });
     setShowForm(true);
   };
   const save = async () => {
@@ -331,6 +335,21 @@ function GroupsAdmin() {
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.is_online} onChange={(e)=>setF({...f, is_online:e.target.checked})}/> Online</label>
               <input data-testid="group-comuna" placeholder="Comuna" className="ps-input flex-1" value={f.comuna} onChange={(e)=>setF({...f, comuna:e.target.value})}/>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-white/60 mb-1 block">Tipo</label>
+                <select data-testid="group-type" className="ps-input" value={f.group_type} onChange={(e)=>setF({...f, group_type:e.target.value})}>
+                  <option value="actividad">Actividad</option>
+                  <option value="apoyo">Apoyo (círculo)</option>
+                  <option value="pais">País (Comunidad)</option>
+                  <option value="tematico">Temático</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-white/60 mb-1 block">País (ISO)</label>
+                <input data-testid="group-country" placeholder="CL, AR, MX…" className="ps-input" maxLength={2} value={f.country} onChange={(e)=>setF({...f, country:e.target.value.toUpperCase()})}/>
+              </div>
+            </div>
             <div className="flex gap-2">
               <button onClick={()=>setShowForm(false)} className="ps-btn-secondary flex-1">Cancelar</button>
               <button data-testid="save-group" onClick={save} disabled={!f.name} className="ps-btn-primary flex-1">{editing ? "Guardar" : "Crear"}</button>
@@ -364,13 +383,13 @@ function EventsPanel({ group }) {
   const [events, setEvents] = useState([]);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const empty = { emoji: "", title: "", description: "", when: "", location: "", address: "", map_link: "", capacity: 20 };
+  const empty = { emoji: "", title: "", description: "", when: "", location: "", address: "", map_link: "", capacity: 20, is_online: false, meeting_url: "", recurrence: "" };
   const [f, setF] = useState(empty);
 
   const load = () => api.get(`/groups/${group.id}/events`).then((r)=>setEvents(r.data));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openCreate = () => { setEditing(null); setF({ ...empty, location: group.comuna || "" }); setShowForm(true); };
+  const openCreate = () => { setEditing(null); setF({ ...empty, location: group.comuna || (group.is_online ? "Online" : "") }); setShowForm(true); };
   const openEdit = (ev) => {
     setEditing(ev.id);
     // Convert ISO to datetime-local (local time)
@@ -381,7 +400,8 @@ function EventsPanel({ group }) {
       whenLocal = new Date(d.getTime() - off).toISOString().slice(0, 16);
     }
     setF({ emoji: ev.emoji || "", title: ev.title || "", description: ev.description || "", when: whenLocal,
-      location: ev.location || "", address: ev.address || "", map_link: ev.map_link || "", capacity: ev.capacity || 20 });
+      location: ev.location || "", address: ev.address || "", map_link: ev.map_link || "", capacity: ev.capacity || 20,
+      is_online: !!ev.is_online, meeting_url: ev.meeting_url || "", recurrence: ev.recurrence || "" });
     setShowForm(true);
   };
   const save = async () => {
@@ -437,6 +457,30 @@ function EventsPanel({ group }) {
                     className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${f.capacity === c.v ? "ps-gradient border-transparent text-white" : "bg-white/5 border-white/[.16] text-[#C7CBD6]"}`}>{c.l}</button>
                 ))}
               </div>
+            </div>
+            <div className="pt-2 border-t border-white/[.08] space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" data-testid="event-is-online" checked={f.is_online} onChange={(e)=>setF({...f, is_online:e.target.checked})}/>
+                Reunión online
+              </label>
+              {f.is_online && (
+                <input
+                  data-testid="event-meeting-url"
+                  type="url"
+                  placeholder="https://meet.jit.si/... o Zoom/Meet"
+                  className="ps-input"
+                  value={f.meeting_url}
+                  onChange={(e)=>setF({...f, meeting_url:e.target.value})}
+                />
+              )}
+              <input
+                data-testid="event-recurrence"
+                type="text"
+                placeholder='Recurrencia (ej: "Cada martes 20:00")'
+                className="ps-input"
+                value={f.recurrence}
+                onChange={(e)=>setF({...f, recurrence:e.target.value})}
+              />
             </div>
             <div className="flex gap-2 pt-2">
               <button onClick={()=>setShowForm(false)} className="ps-btn-secondary flex-1">Cancelar</button>

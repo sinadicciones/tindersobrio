@@ -2,6 +2,44 @@
 
 **Última actualización:** 2026-02-12
 
+## v4.1 — Bloque 2: Reuniones online + Comunidad (Feb 2026)
+
+**22 grupos "Comunidad {país}"** creados en startup (idempotente, `group_type='pais'`, `is_online=true`). Al terminar onboarding el usuario queda auto-unido al grupo de su país.
+
+**Backend**:
+- `EventIn` extendido: `is_online`, `meeting_url`, `recurrence` (texto libre), `recurrence_weekday` (0-6), `recurrence_time` (HH:MM), `tz` (default `America/Santiago`).
+- `GroupIn` extendido: `group_type` (`apoyo`/`actividad`/`pais`/`tematico`) + `country` opcional.
+- `GET /api/events/{eid}/meeting-status` → `{can_join, reason, minutes_until_open, window_minutes:15}`.
+- `POST /api/events/{eid}/join-meeting` → registra en `event_attendance` + devuelve `meeting_url` (403 si too_early / not_rsvpd / not_online).
+- Rol moderador de grupo: `groups.moderators[]`. `require_group_moderator(gid, user)` valida admin OR miembro de la lista.
+  - `POST/DELETE /api/admin/groups/{gid}/moderators` (admin only).
+  - `POST /groups/{gid}/pin/{mid}`, `POST /groups/{gid}/unpin`, `POST /groups/{gid}/hide/{mid}` (moderator).
+  - `POST /groups/{gid}/events`, `PATCH /groups/{gid}/events/{eid}`, `DELETE /groups/{gid}/events/{eid}` (moderator).
+- `group_messages` ahora filtra `hidden!=true`.
+- `_seed_recurring_meetings` siembra 2 reuniones globales (martes 20:00 CL, sábado 11:00 CL) ancladas a `comunidad-cl`.
+- `_recurrence_roll_forward_loop`: job hora-en-hora que rueda `when` al próximo weekly cuando queda en pasado. Corre pass inicial al startup (heals downtime).
+- `/api/plans` incluye `is_online`, `meeting_url`, `recurrence` para eventos de grupo (fix del testing agent).
+
+**Frontend**:
+- `GroupDetail.jsx`: `apoyo-banner` para `group_type='apoyo'`; renderiza `pinned_message` fijado; header preserva emoji bandera si es país; nuevo sub-componente `EventCard` con:
+  - poll a `meeting-status` cada 60s
+  - botón `join-meeting-{eid}` visible solo con `can_join=true`
+  - hint `event-too-early-{eid}` cuando falta tiempo
+  - hora local del usuario + tag `(tu hora)`
+  - etiqueta `event-recurrence-{eid}` con el label recurrence
+  - botones moderador (eliminar evento)
+- `MisPlanes.jsx`: sub-componente `MeetingButton` con misma lógica de gate.
+- `Admin.jsx`: form Grupos con `group-type` selector (4 opciones) + `group-country` input; form Eventos con `event-is-online` checkbox + `event-meeting-url` + `event-recurrence`.
+- `Onboarding.jsx`: post-submit hace `POST /groups/comunidad-{country}/join` best-effort.
+
+**Testing** (iteration 28):
+- Backend 10/10 pytest pass (grupos país seedeados, meeting-status gate, join-meeting attendance, moderator promote/demote/CRUD eventos/pin/hide, onboarding auto-join, hidden messages filtered).
+- Frontend Playwright: apoyo-banner solo en apoyo (no en pais), event-recurrence/too-early/join-meeting testids OK, MisPlanes MeetingButton renderea después del fix `/plans`, Admin panel forms OK.
+- Files: `/app/backend/tests/test_iteration28_bloque2_meetings.py`.
+- Bug encontrado + arreglado por testing agent: `/api/plans` omitía `is_online/meeting_url` (silent break del MeetingButton). Corregido.
+
+**Bloque 3 pendiente**: Recursos (herramientas de SinAdicciones + blog embebido dentro de la app). Fase 3 según spec original.
+
 ## v4.0 — Multi-país (Bloque 1 expansión) (Feb 2026)
 
 **22 países hispanohablantes habilitados** (antes solo Chile).

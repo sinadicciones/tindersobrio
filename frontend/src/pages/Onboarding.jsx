@@ -125,6 +125,12 @@ export default function Onboarding() {
       payload.location = location;
       await api.post("/profile/onboarding", payload);
       await refresh();
+      // Bloque 2: intenta unir al usuario a "Comunidad {país}" al terminar
+      // onboarding. Best-effort — si falla (grupo no existe), simplemente sigue.
+      try {
+        const country = (location?.country || "CL").toLowerCase();
+        await api.post(`/groups/comunidad-${country}/join`);
+      } catch { /* silencioso */ }
       toast.success("¡Listo! Bienvenide a PlanSobrio");
       nav("/app/descubrir");
     } catch (ex) {

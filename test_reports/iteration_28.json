@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 28 (Bloque 2: online meetings + moderators + country groups). Backend 10/10 pytest passing after fixing one bug in /api/plans. Frontend Playwright confirmed all required testids: apoyo-banner shown on apoyo groups (not on pais), event-recurrence, event-too-early, join-meeting, plan-too-early on MisPlanes, admin group-type/group-country selectors, and 4 group_type options. 22 country groups seeded correctly; recurring meetings anchored to comunidad-cl with tz=America/Santiago; meeting-status gate & join-meeting attendance recording verified end-to-end (forced when=now+5min via Mongo).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/plans (group_event)", "issue": "Missing is_online/meeting_url in event payload broke MisPlanes MeetingButton — FIXED by testing agent (added is_online, meeting_url, recurrence to the returned event dict at server.py:~2313)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration28_bloque2_meetings.py",
+    "/app/test_reports/pytest/iteration28.xml"
+  ],
+  "action_items": [
+    "Consider running _seed_recurring_meetings weekly, not only on startup — new pais groups don't ship with their own recurring meetings; all 22 point to comunidad-cl anchor (as designed).",
+    "GroupDetail header renders the fallback Users icon instead of the 🇨🇱 flag emoji in the header — allowed per spec ('emoji 🇨🇱 o Icon fallback'), but the group emoji IS '🇨🇱' in DB; consider rendering the emoji instead of always using the group Icon component."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 3931 lines — Bloque 2 continues to grow it. Consider splitting groups/events/meetings/moderators into a router module.",
+    "join_meeting calls meeting_status() and depends on internal Python return dict; safe, but a slight duplication of DB reads (fetches event twice). Acceptable at current scale.",
+    "moderator_update_event body: dict has no Pydantic validation — arbitrary fields can be set (though id/_id/group_id are stripped). Consider a partial EventPatch model.",
+    "_recurrence_roll_forward_loop should run at startup once to fix any past `when` (e.g., after mongo restore), not only wait for the first hourly tick."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (added is_online/meeting_url/recurrence to /plans group_event payload)",
+    "/app/backend/tests/test_iteration28_bloque2_meetings.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (all requested testids present, MeetingButton renders correctly after backend fix)"},
+  "test_credentials": "Admin: contacto@sinadicciones.org / Jodorowsky100. Demo: demo1..demo12@plansobrio.cl / Demo1234!.",
+  "seed_data_creation": "Test class temporarily promotes demo1 to moderator of comunidad-cl then removes; force-modifies when of meeting-circulo-martes to now+5min for can_join=true test, then RESTORED to next real Tuesday 20:00 CL. Deleted test apoyo group used for frontend verification.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "1) /api/plans must include ev.is_online + ev.meeting_url for MeetingButton to render (fixed in this iteration). 2) Admin panel tab testid is admin-tab-grupos (NOT admin-tab-groups). 3) meeting-circulo-martes and meeting-conversacion-sabado are idempotent-seeded to comunidad-cl; when forcing when for gate tests, restore afterwards. 4) Frontend GroupDetail auto-join to comunidad-{country} happens post-onboarding client-side (Onboarding.jsx line 132). 5) require_group_moderator returns 403 with detail 'No eres moderador de este grupo' — used for negative-case assertions.",
+  "rca of the issue": "MisPlanes MeetingButton would silently disappear for online events because /api/plans hand-picked only 9 fields from the events document, omitting is_online/meeting_url. Frontend condition `ev.is_online && ev.meeting_url` therefore never became truthy. Fix: include the online-meeting fields in the projected event dict. Verified end-to-end: plan-too-early-meeting-circulo-martes now renders in the DOM after fix."
+}
